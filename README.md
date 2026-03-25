@@ -152,11 +152,11 @@ After saving, the plugin tests both API connections and shows green/red status b
 
 ## API Authentication
 
-**GDMS Cloud**
+**GDMS Networking**
 - Token: `POST /oapi/oauth/token` — `password = SHA256(MD5(plaintext))`
 - Signature: `SHA256( & sorted_params & SHA256(body) & )`
 
-**GWN Cloud**
+**GDMS Unified Communications**
 - Token: `GET /oauth/token?grant_type=client_credentials&client_id=…&client_secret=…`
 - Signature: `SHA256( & access_token=…&appID=…&secretKey=…&timestamp=… & SHA256(body) & )`
 
