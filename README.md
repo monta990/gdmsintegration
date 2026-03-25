@@ -67,7 +67,7 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 - **Duplicate guard** — skips creation if an open `[GDMS]` ticket already exists for that asset.
 - **Auto-resolve** — on recovery: adds followup note and sets ticket to Solved.
 
-### Webhook
+### Webhook -- WORK IN PROGRESS
 
 - **Real-time events** — GDMS/GWN Cloud pushes status changes directly to the plugin endpoint.
 - **HMAC-SHA256 validation** — verified against `X-GDMS-Signature` header. Secret optional but recommended.
