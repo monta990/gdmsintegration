@@ -1,14 +1,25 @@
 <p align="center"><img src="logo.png" alt="GDMS Integration"></p>
 
 # GDMS Integration
-
+<p align="center">
+  <strong>GLPI plugin — Integrates Grandstream GDMS Cloud with GLPI</strong>
+</p>
+<p align="center">
 [![GLPI](https://img.shields.io/badge/GLPI-11.0%2B-blue)](https://glpi-project.org)
 [![License](https://img.shields.io/badge/License-GPL%20v3%2B-green)](LICENSE)
 [![PHP](https://img.shields.io/badge/PHP-8.1%2B-purple)](https://php.net)
-
-Integrates **Grandstream GDMS Cloud** with GLPI 11. Automatically synchronizes network equipment, raises incident tickets when devices go offline, and provides a real-time NOC dashboard with topology visualization.
+  <a href="https://github.com/monta990/gdmsintegration/releases" target="_blank"><img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/monta990/gdmsintegration/total"></a>
+</p>
 
 ---
+
+## Overview
+
+Automatically synchronizes network equipment, raises incident tickets when devices go offline, and provides a real-time NOC dashboard with topology visualization.
+
+---
+
+GDMS Integration — GLPI Plugin — Integrates Grandstream GDMS Cloud with GLPI
 
 ## Features
 
