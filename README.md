@@ -1,7 +1,7 @@
 <p align="center"><img src="logo.png" alt="GDMS Integration"></p>
 <h1 align="center">GDMS Integration</h1>
 <p align="center">
-  <strong>GLPI 11 plugin — Grandstream GWN Cloud integration --  GDMS Networking --  GDMS Unified Communications</strong>
+  <strong>GLPI plugin — Grandstream GWN Cloud integration --  GDMS Networking --  GDMS Unified Communications</strong>
 </p>
 <p align="center">
   <a href="https://github.com/glpi-project/glpi" target="_blank"><img src="https://img.shields.io/badge/GLPI-11.0%2B-blue" alt="GLPI compatibility"></a>
