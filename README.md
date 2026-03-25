@@ -1,13 +1,12 @@
 <p align="center"><img src="logo.png" alt="GDMS Integration"></p>
-
-# GDMS Integration
+<h1 align="center"> GDMS Integration</h1>
 <p align="center">
   <strong>GLPI plugin — Integrates Grandstream GDMS Cloud with GLPI</strong>
 </p>
 <p align="center">
-[![GLPI](https://img.shields.io/badge/GLPI-11.0%2B-blue)](https://glpi-project.org)
-[![License](https://img.shields.io/badge/License-GPL%20v3%2B-green)](LICENSE)
-[![PHP](https://img.shields.io/badge/PHP-8.1%2B-purple)](https://php.net)
+  <a href="https://github.com/glpi-project/glpi" target="_blank"><img src="https://img.shields.io/badge/GLPI-11.0%2B-blue" alt="GLPI compatibility"></a>
+  <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html" target="_blank"><img src="https://img.shields.io/badge/License-GPL%20v2%2B-green" alt="License"></a>
+  <a href="https://php.net/" target="_blank"><img src="(https://img.shields.io/badge/License-GPL%20v3%2B-green)" alt="PHP"></a>
   <a href="https://github.com/monta990/gdmsintegration/releases" target="_blank"><img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/monta990/gdmsintegration/total"></a>
 </p>
 
