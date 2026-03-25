@@ -118,14 +118,14 @@ Logs written to `files/_log/gdmsintegration.log`.
 ### Card 2 — GDMS Networking
 | Field | Description |
 |-------|-------------|
-| GDMS Networking API ID | Client ID from `gdms.cloud` developer portal |
+| GDMS Networking APP ID | APP ID from `gdms.cloud` -> GDMS Networking -> Organization -> Global -> Development API |
 | GDMS Networking Secret Key | Client secret — stored encrypted |
 
 ### Card 3 — GDMS Unified Communications
 | Field | Description |
 |-------|-------------|
-| GDMS API ID | Open API client ID from `gdms.cloud` |
-| GDMS Secret Key | Open API client secret — stored encrypted |
+| GDMS Unified Communications API ID | Open API client ID from `gdms.cloud` |
+| GDMS Unified Communications Secret Key | Open API client secret — stored encrypted |
 
 ### Card 4 — Webhook & Settings
 | Field | Description |
