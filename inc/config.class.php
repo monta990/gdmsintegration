@@ -4,6 +4,10 @@
  */
 class PluginGdmsintegrationConfig extends CommonDBTM {
 
+    public static function getTable($classname = null): string {
+        return 'glpi_plugin_gdmsintegration_configs';
+    }
+
     static $rightname = 'config';
 
     public static function getTypeName($nb = 0): string {
@@ -26,6 +30,9 @@ class PluginGdmsintegrationConfig extends CommonDBTM {
         if (!empty($c['password'])) {
             $c['password'] = PluginGdmsintegrationUtils::decrypt($c['password']);
         }
+        if (!empty($c['gwn_client_secret'])) {
+            $c['gwn_client_secret'] = PluginGdmsintegrationUtils::decrypt($c['gwn_client_secret']);
+        }
         return $c;
     }
 
@@ -46,6 +53,11 @@ class PluginGdmsintegrationConfig extends CommonDBTM {
             unset($input['password']);
         } else {
             $input['password'] = PluginGdmsintegrationUtils::encrypt($input['password']);
+        }
+        if (empty($input['gwn_client_secret'])) {
+            unset($input['gwn_client_secret']);
+        } else {
+            $input['gwn_client_secret'] = PluginGdmsintegrationUtils::encrypt($input['gwn_client_secret']);
         }
 
         $input['date_mod'] = date('Y-m-d H:i:s');

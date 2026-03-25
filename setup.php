@@ -1,11 +1,14 @@
 <?php
+
+use Glpi\Plugin\Hooks;
+
 /**
  * GDMS Integration — setup.php
  * Author: Edwin Elias Alvarez
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.0.0');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.0.1');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI',  '11.0');
 define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '11.99');
 
@@ -49,17 +52,29 @@ function plugin_gdmsintegration_check_config(bool $verbose = false): bool {
 }
 
 // ---------------------------------------------------------------------------
+// Boot — runs before session is loaded, used for stateless path registration
+// ---------------------------------------------------------------------------
+function plugin_gdmsintegration_boot(): void {
+    // webhook.php — called by GDMS Cloud servers, no browser session
+    \Glpi\Http\SessionManager::registerPluginStatelessPath(
+        'gdmsintegration',
+        '#^/front/webhook\.php#'
+    );
+    // sync.ajax.php uses normal GLPI session (browser sends cookie automatically)
+}
+
+// ---------------------------------------------------------------------------
 // Init — hooks & class registration
 // ---------------------------------------------------------------------------
 function plugin_init_gdmsintegration(): void {
     global $PLUGIN_HOOKS;
 
-    $PLUGIN_HOOKS['csrf_compliant']['gdmsintegration'] = true;
-    $PLUGIN_HOOKS['config_page']['gdmsintegration']    = 'front/config.form.php';
+    $PLUGIN_HOOKS[Hooks::CSRF_COMPLIANT]['gdmsintegration'] = true;
+    $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['gdmsintegration']    = 'front/config.form.php';
 
     if (Session::getLoginUserID()) {
-        $PLUGIN_HOOKS['menu_toadd']['gdmsintegration'] = [
-            'plugins' => 'PluginGdmsintegrationMenu',
+        $PLUGIN_HOOKS[Hooks::MENU_TOADD]['gdmsintegration'] = [
+            'tools' => 'PluginGdmsintegrationMenu',
         ];
 
         Plugin::registerClass('PluginGdmsintegrationConfig');
@@ -88,9 +103,13 @@ function plugin_gdmsintegration_install(): bool {
                 `password`       text,
                 `client_id`      varchar(255) NOT NULL DEFAULT '',
                 `client_secret`  text,
-                `webhook_secret` varchar(255) NOT NULL DEFAULT '',
-                `date_creation`  datetime DEFAULT NULL,
-                `date_mod`       datetime DEFAULT NULL,
+                `gwn_client_id`  varchar(255) NOT NULL DEFAULT '',
+                `gwn_client_secret` text,
+                `webhook_secret`    varchar(255) NOT NULL DEFAULT '',
+                `refresh_interval`  int unsigned NOT NULL DEFAULT 300,
+                `debug_logging`     tinyint unsigned NOT NULL DEFAULT 0,
+                `date_creation`  TIMESTAMP NULL DEFAULT NULL,
+                `date_mod`       TIMESTAMP NULL DEFAULT NULL,
                 PRIMARY KEY (`id`),
                 UNIQUE KEY `entities_id` (`entities_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}"
@@ -103,7 +122,7 @@ function plugin_gdmsintegration_install(): bool {
                 `id`     int {$sign} NOT NULL AUTO_INCREMENT,
                 `mac`    varchar(50) NOT NULL DEFAULT '',
                 `status` varchar(20) NOT NULL DEFAULT '',
-                `date`   datetime DEFAULT NULL,
+                `date`   TIMESTAMP NULL DEFAULT NULL,
                 PRIMARY KEY (`id`),
                 KEY `mac`  (`mac`),
                 KEY `date` (`date`)
@@ -115,8 +134,14 @@ function plugin_gdmsintegration_install(): bool {
         $DB->doQueryOrDie(
             "CREATE TABLE `glpi_plugin_gdmsintegration_devices` (
                 `id`     int {$sign} NOT NULL AUTO_INCREMENT,
-                `mac`    varchar(50) NOT NULL DEFAULT '',
-                `status` varchar(20) NOT NULL DEFAULT '',
+                `mac`          varchar(50) NOT NULL DEFAULT '',
+                `status`       varchar(20) NOT NULL DEFAULT '',
+                `network_name` varchar(255) NOT NULL DEFAULT '',
+                `network_id`   int unsigned NOT NULL DEFAULT 0,
+                `ip`           varchar(50) NOT NULL DEFAULT '',
+                `firmware`     varchar(50) NOT NULL DEFAULT '',
+                `uptime_sec`   bigint unsigned NOT NULL DEFAULT 0,
+                `sn_cloud`     varchar(100) NOT NULL DEFAULT '',
                 PRIMARY KEY (`id`),
                 UNIQUE KEY `mac` (`mac`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}"
@@ -136,16 +161,41 @@ function plugin_gdmsintegration_install(): bool {
         );
     }
 
-    // Register cron task (idempotent)
+    // Clean up any orphaned crontask from previous installs, then re-register
+    CronTask::unregister('gdmsintegration');
     CronTask::register(
         'PluginGdmsintegrationSync',
         'syncDevices',
-        HOUR_TIMESTAMP,
+        30 * MINUTE_TIMESTAMP,
         [
-            'comment' => 'Synchronize GDMS cloud devices with GLPI network equipment',
-            'mode'    => CronTask::MODE_INTERNAL,
+            'comment' => 'Synchronize GDMS/GWN cloud devices with GLPI',
+            'mode'    => CronTask::MODE_EXTERNAL,
+            'state'   => CronTask::STATE_WAITING,
         ]
     );
+    // Force-update existing crontask — only frequency and mode
+    // log_interval/logs_days column name varies between GLPI versions; skip it here
+    $DB->update(
+        CronTask::getTable(),
+        [
+            'frequency' => 30 * MINUTE_TIMESTAMP,
+            'mode'      => CronTask::MODE_EXTERNAL,
+            'state'     => CronTask::STATE_WAITING,
+        ],
+        [
+            'itemtype' => 'PluginGdmsintegrationSync',
+            'name'     => 'syncDevices',
+        ]
+    );
+    // Note: log retention is managed by GLPI's own cron interface (Setup → Automatic Actions)
+
+    // Add columns that may be missing in existing installs (upgrade-safe)
+    foreach ([
+        "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `debug_logging` tinyint unsigned NOT NULL DEFAULT 0",
+        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `network_id` int unsigned NOT NULL DEFAULT 0",
+    ] as $alter) {
+        try { $DB->doQuery($alter); } catch (\Throwable $e) { /* column already exists */ }
+    }
 
     return true;
 }

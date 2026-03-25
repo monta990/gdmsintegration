@@ -1,0 +1,434 @@
+# GDMS Integration — es_MX
+# Copyright (C) 2026 Edwin Elias Alvarez
+msgid ""
+msgstr ""
+"Project-Id-Version: gdmsintegration 1.0.0\n"
+"POT-Creation-Date: 2026-03-24 12:00-0700\n"
+"PO-Revision-Date: 2026-03-24 12:00-0700\n"
+"Last-Translator: Edwin Elias Alvarez\n"
+"Language-Team: es_MX\n"
+"Language: es_MX\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "GDMS Integration"
+msgstr "Integración GDMS"
+
+msgid "GDMS Configuration"
+msgstr "Configuración GDMS"
+
+msgid "GDMS Dashboard"
+msgstr "Panel GDMS"
+
+msgid "Entity"
+msgstr "Entidad"
+
+msgid "Client ID"
+msgstr "ID de cliente"
+
+msgid "Client Secret"
+msgstr "Secreto de cliente"
+
+msgid "Webhook Secret"
+msgstr "Secreto de webhook"
+
+msgid "Leave empty to keep current value"
+msgstr "Dejar vacío para conservar el valor actual"
+
+msgid "Used to validate incoming GDMS webhook requests via HMAC-SHA256."
+msgstr "Se usa para validar las solicitudes entrantes de GDMS mediante HMAC-SHA256."
+
+msgid "Save"
+msgstr "Guardar"
+
+msgid "Configuration saved."
+msgstr "Configuración guardada."
+
+msgid "Online"
+msgstr "En línea"
+
+msgid "Offline"
+msgstr "Fuera de línea"
+
+msgid "Devices"
+msgstr "Dispositivos"
+
+msgid "Device Name"
+msgstr "Nombre del dispositivo"
+
+msgid "MAC Address"
+msgstr "Dirección MAC"
+
+msgid "Status"
+msgstr "Estado"
+
+msgid "Uptime %"
+msgstr "Disponibilidad %"
+
+msgid "SLA"
+msgstr "SLA"
+
+msgid "Network Topology"
+msgstr "Topología de red"
+
+msgid "Device Offline: %s"
+msgstr "Dispositivo fuera de línea: %s"
+
+msgid "GDMS device %s (MAC: %s, S/N: %s) went offline."
+msgstr "El dispositivo GDMS %s (MAC: %s, S/N: %s) se fue fuera de línea."
+
+msgid "Gold"
+msgstr "Oro"
+
+msgid "Silver"
+msgstr "Plata"
+
+msgid "Bronze"
+msgstr "Bronce"
+
+msgid "Critical"
+msgstr "Crítico"
+
+msgid "No GDMS devices found. Run a sync first."
+msgstr "No se encontraron dispositivos GDMS. Ejecute una sincronización primero."
+
+msgid "Synchronize GDMS cloud devices with GLPI"
+msgstr "Sincronizar dispositivos GDMS Cloud con GLPI"
+
+msgid "This plugin requires GLPI 11.0 or later."
+msgstr "Este plugin requiere GLPI 11.0 o superior."
+
+msgid "This plugin requires the PHP cURL extension."
+msgstr "Este plugin requiere la extensión PHP cURL."
+
+msgid "Webhook URL: %s"
+msgstr "URL del webhook: %s"
+
+msgid "Type"
+msgstr "Tipo"
+
+msgid "Serial"
+msgstr "Serie"
+
+msgid "Phone"
+msgstr "Teléfono"
+
+msgid "Network"
+msgstr "Red"
+
+msgid "GDMS Username"
+msgstr "Usuario GDMS"
+
+msgid "GDMS Password"
+msgstr "Contraseña GDMS"
+
+msgid "Your GDMS Cloud login email."
+msgstr "Correo electrónico de acceso a GDMS Cloud."
+
+msgid "Your GDMS Cloud login password."
+msgstr "Contraseña de acceso a GDMS Cloud."
+
+msgid "GDMS not configured yet"
+msgstr "GDMS aún no está configurado"
+
+msgid "To start syncing your Grandstream devices, you need to connect your GDMS Cloud account. It only takes a moment."
+msgstr "Para comenzar a sincronizar tus dispositivos Grandstream, conecta tu cuenta de GDMS Cloud. Solo toma un momento."
+
+msgid "Set up GDMS"
+msgstr "Configurar GDMS"
+
+msgid "GDMS API Credentials"
+msgstr "Credenciales de API de GDMS"
+
+msgid "You can find your API ID and Secret Key in"
+msgstr "Puedes encontrar tu API ID y Clave secreta en"
+
+msgid "Your GDMS username and password are the credentials you use to log in to the GDMS portal."
+msgstr "Tu usuario y contraseña de GDMS son los que usas para iniciar sesión en el portal de GDMS."
+
+msgid "GLPI entity this configuration applies to."
+msgstr "Entidad de GLPI a la que aplica esta configuración."
+
+msgid "Username (not email) you use to sign in to gdms.cloud."
+msgstr "Nombre de usuario (no correo) con el que accedes a gdms.cloud."
+
+msgid "Saved — leave empty to keep"
+msgstr "Guardado — deja vacío para conservar"
+
+msgid "Enter your GDMS password"
+msgstr "Ingresa tu contraseña de GDMS"
+
+msgid "Your gdms.cloud login password. Stored encrypted."
+msgstr "Tu contraseña de gdms.cloud. Se almacena cifrada."
+
+msgid "API ID"
+msgstr "API ID"
+
+msgid "API ID shown in GDMS → Sistema → Desarrollo de API."
+msgstr "API ID que aparece en GDMS → Sistema → Desarrollo de API."
+
+msgid "API Secret Key"
+msgstr "Clave secreta de API"
+
+msgid "Clave secreta from GDMS developer page"
+msgstr "Clave secreta de la página de desarrollador de GDMS"
+
+msgid "Secret Key (Clave secreta) shown on the same GDMS developer page. Stored encrypted."
+msgstr "La Clave secreta que aparece en la misma página de desarrollador de GDMS. Se almacena cifrada."
+
+msgid "Webhook (optional)"
+msgstr "Webhook (opcional)"
+
+msgid "A webhook lets GDMS notify GLPI immediately when a device goes offline, instead of waiting for the next scheduled sync. If you configure it in GDMS, paste the URL below into GDMS → Sistema → Alerta → Webhook."
+msgstr "Un webhook permite que GDMS notifique a GLPI de inmediato cuando un dispositivo se desconecta, en lugar de esperar la siguiente sincronización programada. Si lo configuras en GDMS, pega la URL de abajo en GDMS → Sistema → Alerta → Webhook."
+
+msgid "Optional — leave empty to skip validation"
+msgstr "Opcional — deja vacío para omitir la validación"
+
+msgid "If set, GDMS must sign each request with this secret. Recommended for security."
+msgstr "Si se establece, GDMS debe firmar cada solicitud con este secreto. Recomendado por seguridad."
+
+msgid "Your Webhook URL"
+msgstr "URL de tu webhook"
+
+msgid "Copy this URL and paste it in the GDMS webhook settings."
+msgstr "Copia esta URL y pégala en la configuración de webhook de GDMS."
+
+msgid "Connected"
+msgstr "Conectado"
+
+msgid "Not configured"
+msgstr "Sin configurar"
+
+msgid "Copy URL"
+msgstr "Copiar URL"
+
+msgid "GDMS Unified Communications — Phones & PBX"
+msgstr "GDMS Unified Communications — Teléfonos y PBX"
+
+msgid "GDMS Networking — APs, Switches & Routers"
+msgstr "GDMS Networking — APs, Switches y Routers"
+
+msgid "Syncs GRP, GXP, GXV, WP phones and UCM PBX appliances."
+msgstr "Sincroniza teléfonos GRP, GXP, GXV, WP y centrales UCM."
+
+msgid "Credentials from"
+msgstr "Credenciales desde"
+
+msgid "Syncs GWN APs, switches and routers. No username or password required — only API credentials."
+msgstr "Sincroniza APs, switches y routers GWN. No requiere usuario ni contraseña — solo las credenciales de API."
+
+msgid "Your gdms.cloud username"
+msgstr "Tu nombre de usuario de gdms.cloud"
+
+msgid "Your gdms.cloud password"
+msgstr "Tu contraseña de gdms.cloud"
+
+msgid "API ID from GDMS developer page"
+msgstr "API ID de la página de desarrollador de GDMS"
+
+msgid "Secret Key from GDMS developer page"
+msgstr "Clave secreta de la página de desarrollador de GDMS"
+
+msgid "Clave secreta from GDMS → Sistema → Desarrollo de API. Stored encrypted."
+msgstr "Clave secreta en GDMS → Sistema → Desarrollo de API. Se almacena cifrada."
+
+msgid "GWN API ID"
+msgstr "API ID de GWN"
+
+msgid "GWN Secret Key"
+msgstr "Clave secreta de GWN"
+
+msgid "API ID from GWN developer page"
+msgstr "API ID de la página de desarrollador de GWN"
+
+msgid "Secret Key from GWN developer page"
+msgstr "Clave secreta de la página de desarrollador de GWN"
+
+msgid "Clave secreta from gdms.cloud → GDMS Networking → API Developer. Stored encrypted."
+msgstr "Clave secreta en gdms.cloud → GDMS Networking → API Developer. Se almacena cifrada."
+
+msgid "API ID from gdms.cloud → GDMS Networking → API Developer."
+msgstr "API ID en gdms.cloud → GDMS Networking → API Developer."
+
+msgid "Username (not email) to sign in to gdms.cloud."
+msgstr "Nombre de usuario (no correo) para acceder a gdms.cloud."
+
+msgid "GDMS Account"
+msgstr "Cuenta GDMS"
+
+msgid "Your gdms.cloud login credentials. Used to authenticate against the GDMS API."
+msgstr "Tus credenciales de acceso a gdms.cloud. Se usan para autenticar contra la API de GDMS."
+
+msgid "GWN Networking: connection successful."
+msgstr "GDMS Networking: conexión exitosa."
+
+msgid "GDMS Unified Communications: connection successful."
+msgstr "GDMS Unified Communications: conexión exitosa."
+
+msgid "GWN Networking:"
+msgstr "GDMS Networking:"
+
+msgid "GDMS Unified Communications:"
+msgstr "GDMS Unified Communications:"
+
+msgid "Configuration saved. No credentials to test yet."
+msgstr "Configuración guardada. Aún no hay credenciales para probar."
+
+msgid "Go to Dashboard"
+msgstr "Ir al Tablero"
+
+msgid "GDMS Tablero"
+msgstr "GDMS Tablero"
+
+msgid "Refresh"
+msgstr "Actualizar"
+
+msgid "Sync from cloud now"
+msgstr "Sincronizar desde la nube ahora"
+
+msgid "IP"
+msgstr "IP"
+
+msgid "Firmware"
+msgstr "Firmware"
+
+msgid "Uptime"
+msgstr "Tiempo activo"
+
+msgid "Avail. %"
+msgstr "Disp. %"
+
+msgid "Availability"
+msgstr "Disponibilidad"
+
+msgid "Total"
+msgstr "Total"
+
+msgid "Syncing…"
+msgstr "Sincronizando…"
+
+msgid "Sync now"
+msgstr "Sincronizar ahora"
+
+msgid "Settings"
+msgstr "Configuración"
+
+msgid "Live view of your Grandstream cloud devices"
+msgstr "Vista en vivo de tus dispositivos en la nube Grandstream"
+
+msgid "Online % — last 60 days"
+msgstr "% En línea — últimos 60 días"
+
+msgid "Dashboard auto-refresh (seconds)"
+msgstr "Auto-actualización del tablero (segundos)"
+
+msgid "How often the dashboard syncs from the cloud. Minimum 30s, default 300s (5 min)."
+msgstr "Con qué frecuencia se sincroniza el tablero desde la nube. Mínimo 30s, predeterminado 300s (5 min)."
+
+msgid "Export"
+msgstr "Exportar"
+
+msgid "Export to Excel"
+msgstr "Exportar a Excel"
+
+msgid "Device Availability"
+msgstr "Disponibilidad de dispositivos"
+
+msgid "Last 60 days — generated by GDMS Integration plugin"
+msgstr "Últimos 60 días — generado por el plugin GDMS Integration"
+
+msgid "% Online 60 days"
+msgstr "% En línea 60 días"
+
+msgid "Raw Data"
+msgstr "Datos sin procesar"
+
+msgid "Summary"
+msgstr "Resumen"
+
+msgid "Date"
+msgstr "Fecha"
+
+msgid "Device"
+msgstr "Dispositivo"
+
+msgid "Availability %"
+msgstr "% Disponibilidad"
+
+msgid "Days online"
+msgstr "Días en línea"
+
+msgid "Total days"
+msgstr "Días totales"
+
+msgid "[GDMS] Device Offline: %s"
+msgstr "[GDMS] Dispositivo fuera de línea: %s"
+
+msgid "went offline and is no longer reachable."
+msgstr "se desconectó y ya no es accesible."
+
+msgid "Field"
+msgstr "Campo"
+
+msgid "Value"
+msgstr "Valor"
+
+msgid "This ticket was automatically generated by the GDMS Integration plugin."
+msgstr "Este ticket fue generado automáticamente por el plugin GDMS Integration."
+
+msgid "✅ Device **%s** is back online as of %s. Ticket auto-resolved by GDMS Integration."
+msgstr "✅ El dispositivo **%s** está de nuevo en línea desde %s. Ticket resuelto automáticamente por GDMS Integration."
+
+msgid "Debug logging"
+msgstr "Registro de depuración"
+
+msgid "Verbose logging (debug mode)"
+msgstr "Registro detallado (modo depuración)"
+
+msgid "Enable verbose API and sync logging. Recommended only for troubleshooting — generates large log entries."
+msgstr "Activa el registro detallado de API y sincronización. Recomendado solo para diagnóstico — genera entradas de log extensas."
+
+msgid "When disabled, only errors and key sync results are logged."
+msgstr "Cuando está desactivado, solo se registran errores y resultados clave de sincronización."
+
+msgid "Email address you use to sign in to gdms.cloud."
+msgstr "Dirección de correo electrónico que usas para iniciar sesión en gdms.cloud."
+
+msgid "Firmware Update Available"
+msgstr "Actualización de firmware disponible"
+
+msgid "Firmware update available"
+msgstr "Actualización de firmware disponible"
+
+msgid "Checking firmware…"
+msgstr "Consultando firmware…"
+
+msgid "Schedule update"
+msgstr "Programar actualización"
+
+msgid "Current firmware"
+msgstr "Firmware actual"
+
+msgid "Latest stable firmware"
+msgstr "Firmware estable más reciente"
+
+msgid "Official"
+msgstr "Oficial"
+
+msgid "The device will reboot during the update. Schedule during a maintenance window."
+msgstr "El dispositivo se reiniciará durante la actualización. Prográmala en una ventana de mantenimiento."
+
+msgid "Scheduling…"
+msgstr "Programando…"
+
+msgid "Update scheduled successfully. The device will update shortly."
+msgstr "Actualización programada con éxito. El dispositivo se actualizará en breve."
+
+msgid "Request failed. Check connection."
+msgstr "La solicitud falló. Verifica la conexión."
+
+msgid "Unknown"
+msgstr "Desconocido"

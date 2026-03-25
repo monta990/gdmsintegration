@@ -22,7 +22,9 @@ class PluginGdmsintegrationSync extends CommonGLPI {
     // GLPI Cron entry point — cronSyncDevices
     // -----------------------------------------------------------------------
     public static function cronSyncDevices(CronTask $task): int {
-        $entities = getAllDataFromTable('glpi_entities', ['is_deleted' => 0]);
+        // glpi_entities has no is_deleted column — use Entity ORM to get all active entities
+        $entity_obj = new Entity();
+        $entities   = $entity_obj->find();
         $total    = 0;
 
         foreach ($entities as $entity) {
@@ -55,22 +57,58 @@ class PluginGdmsintegrationSync extends CommonGLPI {
             return 0;
         }
 
-        $tokenData = PluginGdmsintegrationAPI::getToken($config);
-        if ($tokenData === false) {
-            PluginGdmsintegrationUtils::log(
-                "GDMS: Failed to obtain token for entity {$entities_id}"
-            );
-            return 0;
+        $total = 0;
+        $ts    = date('Y-m-d H:i:s');
+
+        PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called for entity_id={$entities_id}");
+
+        // ── GWN API (networking: APs, Switches, Routers) ──────────────────
+        if (!empty($config['gwn_client_id']) && !empty($config['gwn_client_secret'])) {
+            PluginGdmsintegrationUtils::log("[{$ts}] GWN sync start — entity {$entities_id}");
+
+            $gwnToken = PluginGdmsintegrationAPI::gwnGetToken($config);
+            if ($gwnToken !== false) {
+                PluginGdmsintegrationUtils::log("[{$ts}] GWN token obtained OK — API ID: {$config['gwn_client_id']}");
+                $config['gwn_access_token'] = $gwnToken;
+                $gwnDevices = PluginGdmsintegrationAPI::gwnGetDevices($config);
+                $gwnCount   = count($gwnDevices);
+                PluginGdmsintegrationUtils::log("[{$ts}] GWN API returned {$gwnCount} device(s)");
+                $synced = self::syncDeviceList($gwnDevices, $entities_id);
+                PluginGdmsintegrationUtils::log("[{$ts}] GWN sync complete — {$synced} device(s) processed");
+                $total += $synced;
+            } else {
+                PluginGdmsintegrationUtils::log("[{$ts}] GWN ERROR — could not obtain token for entity {$entities_id}. Check gwn_client_id and gwn_client_secret.");
+            }
+        } else {
+            PluginGdmsintegrationUtils::log("[{$ts}] GWN skipped — no credentials configured for entity {$entities_id}");
         }
 
-        // Merge token into config so signedUrl() has everything it needs
-        $config['access_token']  = $tokenData['access_token'];
-        $config['refresh_token'] = $tokenData['refresh_token'];
+        // ── GDMS API (UC/VoIP devices: phones, UCM, GCC) ──────────────────
+        if (!empty($config['client_id']) && !empty($config['client_secret'])
+            && !empty($config['username']) && !empty($config['password'])) {
+            PluginGdmsintegrationUtils::log("[{$ts}] GDMS sync start — entity {$entities_id} — user: {$config['username']}");
 
-        $devices = PluginGdmsintegrationAPI::getDevices($config);
+            $gdmsToken = PluginGdmsintegrationAPI::gdmsGetToken($config);
+            if ($gdmsToken !== false) {
+                PluginGdmsintegrationUtils::log("[{$ts}] GDMS token obtained OK — username: {$config['username']} | API ID: {$config['client_id']} | expires in: {$gdmsToken['expires_in']}s");
+                $config['access_token'] = $gdmsToken['access_token'];
+                $gdmsDevices = PluginGdmsintegrationAPI::gdmsGetDevices($config);
+                $gdmsCount   = count($gdmsDevices);
+                PluginGdmsintegrationUtils::log("[{$ts}] GDMS API returned {$gdmsCount} device(s)");
+                $synced = self::syncDeviceList($gdmsDevices, $entities_id);
+                PluginGdmsintegrationUtils::log("[{$ts}] GDMS sync complete — {$synced} device(s) processed");
+                $total += $synced;
+            } else {
+                PluginGdmsintegrationUtils::log("[{$ts}] GDMS ERROR — could not obtain token for entity {$entities_id}. Check username, password, client_id and client_secret.");
+            }
+        } else {
+            PluginGdmsintegrationUtils::log("[{$ts}] GDMS skipped — incomplete credentials for entity {$entities_id} (need username + password + client_id + client_secret)");
+        }
 
-        $total = 0;
-        $total += self::syncDeviceList($devices, $entities_id);
+        if ($total === 0 && empty($config['client_id']) && empty($config['gwn_client_id'])) {
+            PluginGdmsintegrationUtils::log("[{$ts}] Nothing to sync — no API credentials configured for entity {$entities_id}");
+            return 0;
+        }
 
         self::cleanupHistory();
         return $total;
@@ -99,7 +137,7 @@ class PluginGdmsintegrationSync extends CommonGLPI {
         // the itemtype the user already assigned.
         // Structure: [ 'MAC/serial' => ['itemtype' => ..., 'id' => ..., ...] ]
         // ---------------------------------------------------------------
-        [$mac_cache, $serial_cache] = self::buildAssetCaches($entities_id);
+        [$mac_cache, $serial_cache, $name_cache] = self::buildAssetCaches($entities_id);
 
         $state   = new PluginGdmsintegrationDevice();
         $history = new PluginGdmsintegrationHistory();
@@ -137,14 +175,25 @@ class PluginGdmsintegrationSync extends CommonGLPI {
             $matched_row  = null;
             $matched_type = null;
 
-            if (!empty($mac) && isset($mac_cache[$mac])) {
-                $matched_row  = $mac_cache[$mac];
-                $matched_type = $matched_row['_itemtype'];
-            } elseif (!empty($serial) && isset($serial_cache[$serial])) {
+            // Priority: 1) serial  2) MAC  3) name (normalized)
+            $name_key = strtolower(trim(preg_replace('/\s+/', ' ', $name)));
+            if (!empty($serial) && isset($serial_cache[$serial])) {
                 $matched_row  = $serial_cache[$serial];
                 $matched_type = $matched_row['_itemtype'];
                 PluginGdmsintegrationUtils::log(
-                    "GDMS: matched '{$name}' by serial '{$serial}' in {$matched_type}"
+                    "  MATCH by serial '{$serial}' → {$matched_type} #{$matched_row['id']}"
+                );
+            } elseif (!empty($mac) && isset($mac_cache[$mac])) {
+                $matched_row  = $mac_cache[$mac];
+                $matched_type = $matched_row['_itemtype'];
+                PluginGdmsintegrationUtils::log(
+                    "  MATCH by MAC '{$mac}' → {$matched_type} #{$matched_row['id']}"
+                );
+            } elseif (!empty($name_key) && isset($name_cache[$name_key])) {
+                $matched_row  = $name_cache[$name_key];
+                $matched_type = $matched_row['_itemtype'];
+                PluginGdmsintegrationUtils::log(
+                    "  MATCH by name '{$name}' → {$matched_type} #{$matched_row['id']}"
                 );
             }
 
@@ -174,6 +223,12 @@ class PluginGdmsintegrationSync extends CommonGLPI {
             // ---------------------------------------------------------------
             // Upsert
             // ---------------------------------------------------------------
+            if ($matched_row === null) {
+                PluginGdmsintegrationUtils::log(
+                    "  NO MATCH for '{$name}' — tried: serial='{$serial}' mac='{$mac}' name_key='{$name_key}'"
+                    . " — will CREATE new asset (delete the duplicate in GLPI if wrong)"
+                );
+            }
             $glpi_id = self::upsertAsset(
                 $matched_type,
                 $matched_row,
@@ -207,21 +262,40 @@ class PluginGdmsintegrationSync extends CommonGLPI {
                 'status' => $status,
                 'date'   => date('Y-m-d H:i:s'),
             ]);
+            // Store full cloud state for dashboard display
+            // GDMS fields: publicIp, privateip, firmwareVersion, siteName, sn
+            // GWN fields:  ip/ipv4, versionFirmware, networkName, upTime, sn (enriched)
+            $state->saveStateWithNetwork(
+                $mac ?: $serial,
+                $status,
+                $d['networkName'] ?? $d['siteName'] ?? '',
+                $d['publicIp']        ?? $d['ip']    ?? $d['ipv4'] ?? '',
+                $d['firmwareVersion'] ?? $d['versionFirmware'] ?? $d['firmware'] ?? '',
+                (int)($d['upTime']    ?? 0),
+                $d['sn']              ?? $d['SN']    ?? $serial,
+                (int)($d['networkId'] ?? 0)
+            );
 
-            // Incident ticket on online → offline transition
+            // Ticket transitions: offline → create ticket, offline→online → resolve
             $prevStatus = $state->getState($mac ?: $serial);
-            if ($prevStatus === 'online' && $status === 'offline' && $glpi_id > 0) {
-                self::createOfflineTicket(
-                    $name,
-                    $mac,
-                    $serial,
-                    $entities_id,
-                    $matched_type,
-                    $glpi_id
-                );
+            if ($glpi_id > 0) {
+                if ($prevStatus === 'online' && $status === 'offline') {
+                    self::createOfflineTicket(
+                        $name,
+                        $mac,
+                        $serial,
+                        $entities_id,
+                        $matched_type,
+                        $glpi_id,
+                        $d['publicIp']        ?? $d['ip']    ?? $d['ipv4'] ?? '',
+                        $d['networkName']     ?? $d['siteName'] ?? '',
+                        $d['firmwareVersion'] ?? $d['versionFirmware'] ?? '',
+                        (int)($d['upTime'] ?? 0)
+                    );
+                } elseif ($prevStatus === 'offline' && $status === 'online') {
+                    self::resolveOfflineTicket($name, $matched_type, $glpi_id);
+                }
             }
-            $state->saveState($mac ?: $serial, $status);
-
             // Topology link (networking devices only)
             if (!empty($d['uplink_mac'])) {
                 $uplink = strtolower(trim($d['uplink_mac']));
@@ -249,7 +323,7 @@ class PluginGdmsintegrationSync extends CommonGLPI {
         string  $name,
         string  $mac,
         string  $serial,
-        string  $comment,
+        string  $comment,  // kept for signature compat but NOT written to GLPI
         string  $model_field,
         int     $model_id
     ): int {
@@ -257,45 +331,66 @@ class PluginGdmsintegrationSync extends CommonGLPI {
         $obj = new $itemtype();
 
         if ($matched_row !== null) {
-            // Existing asset — update only changed fields
+            // Existing asset — NEVER change name, comment, description, serial or uuid
+            // if the field already has a value set by the user in GLPI.
+            // Only fill in fields that are currently EMPTY (helping complete the record).
+            // Model is matched-only, never forced.
             $glpi_id = (int) $matched_row['id'];
-            $update  = ['id' => $glpi_id, 'comment' => $comment];
+            $update  = ['id' => $glpi_id];
 
-            if (($matched_row['name'] ?? '') !== $name) {
-                $update['name'] = $name;
-            }
-            if (!empty($mac) && strtolower(trim($matched_row['uuid'] ?? '')) !== $mac) {
+            // Only set uuid (MAC) if currently empty in GLPI
+            if (!empty($mac) && empty(trim($matched_row['uuid'] ?? ''))) {
                 $update['uuid'] = $mac;
             }
-            if (!empty($serial) && strtolower(trim($matched_row['serial'] ?? '')) !== $serial) {
+            // Only set serial if currently empty in GLPI
+            if (!empty($serial) && empty(trim($matched_row['serial'] ?? ''))) {
                 $update['serial'] = $serial;
             }
-            if (
-                $model_id > 0 &&
-                (int) ($matched_row[$model_field] ?? 0) !== $model_id
-            ) {
+            // Model: only fill if not already set
+            if ($model_id > 0 && empty((int)($matched_row[$model_field] ?? 0))) {
                 $update[$model_field] = $model_id;
             }
 
-            $obj->update($update);
+            if (count($update) > 1) {
+                $obj->update($update);
+            }
+            PluginGdmsintegrationUtils::log("  UPDATE {$itemtype} #{$glpi_id} — {$name} (MAC:{$mac} SN:{$serial})");
             return $glpi_id;
         }
 
-        // New asset
+        // New asset — set name from GDMS, no comment or description
         $add_data = [
             'name'        => $name,
             'entities_id' => $entities_id,
-            'comment'     => $comment,
         ];
         if (!empty($mac))    { $add_data['uuid']   = $mac;    }
         if (!empty($serial)) { $add_data['serial'] = $serial; }
         if ($model_id > 0)   { $add_data[$model_field] = $model_id; }
 
-        return (int) $obj->add($add_data);
+        $new_id = (int) $obj->add($add_data);
+        PluginGdmsintegrationUtils::log("  CREATE {$itemtype} #{$new_id} — {$name} (MAC:{$mac} SN:{$serial})");
+        return $new_id;
     }
 
     // -----------------------------------------------------------------------
-    // Open an offline incident ticket and link the asset
+    // -----------------------------------------------------------------------
+    // Public wrappers for webhook to trigger ticket logic
+    // -----------------------------------------------------------------------
+    public static function triggerOfflineTicket(
+        string $name, string $mac, string $serial,
+        int $entities_id, string $itemtype, int $glpi_id,
+        string $ip = '', string $network = '', string $firmware = '', int $uptime_sec = 0
+    ): void {
+        self::createOfflineTicket($name, $mac, $serial, $entities_id, $itemtype, $glpi_id, $ip, $network, $firmware, $uptime_sec);
+    }
+
+    public static function triggerResolveTicket(string $name, string $itemtype, int $glpi_id): void {
+        self::resolveOfflineTicket($name, $itemtype, $glpi_id);
+    }
+
+        // -----------------------------------------------------------------------
+    // Open an offline incident ticket and link the asset as an element.
+    // Skips creation if an open GDMS ticket already exists for this asset.
     // -----------------------------------------------------------------------
     private static function createOfflineTicket(
         string $name,
@@ -303,29 +398,100 @@ class PluginGdmsintegrationSync extends CommonGLPI {
         string $serial,
         int    $entities_id,
         string $itemtype,
-        int    $glpi_id
+        int    $glpi_id,
+        string $ip          = '',
+        string $network     = '',
+        string $firmware    = '',
+        int    $uptime_sec  = 0
     ): void {
+        // Guard: skip if there's already an open ticket linked to this asset
+        // (prevents duplicate tickets if device stays offline across multiple syncs)
+        $existing = new Item_Ticket();
+        $linked   = $existing->find([
+            'itemtype'   => $itemtype,
+            'items_id'   => $glpi_id,
+        ]);
+        foreach ($linked as $link_row) {
+            $t = new Ticket();
+            if ($t->getFromDB($link_row['tickets_id'])) {
+                $open_statuses = [Ticket::INCOMING, Ticket::ASSIGNED, Ticket::PLANNED, Ticket::WAITING];
+                // Check if title contains our GDMS offline marker
+                if (in_array((int)$t->fields['status'], $open_statuses)
+                    && str_contains($t->fields['name'], '[GDMS]')) {
+                    PluginGdmsintegrationUtils::log(
+                        "GDMS: Ticket already open for {$name} (#" . $link_row['tickets_id'] . ") — skipping"
+                    );
+                    return;
+                }
+            }
+        }
+
+        // Urgency/Impact: routers = high (4), switches/phones = medium (3)
+        $isRouter  = ($itemtype === 'NetworkEquipment');
+        $urgency   = $isRouter ? 4 : 3;
+        $impact    = $isRouter ? 4 : 3;
+        $priority  = $isRouter ? 4 : 3;
+
+        // Build rich content
+        $now     = date('Y-m-d H:i:s');
+        $uptimeStr = $uptime_sec > 0
+            ? sprintf('%dd %dh %dm', intdiv($uptime_sec, 86400), intdiv($uptime_sec % 86400, 3600), intdiv($uptime_sec % 3600, 60))
+            : __('N/A', 'gdmsintegration');
+
+        $content = sprintf(
+            "**%s** %s
+
+" .
+            "| %s | %s |
+|---|---|
+" .
+            "| **MAC** | %s |
+" .
+            "| **Serie** | %s |
+" .
+            "| **IP** | %s |
+" .
+            "| **Red** | %s |
+" .
+            "| **Firmware** | %s |
+" .
+            "| **Último tiempo activo** | %s |
+" .
+            "| **Detectado** | %s |
+
+" .
+            "*%s*",
+            $name,
+            __('went offline and is no longer reachable.', 'gdmsintegration'),
+            __('Field', 'gdmsintegration'),
+            __('Value', 'gdmsintegration'),
+            strtoupper($mac),
+            strtoupper($serial) ?: __('N/A', 'gdmsintegration'),
+            $ip ?: __('N/A', 'gdmsintegration'),
+            $network ?: __('N/A', 'gdmsintegration'),
+            $firmware ?: __('N/A', 'gdmsintegration'),
+            $uptimeStr,
+            $now,
+            __('This ticket was automatically generated by the GDMS Integration plugin.', 'gdmsintegration')
+        );
+
         $ticket    = new Ticket();
         $ticket_id = (int) $ticket->add([
-            'name'        => sprintf(
-                __('Device Offline: %s', 'gdmsintegration'),
+            'name'        => sprintf('[GDMS] %s: %s',
+                __('Device Offline', 'gdmsintegration'),
                 $name
             ),
-            'content'     => sprintf(
-                __('GDMS device %s (MAC: %s, S/N: %s) went offline.', 'gdmsintegration'),
-                $name,
-                strtoupper($mac),
-                strtoupper($serial) ?: __('N/A', 'gdmsintegration')
-            ),
+            'content'     => $content,
             'entities_id' => $entities_id,
-            'urgency'     => 3,
-            'impact'      => 3,
-            'priority'    => 3,
+            'urgency'     => $urgency,
+            'impact'      => $impact,
+            'priority'    => $priority,
             'type'        => Ticket::INCIDENT_TYPE,
             'status'      => Ticket::INCOMING,
         ]);
 
         if ($ticket_id > 0) {
+            // Link the asset as a ticket element
             $item_ticket = new Item_Ticket();
             $item_ticket->add([
                 'tickets_id'    => $ticket_id,
@@ -334,14 +500,53 @@ class PluginGdmsintegrationSync extends CommonGLPI {
                 '_disablenotif' => true,
             ]);
 
+            PluginGdmsintegrationUtils::log(sprintf(
+                "GDMS: Ticket #%d created → [GDMS] Device Offline: %s | linked to %s #%d",
+                $ticket_id, $name, $itemtype, $glpi_id
+            ));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Re-open or note recovery — add a followup to open offline ticket when
+    // device comes back online and close it automatically.
+    // -----------------------------------------------------------------------
+    private static function resolveOfflineTicket(
+        string $name,
+        string $itemtype,
+        int    $glpi_id
+    ): void {
+        $existing = new Item_Ticket();
+        $linked   = $existing->find(['itemtype' => $itemtype, 'items_id' => $glpi_id]);
+        foreach ($linked as $link_row) {
+            $t = new Ticket();
+            if (!$t->getFromDB($link_row['tickets_id'])) continue;
+            $open = [Ticket::INCOMING, Ticket::ASSIGNED, Ticket::PLANNED, Ticket::WAITING];
+            if (!in_array((int)$t->fields['status'], $open)) continue;
+            if (!str_contains($t->fields['name'], '[GDMS]')) continue;
+
+            // Add followup noting recovery
+            $followup = new ITILFollowup();
+            $followup->add([
+                'itemtype'        => 'Ticket',
+                'items_id'        => $link_row['tickets_id'],
+                'content'         => sprintf(
+                    __('✅ Device **%s** is back online as of %s. Ticket auto-resolved by GDMS Integration.', 'gdmsintegration'),
+                    $name,
+                    date('Y-m-d H:i:s')
+                ),
+                'is_private'      => 0,
+                '_disablenotif'   => true,
+            ]);
+
+            // Close the ticket
+            $t->update([
+                'id'     => $link_row['tickets_id'],
+                'status' => Ticket::SOLVED,
+            ]);
+
             PluginGdmsintegrationUtils::log(
-                sprintf(
-                    "GDMS: Ticket #%d created and linked to %s #%d (%s)",
-                    $ticket_id,
-                    $itemtype,
-                    $glpi_id,
-                    $name
-                )
+                "GDMS: Ticket #{$link_row['tickets_id']} auto-resolved — {$name} back online"
             );
         }
     }
@@ -354,32 +559,37 @@ class PluginGdmsintegrationSync extends CommonGLPI {
     private static function buildAssetCaches(int $entities_id): array {
         $mac_cache    = [];
         $serial_cache = [];
+        $name_cache   = [];
 
+        // No entity filter — plugin syncs devices globally (entity 0 + sub-entities)
         foreach (['NetworkEquipment', 'Phone'] as $itemtype) {
-            /** @var CommonDBTM $obj */
             $obj  = new $itemtype();
-            $rows = $obj->find(['entities_id' => $entities_id]);
+            $rows = $obj->find([], [], 0); // all entities, no limit
 
             foreach ($rows as $row) {
                 $row['_itemtype'] = $itemtype;
 
+                // Index by uuid (MAC address)
                 if (!empty($row['uuid'])) {
                     $key = strtolower(trim($row['uuid']));
-                    // NetworkEquipment wins over Phone if same MAC exists in both
-                    if (!isset($mac_cache[$key])) {
-                        $mac_cache[$key] = $row;
+                    if (!isset($mac_cache[$key])) $mac_cache[$key] = $row;
+                }
+                // Also index by MAC-like patterns in otherserial or contact fields
+                foreach (['serial', 'otherserial'] as $sf) {
+                    if (!empty($row[$sf])) {
+                        $key = strtolower(trim($row[$sf]));
+                        if (!isset($serial_cache[$key])) $serial_cache[$key] = $row;
                     }
                 }
-                if (!empty($row['serial'])) {
-                    $key = strtolower(trim($row['serial']));
-                    if (!isset($serial_cache[$key])) {
-                        $serial_cache[$key] = $row;
-                    }
+                // Name index (normalized)
+                if (!empty($row['name'])) {
+                    $key = strtolower(trim(preg_replace('/\s+/', ' ', $row['name'])));
+                    if (!isset($name_cache[$key])) $name_cache[$key] = $row;
                 }
             }
         }
 
-        return [$mac_cache, $serial_cache];
+        return [$mac_cache, $serial_cache, $name_cache];
     }
 
     // -----------------------------------------------------------------------
@@ -397,11 +607,12 @@ class PluginGdmsintegrationSync extends CommonGLPI {
     // History cleanup (60-day retention)
     // -----------------------------------------------------------------------
     public static function cleanupHistory(): void {
-        global $DB;
-        $cutoff = date('Y-m-d H:i:s', strtotime('-60 days'));
-        $DB->doQuery(
-            "DELETE FROM `glpi_plugin_gdmsintegration_history`
-             WHERE `date` < '{$cutoff}'"
+        // Use CommonDBTM::deleteByCriteria() — GLPI ORM, no raw SQL.
+        // The second parameter (1) enables purge (permanent delete, not trashbin).
+        $history = new PluginGdmsintegrationHistory();
+        $history->deleteByCriteria(
+            ['date' => ['<', date('Y-m-d H:i:s', strtotime('-60 days'))]],
+            1
         );
     }
 

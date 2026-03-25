@@ -1,18 +1,71 @@
 <?php
 /**
  * GDMS Integration — PluginGdmsintegrationUtils
+ *
+ * Encryption uses GLPIKey (sodium-based, GLPI 11 standard).
+ * Toolbox::encrypt/decrypt were removed in GLPI 11.
+ *
+ * Logging has two tiers:
+ *   - MINIMAL  (default)  — only errors and key sync results (token OK, device count,
+ *                            match/create/update per device, ticket events).
+ *   - VERBOSE  (debug on) — full API URLs, request bodies, raw responses, signature
+ *                            inputs, SN diagnostics. Enabled when "Debug logging" is
+ *                            checked in plugin config OR when GLPI debug mode is active.
  */
 class PluginGdmsintegrationUtils {
 
+    /**
+     * Returns true when verbose logging should be written.
+     * Verbose when: plugin debug_logging = 1  OR  GLPI $_SESSION['glpi_use_mode'] = 2 (debug).
+     */
+    public static function isDebug(): bool {
+        // GLPI debug mode
+        if (isset($_SESSION['glpi_use_mode']) && (int)$_SESSION['glpi_use_mode'] === Session::DEBUG_MODE) {
+            return true;
+        }
+        // Plugin-level debug toggle (cached in session for performance)
+        if (!isset($_SESSION['_gdms_debug'])) {
+            try {
+                $cfg = new PluginGdmsintegrationConfig();
+                $row = $cfg->getConfigByEntity(0);
+                $_SESSION['_gdms_debug'] = !empty($row['debug_logging']) ? 1 : 0;
+            } catch (\Throwable $e) {
+                $_SESSION['_gdms_debug'] = 0;
+            }
+        }
+        return (bool)$_SESSION['_gdms_debug'];
+    }
+
+    /**
+     * Write a log entry.
+     *
+     * @param string $message  The message to log.
+     * @param bool   $verbose  If true, only written when debug mode is active.
+     *                         If false (default), always written.
+     */
+    public static function log(string $message, bool $verbose = false): void {
+        if ($verbose && !self::isDebug()) {
+            return;
+        }
+        Toolbox::logInFile('gdmsintegration', $message . PHP_EOL);
+    }
+
+    /**
+     * Shorthand — write only in debug/verbose mode.
+     */
+    public static function debug(string $message): void {
+        self::log($message, true);
+    }
+
     public static function encrypt(string $value): string {
-        return Toolbox::encrypt($value);
+        return (new GLPIKey())->encrypt($value);
     }
 
     public static function decrypt(string $value): string {
-        return Toolbox::decrypt($value);
-    }
-
-    public static function log(string $message): void {
-        Toolbox::logInFile('gdmsintegration', $message . PHP_EOL);
+        try {
+            return (new GLPIKey())->decrypt($value);
+        } catch (\Throwable $e) {
+            return $value;
+        }
     }
 }

@@ -1,78 +1,101 @@
 <?php
 /**
- * GDMS Integration — Webhook endpoint
- *
- * URL: /plugins/gdmsintegration/front/webhook.php?entities_id=<N>
- *
- * Security:
- *   - Only accepts POST requests.
- *   - Validates HMAC-SHA256 signature in X-GDMS-Signature header
- *     when a webhook_secret is configured for the entity.
- *     GDMS must send: X-GDMS-Signature: sha256=<hex>
- *
- * This file does NOT start a GLPI user session — it is called by GDMS
- * cloud servers, not by a browser.
+ * GDMS Integration — Webhook receiver
+ * Registered as stateless — called by GDMS Cloud without browser session.
+ * Uses correct Symfony exception namespaces for GLPI 11.
  */
 
-// Load GLPI without forcing an authenticated session
-define('GLPI_ROOT', dirname(dirname(dirname(dirname(__FILE__)))));
-include_once(GLPI_ROOT . '/inc/includes.php');
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
-// ------------------------------------------------------------------
-// Only POST is accepted
-// ------------------------------------------------------------------
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    header('Allow: POST');
-    exit('Method Not Allowed');
+// Allow GET for health check / manual testing
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'ok', 'plugin' => 'gdmsintegration', 'endpoint' => 'webhook']);
+    return;
 }
 
-// ------------------------------------------------------------------
-// Read entity from query string
-// ------------------------------------------------------------------
-$entities_id = (int) ($_GET['entities_id'] ?? 0);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    throw new MethodNotAllowedHttpException(['POST'], 'Only POST requests are accepted');
+}
 
-// ------------------------------------------------------------------
-// Read raw body (must happen before any output)
-// ------------------------------------------------------------------
-$raw = (string) file_get_contents('php://input');
+$raw    = file_get_contents('php://input');
+$entity = (int) ($_GET['entities_id'] ?? 0);
 
-// ------------------------------------------------------------------
-// HMAC-SHA256 signature validation
-// ------------------------------------------------------------------
-$configObj = new PluginGdmsintegrationConfig();
-$config    = $configObj->getConfigByEntity($entities_id);
+// Validate HMAC if webhook_secret is configured
+$config_obj = new PluginGdmsintegrationConfig();
+$config     = $config_obj->getConfigByEntity($entity);
+$secret     = $config['webhook_secret'] ?? '';
 
-if (!empty($config['webhook_secret'])) {
-    $incoming = (string) ($_SERVER['HTTP_X_GDMS_SIGNATURE'] ?? '');
-    $expected = 'sha256=' . hash_hmac('sha256', $raw, $config['webhook_secret']);
-
-    // Constant-time comparison to prevent timing attacks
-    if (!hash_equals($expected, $incoming)) {
-        http_response_code(401);
-        header('Content-Type: application/json');
-        exit(json_encode(['error' => 'Invalid webhook signature']));
+if (!empty($secret)) {
+    $sig_header = $_SERVER['HTTP_X_GDMS_SIGNATURE'] ?? '';
+    $expected   = 'sha256=' . hash_hmac('sha256', $raw, $secret);
+    if (!hash_equals($expected, $sig_header)) {
+        PluginGdmsintegrationUtils::log("Webhook: signature mismatch from " . ($_SERVER['REMOTE_ADDR'] ?? ''));
+        throw new AccessDeniedHttpException('Invalid webhook signature');
     }
 }
 
-// ------------------------------------------------------------------
-// Validate JSON payload (optional — we trigger a full sync anyway)
-// ------------------------------------------------------------------
 $payload = json_decode($raw, true);
-if ($raw !== '' && !is_array($payload)) {
-    http_response_code(400);
-    header('Content-Type: application/json');
-    exit(json_encode(['error' => 'Invalid JSON payload']));
+if (!is_array($payload)) {
+    throw new BadRequestHttpException('Invalid JSON payload');
 }
 
-// ------------------------------------------------------------------
-// Trigger entity sync
-// ------------------------------------------------------------------
-$processed = PluginGdmsintegrationSync::syncEntity($entities_id);
+PluginGdmsintegrationUtils::log(
+    "Webhook received — entity:{$entity} | payload:" . substr(json_encode($payload), 0, 500)
+);
+
+// Process device status change from GDMS cloud
+$mac    = strtolower(trim($payload['mac'] ?? $payload['device_mac'] ?? $payload['deviceMac'] ?? ''));
+$rawStatus = strtolower($payload['status'] ?? $payload['deviceStatus'] ?? $payload['event'] ?? '');
+$status = in_array($rawStatus, ['offline', 'disconnect', 'down', '0']) ? 'offline' : 'online';
+
+PluginGdmsintegrationUtils::log("Webhook: {$mac} → {$status} (raw: {$rawStatus})");
+
+if (!empty($mac)) {
+    // Update state immediately so dashboard reflects it
+    $state = new PluginGdmsintegrationDevice();
+    $prevStatus = $state->getState($mac);
+    $state->saveStateWithNetwork($mac, $status);
+
+    // Fire ticket logic on status transition
+    if ($prevStatus !== $status) {
+        // Load asset info for ticket creation
+        $assetInfo = null;
+        foreach (['NetworkEquipment', 'Phone'] as $itemtype) {
+            $obj  = new $itemtype();
+            $rows = $obj->find(['uuid' => $mac]);
+            if (!empty($rows)) {
+                $assetInfo = array_merge(reset($rows), ['_itemtype' => $itemtype]);
+                break;
+            }
+        }
+
+        if ($assetInfo && $status === 'offline') {
+            $deviceRow = $state->find(['mac' => $mac]);
+            $dr        = !empty($deviceRow) ? reset($deviceRow) : [];
+            PluginGdmsintegrationSync::triggerOfflineTicket(
+                $assetInfo['name']       ?? $mac,
+                $mac,
+                $assetInfo['serial']     ?? '',
+                $assetInfo['entities_id'] ?? $entity,
+                $assetInfo['_itemtype'],
+                (int)$assetInfo['id'],
+                $dr['ip']           ?? '',
+                $dr['network_name'] ?? '',
+                $dr['firmware']     ?? '',
+                (int)($dr['uptime_sec'] ?? 0)
+            );
+        } elseif ($assetInfo && $status === 'online') {
+            PluginGdmsintegrationSync::triggerResolveTicket(
+                $assetInfo['name'] ?? $mac,
+                $assetInfo['_itemtype'],
+                (int)$assetInfo['id']
+            );
+        }
+    }
+}
 
 header('Content-Type: application/json');
-http_response_code(200);
-echo json_encode([
-    'status'     => 'ok',
-    'processed'  => $processed,
-]);
+echo json_encode(['ok' => true]);
