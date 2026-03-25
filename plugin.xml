@@ -15,7 +15,9 @@
       </long>
    </description>
    <homepage>https://github.com/monta990/gdmsintegration</homepage>
-   <bugs>https://github.com/monta990/gdmsintegration/issues</bugs>
+   <issues>https://github.com/monta990/gdmsintegration/issues</issues>
+   <download>https://github.com/monta990/gdmsintegration/releases</download>
+   <readme>https://github.com/monta990/gdmsintegration/blob/main/README.md</readme>
    <authors>
       <author>Edwin Elias Alvarez</author>
    </authors>
