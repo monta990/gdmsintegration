@@ -50,7 +50,7 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
   - *Raw Data* — individual history records
   - *Summary* — per-device availability % and SLA tier
 
-### Firmware Update (GWN only)
+### Firmware Update (GWN only) -- WORK IN PROGRESS
 
 - Firmware check runs 2 seconds after page load via `firmware.ajax.php?action=check`.
 - Calls `POST /oapi/v1.0.0/upgrade/version` per network; flags only **stable releases** (no `beta`, `rc`, `dev`, `alpha`).
