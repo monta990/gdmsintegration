@@ -115,11 +115,11 @@ Logs written to `files/_log/gdmsintegration.log`.
 | Username | GDMS Cloud user |
 | Password | Login password — stored encrypted |
 
-### Card 2 — GWN Networking
+### Card 2 — GDMS Networking
 | Field | Description |
 |-------|-------------|
-| GWN API ID | Client ID from `gwn.cloud` developer portal |
-| GWN Secret Key | Client secret — stored encrypted |
+| GDMS Networking API ID | Client ID from `gdms.cloud` developer portal |
+| GDMS Networking Secret Key | Client secret — stored encrypted |
 
 ### Card 3 — GDMS Unified Communications
 | Field | Description |
