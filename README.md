@@ -112,7 +112,7 @@ Logs written to `files/_log/gdmsintegration.log`.
 ### Card 1 — GDMS Account
 | Field | Description |
 |-------|-------------|
-| Username | GDMS Cloud login email |
+| Username | GDMS Cloud user |
 | Password | Login password — stored encrypted |
 
 ### Card 2 — GWN Networking
