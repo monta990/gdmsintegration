@@ -14,7 +14,7 @@
 
 ## Overview
 
-Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS Cloud and GWN Cloud into GLPI 11. Raises incident tickets when devices go offline and auto-resolves them on recovery. Provides a real-time NOC dashboard with uptime history, availability SLA, network topology, Excel export, and one-click firmware update scheduling for GWN devices.
+Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS Cloud into GLPI 11. Raises incident tickets when devices go offline and auto-resolves them on recovery. Provides a real-time NOC dashboard with uptime history, availability SLA, network topology, Excel export, and one-click firmware update scheduling for GWN devices.
 
 ---
 
@@ -124,7 +124,7 @@ Logs written to `files/_log/gdmsintegration.log`.
 ### Card 3 — GDMS Unified Communications
 | Field | Description |
 |-------|-------------|
-| GDMS Unified Communications API ID | Open API client ID from `gdms.cloud` |
+| GDMS Unified Communications API ID | Open API client ID from `gdms.cloud` ->GDMS Unified Communications -> System -> Development API |
 | GDMS Unified Communications Secret Key | Open API client secret — stored encrypted |
 
 ### Card 4 — Webhook & Settings
