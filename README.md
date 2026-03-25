@@ -36,7 +36,7 @@ GDMS Integration — GLPI Plugin — Integrates Grandstream GDMS Cloud with GLPI
 | Component | Version |
 |-----------|---------|
 | GLPI      | 11.0+   |
-| PHP       | 8.1+    |
+| PHP       | 8.2+    |
 | PHP ext   | `curl`  |
 
 ---
@@ -90,8 +90,30 @@ The endpoint validates the `X-GDMS-Signature: sha256=<hex>` header.
 
 ---
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Author
+
+Edwin Elias Alvarez — [GitHub](https://github.com/monta990).
+
+---
+
+## Buy me a coffee :)
+
+If you like my work, you can support me with a donation:
+
+<a href="https://www.buymeacoffee.com/monta990" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-yellow.png" alt="Buy Me A Coffee" height="51px" width="210px"></a>
+
+---
+
 ## License
 
-GPL v3+. See [LICENSE](LICENSE).
+GPL-v3+-see [LICENSE](LICENSE).
 
-**Author:** Edwin Elias Alvarez
+## Issues
+
+Report bugs or request features on the [issue tracker](https://github.com/monta990/gdmsintegration/issues).
