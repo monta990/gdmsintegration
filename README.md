@@ -14,7 +14,7 @@
 
 ## Overview
 
-Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS Cloud into GLPI 11. Raises incident tickets when devices go offline and auto-resolves them on recovery. Provides a real-time NOC dashboard with uptime history, availability SLA, network topology, Excel export, and one-click firmware update scheduling for GWN devices.
+Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS Cloud into GLPI. Raises incident tickets when devices go offline and auto-resolves them on recovery. Provides a real-time NOC dashboard with uptime history, availability SLA, network topology, Excel export, and one-click firmware update scheduling for GWN devices.
 
 ---
 
