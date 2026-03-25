@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+   <name>GDMS Integration</name>
+   <key>gdmsintegration</key>
+   <state>stable</state>
+   <logo>logo.png</logo>
+   <description>
+      <en>Integrates Grandstream GDMS Cloud with GLPI: automatically synchronizes network equipment, generates incident tickets on device offline events, and provides a real-time NOC dashboard with topology view.</en>
+      <es>Integra Grandstream GDMS Cloud con GLPI: sincroniza equipos de red automáticamente, genera tickets de incidencia ante eventos offline y provee un dashboard NOC en tiempo real con vista de topología.</es>
+   </description>
+   <homepage>https://github.com/monta990/gdmsintegration</homepage>
+   <bugs>https://github.com/monta990/gdmsintegration/issues</bugs>
+   <authors>
+      <author>Edwin Elias Alvarez</author>
+   </authors>
+   <versions>
+      <version>
+         <num>1.0.0</num>
+         <compatibility>~11.0</compatibility>
+      </version>
+   </versions>
+   <langs>
+      <lang>en_US</lang>
+      <lang>en_GB</lang>
+      <lang>es_MX</lang>
+      <lang>fr_FR</lang>
+      <lang>de_DE</lang>
+   </langs>
+   <license>GPL v3+</license>
+   <tags>
+      <en>
+         <tag>network</tag>
+         <tag>gdms</tag>
+         <tag>grandstream</tag>
+         <tag>noc</tag>
+         <tag>sync</tag>
+      </en>
+   </tags>
+</root>

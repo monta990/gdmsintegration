@@ -1,0 +1,131 @@
+# GDMS Integration — fr_FR
+# Copyright (C) 2026 Edwin Elias Alvarez
+msgid ""
+msgstr ""
+"Project-Id-Version: gdmsintegration 1.0.0\n"
+"POT-Creation-Date: 2026-03-24 12:00-0700\n"
+"PO-Revision-Date: 2026-03-24 12:00-0700\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: fr_FR\n"
+"Language: fr_FR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "GDMS Integration"
+msgstr "Intégration GDMS"
+
+msgid "GDMS Configuration"
+msgstr "Configuration GDMS"
+
+msgid "GDMS Dashboard"
+msgstr "Tableau de bord GDMS"
+
+msgid "Entity"
+msgstr "Entité"
+
+msgid "Client ID"
+msgstr "Identifiant client"
+
+msgid "Client Secret"
+msgstr "Secret client"
+
+msgid "Webhook Secret"
+msgstr "Secret webhook"
+
+msgid "Leave empty to keep current value"
+msgstr "Laisser vide pour conserver la valeur actuelle"
+
+msgid "Used to validate incoming GDMS webhook requests via HMAC-SHA256."
+msgstr "Utilisé pour valider les requêtes entrantes du webhook GDMS via HMAC-SHA256."
+
+msgid "Save"
+msgstr "Enregistrer"
+
+msgid "Configuration saved."
+msgstr "Configuration enregistrée."
+
+msgid "Online"
+msgstr "En ligne"
+
+msgid "Offline"
+msgstr "Hors ligne"
+
+msgid "Devices"
+msgstr "Équipements"
+
+msgid "Device Name"
+msgstr "Nom de l'équipement"
+
+msgid "MAC Address"
+msgstr "Adresse MAC"
+
+msgid "Status"
+msgstr "Statut"
+
+msgid "Uptime %"
+msgstr "Disponibilité %"
+
+msgid "SLA"
+msgstr "SLA"
+
+msgid "Network Topology"
+msgstr "Topologie réseau"
+
+msgid "Device Offline: %s"
+msgstr "Équipement hors ligne : %s"
+
+msgid "GDMS device %s (MAC: %s, S/N: %s) went offline."
+msgstr "L'équipement GDMS %s (MAC : %s, N/S : %s) est passé hors ligne."
+
+msgid "Gold"
+msgstr "Or"
+
+msgid "Silver"
+msgstr "Argent"
+
+msgid "Bronze"
+msgstr "Bronze"
+
+msgid "Critical"
+msgstr "Critique"
+
+msgid "No GDMS devices found. Run a sync first."
+msgstr "Aucun équipement GDMS trouvé. Lancez une synchronisation d'abord."
+
+msgid "Synchronize GDMS cloud devices with GLPI"
+msgstr "Synchroniser les équipements GDMS Cloud avec GLPI"
+
+msgid "This plugin requires GLPI 11.0 or later."
+msgstr "Ce plugin nécessite GLPI 11.0 ou supérieur."
+
+msgid "This plugin requires the PHP cURL extension."
+msgstr "Ce plugin nécessite l'extension PHP cURL."
+
+msgid "Webhook URL: %s"
+msgstr "URL du webhook : %s"
+
+msgid "Type"
+msgstr "Type"
+
+msgid "Serial"
+msgstr "Série"
+
+msgid "Phone"
+msgstr "Téléphone"
+
+msgid "Network"
+msgstr "Réseau"
+
+msgid "GDMS Username"
+msgstr "Identifiant GDMS"
+
+msgid "GDMS Password"
+msgstr "Mot de passe GDMS"
+
+msgid "Your GDMS Cloud login email."
+msgstr "E-mail de connexion à GDMS Cloud."
+
+msgid "Your GDMS Cloud login password."
+msgstr "Mot de passe de connexion à GDMS Cloud."
