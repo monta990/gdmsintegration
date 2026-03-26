@@ -6,12 +6,12 @@
    <logo>https://raw.githubusercontent.com/monta990/gdmsintegration/main/logo.png</logo>
    <description>
       <short>
-         <en>Integrates Grandstream GDMS Cloud and GWN Cloud with GLPI.</en>
-         <es>Integra Grandstream GDMS Cloud y GWN Cloud con GLPI 11.</es>
+         <en>Integrates Grandstream GWN Cloud with GLPI.</en>
+         <es>Integra Grandstream GWN Cloud con GLPI.</es>
       </short>
       <long>
-         <en>Integrates Grandstream GDMS Cloud and GWN Cloud with GLPI 11. Automatically synchronizes GWN APs, switches and routers plus GDMS phones and PBX into GLPI assets. Features: real-time NOC dashboard with per-device uptime history chart, availability SLA tiers, network topology, one-click firmware update scheduling for GWN devices, incident ticket auto-open and auto-resolve on device state changes, Excel export via PhpSpreadsheet, and HMAC-SHA256 webhook for instant push events. Two-tier logging: minimal always-on plus verbose debug mode. Localized in es_MX, fr_FR, de_DE.</en>
-         <es>Integra Grandstream GDMS Cloud y GWN Cloud con GLPI 11. Sincroniza automáticamente APs, switches y routers GWN así como teléfonos y PBX GDMS como activos GLPI. Incluye: dashboard NOC en tiempo real con historial de disponibilidad por dispositivo, niveles de SLA, topología de red, programación de actualizaciones de firmware GWN con un clic, apertura y resolución automática de tickets ante cambios de estado, exportación a Excel con PhpSpreadsheet y webhook HMAC-SHA256 para eventos en tiempo real. Registro en dos niveles: mínimo siempre activo y modo verbose de depuración. Localizado en es_MX, fr_FR, de_DE.</es>
+         <en>Integrates Grandstream GWN Cloud with GLPI. Automatically synchronizes GWN APs, switches and routers plus GDMS phones and PBX into GLPI assets. Features: real-time NOC dashboard with per-device uptime history chart, availability SLA tiers, network topology, one-click firmware update scheduling for GWN devices, incident ticket auto-open and auto-resolve on device state changes, Excel export via PhpSpreadsheet, and HMAC-SHA256 webhook for instant push events. Two-tier logging: minimal always-on plus verbose debug mode. Localized in es_MX, fr_FR, de_DE.</en>
+         <es>Integra Grandstream GWN Cloud con GLPI. Sincroniza automáticamente APs, switches y routers GWN así como teléfonos y PBX GDMS como activos GLPI. Incluye: dashboard NOC en tiempo real con historial de disponibilidad por dispositivo, niveles de SLA, topología de red, programación de actualizaciones de firmware GWN con un clic, apertura y resolución automática de tickets ante cambios de estado, exportación a Excel con PhpSpreadsheet y webhook HMAC-SHA256 para eventos en tiempo real. Registro en dos niveles: mínimo siempre activo y modo verbose de depuración. Localizado en es_MX, fr_FR, de_DE.</es>
       </long>
    </description>
    <homepage>https://github.com/monta990/gdmsintegration</homepage>
