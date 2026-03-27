@@ -334,6 +334,9 @@ msgstr ""
 msgid "Checking firmware…"
 msgstr ""
 
+msgid "Device MAC"
+msgstr ""
+
 msgid "Schedule update"
 msgstr ""
 

@@ -404,6 +404,9 @@ msgstr "Actualización de firmware disponible"
 msgid "Checking firmware…"
 msgstr "Consultando firmware…"
 
+msgid "Device MAC"
+msgstr "MAC del dispositivo"
+
 msgid "Schedule update"
 msgstr "Programar actualización"
 

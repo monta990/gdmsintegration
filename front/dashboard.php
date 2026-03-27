@@ -644,7 +644,7 @@ foreach ($links_raw as $l) {
     // If the API returns an unexpected value, enable verbose debug logging to see raw portInfo.
     var portSpeeds = {0:'—', 1:'10M <?= __('HDX','gdmsintegration') ?>', 2:'10M <?= __('FDX','gdmsintegration') ?>', 3:'100M <?= __('HDX','gdmsintegration') ?>', 4:'100M <?= __('FDX','gdmsintegration') ?>', 5:'1G <?= __('FDX','gdmsintegration') ?>', 6:'1G <?= __('FDX','gdmsintegration') ?>', 7:'10G <?= __('FDX','gdmsintegration') ?>'};
     var wanTypeNames = {0:'DHCP', 1:'Static', 2:'PPPoE', 3:'PPTP', 4:'L2TP'};
-    var connectNames = {0:'<?= __('Disconnected', 'gdmsintegration') ?>', 1:'<?= __('No internet', 'gdmsintegration') ?>', 2:'<?= __('Online', 'gdmsintegration') ?>'};
+    var connectNames = {0:'<?= __('Disconnected', 'gdmsintegration') ?>', 1:'<?= __('Online', 'gdmsintegration') ?>'};
 
     function fmtDuration(secs) {
         if (!secs) return '—';
@@ -705,8 +705,8 @@ foreach ($links_raw as $l) {
                         var color;
                         if (isWan) {
                             if (!linkUp)       color = '#6c757d'; // gray = link down
-                            else if (p.connectStatus === 2) color = '#28a745'; // green = internet OK
-                            else if (p.connectStatus === 1) color = '#fd7e14'; // orange = up, no internet
+                            else if (p.connectStatus === 1) color = '#28a745'; // green = internet confirmed
+                            else if (p.connectStatus === 0) color = '#fd7e14'; // orange = up, no internet
                             else               color = '#ffc107'; // amber = up, status unknown
                         } else {
                             color = linkUp ? '#20c997' : '#6c757d'; // teal=up, gray=down
@@ -715,7 +715,7 @@ foreach ($links_raw as $l) {
                         var wanLabel = p.wanName ? ' — ' + p.wanName : '';
                         var portLabel = p.name && p.name !== p.silk ? ' (' + p.name + ')' : '';
                         var dot = document.createElement('span');
-                        dot.title = label + portLabel + wanLabel + (!linkUp ? ' — <?= __('Link down', 'gdmsintegration') ?>' : (p.connectStatus === 2 ? ' — <?= __('Online', 'gdmsintegration') ?>' : p.connectStatus === 1 ? ' — <?= __('No internet', 'gdmsintegration') ?>' : ''));
+                        dot.title = label + portLabel + wanLabel + (!linkUp ? ' — <?= __('Link down', 'gdmsintegration') ?>' : (p.connectStatus === 1 ? ' — <?= __('Online', 'gdmsintegration') ?>' : p.connectStatus === 0 ? ' — <?= __('No internet', 'gdmsintegration') ?>' : ''));
                         dot.style.cssText = 'display:inline-block;width:9px;height:9px;border-radius:50%;background:' + color + ';cursor:pointer;flex-shrink:0' + (isWan ? ';outline:1px solid rgba(255,255,255,.3)' : '');
                         container.appendChild(dot);
                     });
@@ -765,8 +765,8 @@ foreach ($links_raw as $l) {
                 var statusColor, statusIcon, statusText;
                 if (isWan) {
                     if (!linkUp)  { statusColor='secondary'; statusIcon='times-circle';    statusText='<?= __('Link down', 'gdmsintegration') ?>'; }
-                    else if(cs==2){ statusColor='success';   statusIcon='check-circle';    statusText='<?= __('Online', 'gdmsintegration') ?>'; }
-                    else if(cs==1){ statusColor='warning';   statusIcon='exclamation-circle'; statusText='<?= __('No internet', 'gdmsintegration') ?>'; }
+                    else if(cs==1){ statusColor='success';   statusIcon='check-circle';    statusText='<?= __('Online', 'gdmsintegration') ?>'; }
+                    else if(cs==0){ statusColor='warning';   statusIcon='exclamation-circle'; statusText='<?= __('No internet', 'gdmsintegration') ?>'; }
                     else          { statusColor='warning';   statusIcon='exclamation-circle'; statusText='<?= __('Link up', 'gdmsintegration') ?>'; }
                 } else {
                     statusColor = linkUp ? 'info'  : 'secondary';

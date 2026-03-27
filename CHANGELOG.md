@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.3] - 2026-03-27
+
+### Fixed
+- **WAN port internet status false positive** — `connectStatus=1` from the GWN API means internet is confirmed (not "no internet"). The colour mapping was inverted: all online WAN ports were shown as orange (WAN up, no internet) even when fully connected. Fixed mapping: `connectStatus=1` → green (Online), `connectStatus=0` with link up → orange (No internet).
+
 ## [1.0.2] — 2026-03-27
 
 ### Added
