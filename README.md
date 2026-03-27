@@ -88,7 +88,7 @@ The same tiers and thresholds apply to both the NOC dashboard and the Excel expo
 - **WAN-down ticket** — when a sync detects a WAN port transitioning from link-up to link-down, a `[GDMS-WAN:portName]` incident ticket is created (urgency High) and linked to the asset. A duplicate guard prevents repeat tickets for the same port.
 - Port data is updated each sync cycle and stored per device for transition detection. Only applies to online GWN routers (GWN7001, GWN7002, etc.) — switches, APs and phones do not report port info.
 
-### Incident Tickets
+### Incident Tickets -- WORK IN PROGRESS
 
 - **Auto-open** — `[GDMS]` incident ticket created on online → offline transition.
 - **Urgency routing** — High (4) for routers; Medium (3) for switches and phones.
@@ -174,9 +174,28 @@ After saving, the plugin tests both API connections and shows green/red status b
 | Table | Purpose |
 |-------|---------|
 | `glpi_plugin_gdmsintegration_configs` | Credentials and settings per entity |
-| `glpi_plugin_gdmsintegration_devices` | Live device state: MAC, status, network_id, network_name, IP, firmware, uptime_sec, sn_cloud, wan_ports_json |
+| `glpi_plugin_gdmsintegration_devices` | Live device state: MAC, status, network_id, network_name, IP, firmware, uptime_sec, sn_cloud, wan_ports_json, model |
 | `glpi_plugin_gdmsintegration_history` | Per-device status snapshots (60-day retention) |
 | `glpi_plugin_gdmsintegration_links` | Network topology edges |
+
+---
+
+## Architecture Notes
+
+### Entity scope
+The plugin operates from the root entity (entity 0) and loads all network equipment across all GLPI entities. This is intentional — network infrastructure (routers, switches, APs) is shared organization-wide, not scoped to individual subsidiaries. Administrators with access to the plugin dashboard will see all devices regardless of entity boundaries.
+
+### Device model resolution
+The *Model* column in the NOC dashboard resolves first from the GLPI asset catalog (`networkequipmentmodels_id` / `phonemodels_id`). If no model is assigned in GLPI, the raw device type reported by the Grandstream API (e.g. `GWN7001`, `GRP2601`) is used as a fallback and stored in the plugin state table.
+
+### GWN Cloud OAuth token
+The GWN Cloud API requires the OAuth2 `client_credentials` grant as a `GET` request with `client_id` and `client_secret` in the query string — this is Grandstream's mandated format and cannot be changed to POST. Credentials are encrypted at rest with `GLPIKey` and transmitted only over TLS to `gwn.cloud`.
+
+### Webhook secret
+The HMAC-SHA256 webhook secret is optional because GWN Cloud does not include a verifiable signature on all event types. When no secret is configured, the endpoint is still reachable but all writes are limited to the state fields the API reports. Configuring a secret is strongly recommended for production deployments — a warning is shown in the configuration form.
+
+### Third-party scripts
+The dashboard uses two JavaScript libraries: **Chart.js** (loaded from jsDelivr) and **vis-network** (loaded from unpkg). `vis-network` is not included in GLPI's vendor bundle and has no equivalent in the GLPI ecosystem. Migration to GLPI's bundled Chart.js and self-hosted vis-network is planned for a future release.
 
 ---
 
