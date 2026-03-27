@@ -553,16 +553,18 @@ foreach ($links_raw as $l) {
             schedBtn.disabled = true;
             schedBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i><?= __('Scheduling…', 'gdmsintegration') ?>';
             // GLPI 11 requires CSRF token on POST requests
-        var csrfToken = document.querySelector('meta[property="glpi:csrf_token"]');
-        var csrfValue = csrfToken ? csrfToken.getAttribute('content') : '';
+        // Use FormData so GLPI reads _glpi_csrf_token from $_POST (reliable in all GLPI 11 versions)
+        // glpiGetNewCSRFToken() fetches a fresh single-use token — avoids "already consumed" rejections
+        var csrfValue = (typeof window.glpiGetNewCSRFToken === 'function')
+            ? window.glpiGetNewCSRFToken()
+            : (document.querySelector('meta[property="glpi:csrf_token"]') || {}).getAttribute('content') || '';
+        var formData = new FormData();
+        formData.append('_glpi_csrf_token', csrfValue);
+        formData.append('macs', JSON.stringify([mac.replace(/:/g, '').toUpperCase()]));
         fetch(FW_UPGRADE_URL, {
                 method: 'POST',
                 credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Glpi-Csrf-Token': csrfValue
-                },
-                body: JSON.stringify({ macs: [mac.replace(/:/g, '').toUpperCase()], _glpi_csrf_token: csrfValue })
+                body: formData
             })
             .then(function(r) { return r.json(); })
             .then(function(resp) {

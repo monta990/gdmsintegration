@@ -46,11 +46,24 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 - **Auto-refresh** — configurable interval (default 5 min) with countdown timer.
 - **Manual sync** — background CLI dispatch, non-blocking.
 - **Excel export** — three-sheet `.xlsx` via `phpoffice/phpspreadsheet` (GLPI vendor, no extra dependency):
-  - *% Online 60 days* — pivot matrix with conditional colour fill
+  - *% Online 60 days* — pivot matrix with conditional colour fill (green ≥ 90 %, yellow ≥ 50 %, red < 50 %)
   - *Raw Data* — individual history records
-  - *Summary* — per-device availability % and SLA tier
+  - *Summary* — per-device availability %, SLA tier
 
-### Firmware Update (GDMS Networking only) -- WORK IN PROGRESS
+### SLA Tiers
+
+Availability % is calculated over the last 60 days of history records. Each device is assigned a tier based on its percentage of time online:
+
+| Tier | Threshold | Description |
+|------|-----------|-------------|
+| **Gold** | ≥ 99.9 % | Excellent availability — meets enterprise SLA |
+| **Silver** | ≥ 99.0 % | Good availability — minor disruptions |
+| **Bronze** | ≥ 95.0 % | Acceptable availability — some incidents recorded |
+| **Critical** | < 95.0 % | Poor availability — requires immediate attention |
+
+The same tiers and thresholds apply to both the NOC dashboard and the Excel export Summary sheet.
+
+### Firmware Update (GDMS Networking only)
 
 - Firmware check runs 2 seconds after page load via `firmware.ajax.php?action=check`.
 - Calls `POST /oapi/v1.0.0/upgrade/version` per network; flags only **stable releases** (no `beta`, `rc`, `dev`, `alpha`).
@@ -67,7 +80,7 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 - **Duplicate guard** — skips creation if an open `[GDMS]` ticket already exists for that asset.
 - **Auto-resolve** — on recovery: adds followup note and sets ticket to Solved.
 
-### Webhook -- WORK IN PROGRESS
+### Webhook
 
 - **Real-time events** — GDMS/GWN Cloud pushes status changes directly to the plugin endpoint.
 - **HMAC-SHA256 validation** — verified against `X-GDMS-Signature` header. Secret optional but recommended.

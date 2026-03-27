@@ -144,19 +144,28 @@ if ($action === 'upgrade') {
         echo json_encode(['error' => 'GWN not configured']);
         return;
     }
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
-    $macs = array_filter(array_map('strtoupper', (array)($body['macs'] ?? [])));
+    // Support both FormData (macs as JSON string field) and JSON body
+    $rawMacs = $_POST['macs'] ?? null;
+    if ($rawMacs !== null) {
+        $macs = array_filter(array_map('strtoupper', json_decode($rawMacs, true) ?? []));
+    } else {
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $macs = array_filter(array_map('strtoupper', (array)($body['macs'] ?? [])));
+    }
 
     if (empty($macs)) {
         echo json_encode(['error' => 'No MACs provided']);
         return;
     }
 
+    PluginGdmsintegrationUtils::log("Firmware upgrade requested — MACs: " . implode(', ', $macs));
     $result = PluginGdmsintegrationAPI::gwnScheduleUpgrade($config, array_values($macs));
-    PluginGdmsintegrationUtils::log(
-        "GDMS: Firmware upgrade scheduled — MACs: " . implode(', ', $macs)
-        . " | result: " . json_encode($result)
-    );
+    if (!empty($result['error'])) {
+        PluginGdmsintegrationUtils::log("Firmware upgrade FAILED — " . $result['error']);
+    } else {
+        $ok = implode(', ', (array)($result['success'] ?? []));
+        PluginGdmsintegrationUtils::log("Firmware upgrade scheduled OK — MACs confirmed: " . ($ok ?: 'none'));
+    }
     echo json_encode($result);
     return;
 }
