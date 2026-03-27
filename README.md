@@ -85,10 +85,10 @@ The same tiers and thresholds apply to both the NOC dashboard and the Excel expo
   | ⚫ Gray | Link down (any port type) |
 
 - **Click any dot** to open a detail modal per port showing: port label (silk-screen), port name, WAN name, connection status, IP address, WAN type (DHCP/Static/PPPoE), link speed, and time connected.
-- **WAN-down ticket** — when a sync detects a WAN port transitioning from link-up to link-down, a `[GDMS-WAN:portName]` incident ticket is created (urgency High) and linked to the asset. A duplicate guard prevents repeat tickets for the same port.
+- **Port-down ticket** — when a sync detects any port transitioning from link-up to link-down, a `[GDMS-WAN:portName]` incident ticket is created (urgency High) and linked to the asset. WAN ports are prioritised; LAN port transitions also generate tickets. A duplicate guard prevents repeat tickets for the same port.
 - Port data is updated each sync cycle and stored per device for transition detection. Only applies to online GWN routers (GWN7001, GWN7002, etc.) — switches, APs and phones do not report port info.
 
-### Incident Tickets -- WORK IN PROGRESS
+### Incident Tickets
 
 - **Auto-open** — `[GDMS]` incident ticket created on online → offline transition.
 - **Urgency routing** — High (4) for routers; Medium (3) for switches and phones.

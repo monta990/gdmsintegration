@@ -14,7 +14,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - 🟡 Amber — WAN: link up, status unknown
   - 🔵 Teal — LAN: link up
   - ⚫ Gray — link down (any port type)
-- **WAN-down incident ticket** — when a sync detects a WAN port transitioning from link-up to link-down, a `[GDMS-WAN:portSilk]` incident ticket (urgency High) is created and linked to the asset. Duplicate guard prevents repeat tickets for the same port across syncs.
+- **Port-down incident ticket** — when a sync detects any port transitioning from link-up to link-down, a `[GDMS-WAN:portSilk]` incident ticket (urgency High) is created and linked to the asset. WAN ports are prioritised but LAN port link-down transitions also generate tickets. Duplicate guard prevents repeat tickets for the same port across syncs.
 - **`front/ports.ajax.php`** — new AJAX endpoint returning full port state (role, link status, speed, type, WAN name, IP, connect status, connect duration) for all tracked online GWN routers. Uses stored `wan_ports_json` when available; falls back to live API on first load.
 - **`wan_ports_json` column** in `glpi_plugin_gdmsintegration_devices` — stores full port state snapshot after each sync for WAN transition detection. Upgrade path: `ALTER TABLE ... ADD COLUMN IF NOT EXISTS wan_ports_json text NOT NULL DEFAULT ''`.
 - **Verbose port debug logging** — when debug mode is active, raw `portInfo[]` and `ipv4Info[]` from `device/info` are logged to `gdmsintegration.log` to aid in diagnosing speed / WAN name / IP matching issues.

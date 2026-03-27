@@ -319,7 +319,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                         $prev_ports = json_decode($prev_ports_json, true) ?? [];
                         $prev_map   = array_column($prev_ports, null, 'id');
                         foreach ($wan_summary as $wp) {
-                            if (($wp['role'] ?? 0) != 1) continue; // Only WAN ports for tickets
+                            // All port types generate tickets on link-down transition
                             $prev_wp = $prev_map[$wp['id']] ?? null;
                             if ($prev_wp && ($prev_wp['link'] == 1) && ($wp['link'] == 0)) {
                                 // WAN link was up, now down → create ticket
