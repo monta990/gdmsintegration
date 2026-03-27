@@ -13,7 +13,14 @@
  *      Schedules firmware upgrade for the given MACs via GWN API.
  */
 
-Session::checkLoginUser();
+// check (GET): any logged-in user with config READ
+// upgrade (POST): requires config UPDATE (admin-level)
+$_action_early = $_GET['action'] ?? 'check';
+if ($_action_early === 'upgrade') {
+    Session::checkRight('config', UPDATE);
+} else {
+    Session::checkLoginUser();
+}
 header('Content-Type: application/json');
 
 $entities_id = (int) ($_GET['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);

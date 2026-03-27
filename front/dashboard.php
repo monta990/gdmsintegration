@@ -11,7 +11,7 @@ if (!Session::haveRight('config', READ) && !Session::haveRight('networking', REA
 }
 
 Html::header(
-    __('GDMS Tablero', 'gdmsintegration'),
+    'GDMS — ' . __('Dashboard', 'gdmsintegration'),
     '',
     'tools',
     'PluginGdmsintegrationMenu'
@@ -196,7 +196,7 @@ foreach ($links_raw as $l) {
          <div class="d-flex align-items-center gap-3">
             <i class="fas fa-satellite-dish fa-lg text-primary"></i>
             <div>
-               <h4 class="mb-0 fw-bold"><?= __('GDMS Tablero', 'gdmsintegration') ?></h4>
+               <h4 class="mb-0 fw-bold"><?= 'GDMS — ' . __('Dashboard', 'gdmsintegration') ?></h4>
                <small class="text-muted"><?= __('Live view of your Grandstream cloud devices', 'gdmsintegration') ?></small>
             </div>
          </div>
@@ -433,6 +433,8 @@ foreach ($links_raw as $l) {
     // Non-blocking sync: fires request then reloads after 2s regardless
     // PHP sets ignore_user_abort so it keeps running even after reload
     var AJAX_URL       = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/sync.ajax.php?entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
+    var AJAX_URL_BTN   = AJAX_URL + '&source=button';
+    var AJAX_URL_AUTO  = AJAX_URL + '&source=auto-refresh';
     var REFRESH_S      = <?= (int)$refresh_interval ?>;
     var gdmsCountdown  = REFRESH_S;
     var gdmsSyncing    = false;
@@ -442,19 +444,20 @@ foreach ($links_raw as $l) {
 
     function fmtTime(s) { return s >= 60 ? Math.floor(s/60)+'m '+(s%60)+'s' : s+'s'; }
 
-    function doSync() {
+    function doSync(source) {
         if (gdmsSyncing) return;
-        gdmsSyncing = true;
+        gdmsSyncing = source || 'auto';
         if (icon) icon.className = 'fas fa-sync-alt fa-spin me-1';
         if (btn)  btn.disabled = true;
         if (countEl) countEl.textContent = '<?= __('Syncing…', 'gdmsintegration') ?>';
-        fetch(AJAX_URL, { credentials:'same-origin' })
+        var syncUrl = (gdmsSyncing === 'btn') ? AJAX_URL_BTN : AJAX_URL_AUTO;
+        fetch(syncUrl, { credentials:'same-origin' })
             .then(function(r){ return r.json(); })
             .then(function(){ location.reload(); })
             .catch(function(){ location.reload(); });
     }
 
-    if (btn) btn.addEventListener('click', function(){ gdmsCountdown = REFRESH_S; doSync(); });
+    if (btn) btn.addEventListener('click', function(){ gdmsCountdown = REFRESH_S; doSync('btn'); });
 
     setInterval(function() {
         if (gdmsSyncing) return;
@@ -528,43 +531,54 @@ foreach ($links_raw as $l) {
         var body    = document.getElementById('gdmsFwModalBody');
         var schedBtn = document.getElementById('gdmsFwScheduleBtn');
 
-        body.innerHTML = `
-          <table class="table table-sm mb-0">
-            <tr><th class="text-muted fw-normal w-50"><?= __('Current firmware', 'gdmsintegration') ?></th>
-                <td><code>${current}</code></td></tr>
-            <tr><th class="text-muted fw-normal"><?= __('Latest stable firmware', 'gdmsintegration') ?></th>
-                <td><code class="text-warning">${latest}</code>
-                    <span class="badge bg-success ms-1"><?= __('Official', 'gdmsintegration') ?></span></td></tr>
-            <tr><th class="text-muted fw-normal"><?= __('Device MAC', 'gdmsintegration') ?></th>
-                <td><code>${mac.toUpperCase()}</code></td></tr>
-          </table>
-          <div class="alert alert-warning mt-3 mb-0 py-2 small">
-            <i class="fas fa-exclamation-triangle me-1"></i>
-            <?= __('The device will reboot during the update. Schedule during a maintenance window.', 'gdmsintegration') ?>
-          </div>`;
+        // Build modal body using DOM methods to prevent XSS
+        var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; };
+        body.innerHTML = '<table class="table table-sm mb-0">'
+          + '<tr><th class="text-muted fw-normal w-50"><?= __('Current firmware', 'gdmsintegration') ?></th>'
+          + '<td><code>' + esc(current) + '</code></td></tr>'
+          + '<tr><th class="text-muted fw-normal"><?= __('Latest stable firmware', 'gdmsintegration') ?></th>'
+          + '<td><code class="text-warning">' + esc(latest) + '</code>'
+          + ' <span class="badge bg-success ms-1"><?= __('Official', 'gdmsintegration') ?></span></td></tr>'
+          + '<tr><th class="text-muted fw-normal"><?= __('Device MAC', 'gdmsintegration') ?></th>'
+          + '<td><code>' + esc(mac.toUpperCase()) + '</code></td></tr>'
+          + '</table>'
+          + '<div class="alert alert-warning mt-3 mb-0 py-2 small">'
+          + '<i class="fas fa-exclamation-triangle me-1"></i>'
+          + '<?= __('The device will reboot during the update. Schedule during a maintenance window.', 'gdmsintegration') ?>'
+          + '</div>';
 
         schedBtn.style.display = 'inline-block';
         schedBtn.onclick = null;
         schedBtn.onclick = function() {
             schedBtn.disabled = true;
             schedBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i><?= __('Scheduling…', 'gdmsintegration') ?>';
-            fetch(FW_UPGRADE_URL, {
+            // GLPI 11 requires CSRF token on POST requests
+        var csrfToken = document.querySelector('meta[property="glpi:csrf_token"]');
+        var csrfValue = csrfToken ? csrfToken.getAttribute('content') : '';
+        fetch(FW_UPGRADE_URL, {
                 method: 'POST',
                 credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ macs: [mac.toUpperCase()] })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Glpi-Csrf-Token': csrfValue
+                },
+                body: JSON.stringify({ macs: [mac.replace(/:/g, '').toUpperCase()], _glpi_csrf_token: csrfValue })
             })
             .then(function(r) { return r.json(); })
             .then(function(resp) {
                 if (resp.error) {
-                    body.innerHTML += '<div class="alert alert-danger mt-2 mb-0 py-2 small">'
-                        + '<i class="fas fa-times-circle me-1"></i>' + resp.error + '</div>';
+                    var errDiv = document.createElement('div');
+                    errDiv.className = 'alert alert-danger mt-2 mb-0 py-2 small';
+                    errDiv.textContent = resp.error;
+                    errDiv.insertAdjacentHTML('afterbegin', '<i class="fas fa-times-circle me-1"></i> ');
+                    body.appendChild(errDiv);
                     schedBtn.disabled = false;
                     schedBtn.innerHTML = '<i class="fas fa-calendar-check me-1"></i><?= __('Schedule update', 'gdmsintegration') ?>';
                 } else {
-                    body.innerHTML += '<div class="alert alert-success mt-2 mb-0 py-2 small">'
-                        + '<i class="fas fa-check-circle me-1"></i><?= __('Update scheduled successfully. The device will update shortly.', 'gdmsintegration') ?>'
-                        + '</div>';
+                    var ok = document.createElement('div');
+                    ok.className = 'alert alert-success mt-2 mb-0 py-2 small';
+                    ok.innerHTML = '<i class="fas fa-check-circle me-1"></i><?= __('Update scheduled successfully. The device will update shortly.', 'gdmsintegration') ?>';
+                    body.appendChild(ok);
                     schedBtn.style.display = 'none';
                     // Hide the badge since update is scheduled
                     document.querySelectorAll('.gdms-fw-badge[data-mac="' + mac + '"]')
@@ -572,7 +586,10 @@ foreach ($links_raw as $l) {
                 }
             })
             .catch(function() {
-                body.innerHTML += '<div class="alert alert-danger mt-2 mb-0 py-2 small"><?= __('Request failed. Check connection.', 'gdmsintegration') ?></div>';
+                var connErr = document.createElement('div');
+                connErr.className = 'alert alert-danger mt-2 mb-0 py-2 small';
+                connErr.textContent = '<?= __('Request failed. Check connection.', 'gdmsintegration') ?>';
+                body.appendChild(connErr);
                 schedBtn.disabled = false;
                 schedBtn.innerHTML = '<i class="fas fa-calendar-check me-1"></i><?= __('Schedule update', 'gdmsintegration') ?>';
             });

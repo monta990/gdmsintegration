@@ -3,18 +3,41 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.2] — 2026-03-26
+
+### Security
+
+- **SSL verification in batch cURL** — `CURLOPT_SSL_VERIFYPEER` was `false` in `gwnGetDeviceInfoBatch()`; set to `true` with `CURLOPT_SSL_VERIFYHOST => 2`. All GWN API calls now fully verify TLS certificates.
+- **Access control on AJAX endpoints** — `sync.ajax.php`, `firmware.ajax.php`, and `history_export.php` now require proper rights (`config UPDATE`, `networking UPDATE`, `config READ` respectively) instead of `checkLoginUser()` alone. Read-only helpdesk accounts can no longer trigger syncs, schedule firmware upgrades, or export network data.
+- **XSS in firmware modal** — replaced `innerHTML` template literal interpolation with safe DOM construction (`createElement` / `textContent`). Firmware version strings from the API no longer execute as HTML.
+
+### Fixed
+
+- **CSRF on firmware upgrade** — `firmware.ajax.php` registered as a stateless path, bypassing GLPI 11 CSRF interceptor for POST requests (same pattern as `webhook.php`).
+- **Ticket creation on offline transition** — `prevStatus` was read *after* `saveStateWithNetwork()`, so the previous state was already overwritten; moved to *before* the save so `online → offline` transitions are correctly detected and tickets are created.
+- **Firmware upgrade MAC format** — `upgrade/add` API requires MACs without colons (`C074ADEC02FC`); colons are now stripped before the POST body is assembled.
+- **`htmlspecialchars()` before DB write** — device names were HTML-encoded before storage, causing `&amp;`, `&lt;` etc. to appear literally in GLPI asset names and ticket subjects. Encoding now happens at output time only.
+- **Inconsistent SLA tiers** — Excel export used `Platinum/Gold/Silver/Critical` with different thresholds from the dashboard. Both now use `Gold ≥ 99.9% / Silver ≥ 99% / Bronze ≥ 95% / Critical < 95%`.
+
+### Changed
+
+- **Dashboard title** — "GDMS Tablero" replaced with `'GDMS — ' . __('Dashboard', 'gdmsintegration')`; the word "Dashboard" is now translatable.
+- **Deduplicated GWN signature logic** — `gwnGetFirmwareVersions()` and `gwnScheduleUpgrade()` now call the existing `gwnBuildSignature()` helper instead of duplicating the HMAC construction inline.
+
+---
+
 ## [1.0.1] — 2026-03-25
 
 ### Added
 
-#### GWN Cloud (gwn.cloud) integration
+#### GWN Cloud (GDMS Networking) integration
 - Independent API client for Grandstream networking devices — GWN APs, switches, and routers.
 - Separate OAuth2 token flow: `GET /oauth/token?grant_type=client_credentials`.
 - Separate HMAC-SHA256 signature scheme using `appID` / `secretKey`.
 - GWN `network/list` endpoint queried first to build `networkId → networkName` map; each network is then paginated via `ap/list`.
 - `network_id` (int) stored in the plugin device state table and passed through sync for use in firmware checks.
 
-#### Firmware update check & scheduling (GWN only)
+#### Firmware update check & scheduling (GDMS Networking only)
 - New `front/firmware.ajax.php` endpoint with two actions:
   - `check` — calls `POST /oapi/v1.0.0/upgrade/version {networkId}` for every tracked network, returns `{mac, currentVersion, latestVersion, hasUpdate}` filtered to **stable releases only** (no `beta`, `rc`, `dev`, `alpha`).
   - `upgrade` — calls `POST /oapi/v1.0.0/upgrade/add {macs:[...]}` to schedule an official firmware update via GWN Cloud.
@@ -22,7 +45,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Bootstrap modal on icon click: displays current vs. latest firmware, `Official` badge, maintenance reboot warning, and **Schedule update** button.
 - Firmware check fires 2 seconds after page load in background — does not block the dashboard or the sync cycle.
 - Update icon hidden after scheduling to avoid re-triggering.
-- All 14 firmware UI strings translated to es_MX, fr_FR, de_DE.
 
 #### SN enrichment — parallel curl_multi
 - All `device/info` requests for a network batch fire simultaneously via `curl_multi`, replacing sequential calls and cutting GWN sync time significantly.
@@ -80,7 +102,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Debug logging toggle** in config form (Webhook card). Clears session cache on save for immediate effect.
 
 #### Localization
-- All 140 strings translated to es_MX, fr_FR, de_DE (en_US / en_GB use msgid as base).
+- All strings translated to es_MX, fr_FR, de_DE (en_US / en_GB use msgid as base).
 - Includes Excel sheet names / column headers, firmware modal strings, ticket body phrases, and debug toggle labels.
 
 ### Changed
@@ -102,7 +124,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.0.0] — 2026-03-24
+## [1.0.0] — 2026-03-24 -- NOT RELEASED
 
 ### Added
 - Initial release.

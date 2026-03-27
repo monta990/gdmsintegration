@@ -11,7 +11,7 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Font;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
-Session::checkLoginUser();
+Session::checkRight('config', READ);
 
 $entities_id = (int) ($_GET['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);
 
@@ -172,7 +172,7 @@ foreach ($devices as $mac) {
         if ($d['total'] > 0 && $d['online'] / $d['total'] >= 0.5) $onlineDays++;
     }
     $avail = $totalDays > 0 ? $onlineDays / $totalDays : 0;
-    $sla   = $avail >= 0.99 ? 'Platinum' : ($avail >= 0.95 ? 'Gold' : ($avail >= 0.90 ? 'Silver' : 'Critical'));
+    $sla   = $avail >= 0.999 ? __('Gold', 'gdmsintegration') : ($avail >= 0.99 ? __('Silver', 'gdmsintegration') : ($avail >= 0.95 ? __('Bronze', 'gdmsintegration') : __('Critical', 'gdmsintegration')));
 
     $sum->setCellValue("A{$sr}", $mac_to_name[$mac] ?? $mac);
     $sum->setCellValue("B{$sr}", strtoupper($mac));

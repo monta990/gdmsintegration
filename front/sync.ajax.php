@@ -8,7 +8,7 @@
  * inside the ob buffer and flushed by GLPI when the request completes.
  * The dashboard JS waits for the response before reloading — this is correct.
  */
-Session::checkLoginUser();
+Session::checkRight('config', UPDATE);
 
 header('Content-Type: application/json');
 $entities_id = (int) ($_GET['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);

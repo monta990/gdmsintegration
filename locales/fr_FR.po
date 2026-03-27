@@ -280,8 +280,6 @@ msgstr "Configuration enregistrée. Aucune information d'identification à teste
 msgid "Go to Dashboard"
 msgstr "Aller au tableau de bord"
 
-msgid "GDMS Tablero"
-msgstr "Tableau de bord GDMS"
 
 msgid "Refresh"
 msgstr "Actualiser"
@@ -432,3 +430,9 @@ msgstr "La requête a échoué. Vérifiez la connexion."
 
 msgid "Unknown"
 msgstr "Inconnu"
+
+msgid "Close"
+msgstr "Fermer"
+
+msgid "Dashboard"
+msgstr "Tableau de bord"

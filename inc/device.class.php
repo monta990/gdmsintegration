@@ -17,7 +17,9 @@ class PluginGdmsintegrationDevice extends CommonDBTM {
     }
 
     public function getState(string $mac): ?string {
-        $rows = $this->find(['mac' => $mac]);
+        // Use a fresh instance to avoid CommonDBTM internal field cache
+        $fresh = new self();
+        $rows  = $fresh->find(['mac' => $mac]);
         if (empty($rows)) {
             return null;
         }

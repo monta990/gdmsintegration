@@ -284,8 +284,6 @@ msgstr ""
 msgid "Go to Dashboard"
 msgstr ""
 
-msgid "GDMS Tablero"
-msgstr ""
 
 msgid "Refresh"
 msgstr ""
@@ -454,4 +452,10 @@ msgid "Request failed. Check connection."
 msgstr ""
 
 msgid "Unknown"
+msgstr ""
+
+msgid "Close"
+msgstr ""
+
+msgid "Dashboard"
 msgstr ""

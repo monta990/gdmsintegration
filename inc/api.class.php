@@ -461,7 +461,8 @@ class PluginGdmsintegrationAPI {
                 CURLOPT_POSTFIELDS     => $body,
                 CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
                 CURLOPT_TIMEOUT        => 8,
-                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
             ]);
             curl_multi_add_handle($mh, $ch);
             $handles[$idx] = $ch;
@@ -535,14 +536,12 @@ class PluginGdmsintegrationAPI {
         $secret = $config['gwn_client_secret'] ?? '';
 
         $body   = json_encode(['networkId' => $networkId]);
-        $ts     = (int)(microtime(true) * 1000);
-        $bHash  = hash('sha256', $body);
-        $sigIn  = "&access_token={$token}&appID={$appId}&secretKey={$secret}&timestamp={$ts}&{$bHash}&";
-        $sig    = hash('sha256', $sigIn);
-        $url    = self::GWN_BASE . '/oapi/v1.0.0/upgrade/version'
-                  . '?access_token=' . urlencode($token)
-                  . '&appID='        . urlencode($appId)
-                  . "&timestamp={$ts}&signature={$sig}";
+        $ts  = (int)(microtime(true) * 1000);
+        $sig = self::gwnBuildSignature($token, $appId, $secret, $ts, $body);
+        $url = self::GWN_BASE . '/oapi/v1.0.0/upgrade/version'
+               . '?access_token=' . urlencode($token)
+               . '&appID='        . urlencode($appId)
+               . "&timestamp={$ts}&signature={$sig}";
 
         $data = self::curl($url, ['Content-Type: application/json'], $body);
         if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
@@ -566,14 +565,12 @@ class PluginGdmsintegrationAPI {
         $secret = $config['gwn_client_secret'] ?? '';
 
         $body   = json_encode(['macs' => $macs]);
-        $ts     = (int)(microtime(true) * 1000);
-        $bHash  = hash('sha256', $body);
-        $sigIn  = "&access_token={$token}&appID={$appId}&secretKey={$secret}&timestamp={$ts}&{$bHash}&";
-        $sig    = hash('sha256', $sigIn);
-        $url    = self::GWN_BASE . '/oapi/v1.0.0/upgrade/add'
-                  . '?access_token=' . urlencode($token)
-                  . '&appID='        . urlencode($appId)
-                  . "&timestamp={$ts}&signature={$sig}";
+        $ts  = (int)(microtime(true) * 1000);
+        $sig = self::gwnBuildSignature($token, $appId, $secret, $ts, $body);
+        $url = self::GWN_BASE . '/oapi/v1.0.0/upgrade/add'
+               . '?access_token=' . urlencode($token)
+               . '&appID='        . urlencode($appId)
+               . "&timestamp={$ts}&signature={$sig}";
 
         $data = self::curl($url, ['Content-Type: application/json'], $body);
         if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {

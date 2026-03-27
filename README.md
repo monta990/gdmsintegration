@@ -58,7 +58,7 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 - **Click the icon** to open a Bootstrap modal with current vs. latest version, `Official` badge, reboot warning, and a **Schedule update** button.
 - Schedule calls `POST /oapi/v1.0.0/upgrade/add` — success/error shown inline in the modal.
 
-### Incident Tickets -- WORK IN PROGRESS
+### Incident Tickets
 
 - **Auto-open** — `[GDMS]` incident ticket created on online → offline transition.
 - **Urgency routing** — High (4) for routers; Medium (3) for switches and phones.

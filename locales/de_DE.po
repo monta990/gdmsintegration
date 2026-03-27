@@ -280,8 +280,6 @@ msgstr "Konfiguration gespeichert. Noch keine Anmeldedaten zum Testen."
 msgid "Go to Dashboard"
 msgstr "Zum Dashboard"
 
-msgid "GDMS Tablero"
-msgstr "GDMS-Dashboard"
 
 msgid "Refresh"
 msgstr "Aktualisieren"
@@ -432,3 +430,9 @@ msgstr "Anfrage fehlgeschlagen. Verbindung prüfen."
 
 msgid "Unknown"
 msgstr "Unbekannt"
+
+msgid "Close"
+msgstr "Schließen"
+
+msgid "Dashboard"
+msgstr "Dashboard"

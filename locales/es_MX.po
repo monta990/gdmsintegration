@@ -280,8 +280,6 @@ msgstr "Configuración guardada. Aún no hay credenciales para probar."
 msgid "Go to Dashboard"
 msgstr "Ir al Tablero"
 
-msgid "GDMS Tablero"
-msgstr "GDMS Tablero"
 
 msgid "Refresh"
 msgstr "Actualizar"
@@ -432,3 +430,9 @@ msgstr "La solicitud falló. Verifica la conexión."
 
 msgid "Unknown"
 msgstr "Desconocido"
+
+msgid "Close"
+msgstr "Cerrar"
+
+msgid "Dashboard"
+msgstr "Tablero"

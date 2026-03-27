@@ -60,7 +60,18 @@ class PluginGdmsintegrationSync extends CommonGLPI {
         $total = 0;
         $ts    = date('Y-m-d H:i:s');
 
-        PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called for entity_id={$entities_id}");
+        // Identify caller: cron task, ajax button, or auto-refresh
+$source = $_GET['source'] ?? null;
+if (defined('GLPI_CRON') || php_sapi_name() === 'cli') {
+    $caller = 'cron';
+} elseif ($source === 'button') {
+    $caller = 'ajax-button';
+} elseif ($source === 'auto-refresh') {
+    $caller = 'auto-refresh';
+} else {
+    $caller = 'ajax';
+}
+PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} entity={$entities_id}");
 
         // ── GWN API (networking: APs, Switches, Routers) ──────────────────
         if (!empty($config['gwn_client_id']) && !empty($config['gwn_client_secret'])) {
@@ -154,11 +165,8 @@ class PluginGdmsintegrationSync extends CommonGLPI {
 
             // deviceName = name set in GDMS portal; deviceType = model string
             $raw_name = $d['deviceName'] ?? $d['deviceType'] ?? '';
-            $name     = htmlspecialchars(
-                $raw_name !== '' ? $raw_name : 'GDMS Device',
-                ENT_QUOTES,
-                'UTF-8'
-            );
+            // Do NOT htmlspecialchars() here — escape at output time only, not before DB write
+            $name = $raw_name !== '' ? trim($raw_name) : 'GDMS Device';
 
             $gdms_model = trim($d['deviceType'] ?? '');
             // status: 1=online, 0=offline, -1=abnormal
@@ -265,6 +273,12 @@ class PluginGdmsintegrationSync extends CommonGLPI {
             // Store full cloud state for dashboard display
             // GDMS fields: publicIp, privateip, firmwareVersion, siteName, sn
             // GWN fields:  ip/ipv4, versionFirmware, networkName, upTime, sn (enriched)
+            // Read previous status BEFORE updating state (order matters for transitions)
+            $prevStatus = $state->getState($mac ?: $serial);
+            PluginGdmsintegrationUtils::debug(
+                "  STATE {$name}: prev=" . ($prevStatus ?? 'null') . " → new={$status}"
+            );
+
             $state->saveStateWithNetwork(
                 $mac ?: $serial,
                 $status,
@@ -277,9 +291,11 @@ class PluginGdmsintegrationSync extends CommonGLPI {
             );
 
             // Ticket transitions: offline → create ticket, offline→online → resolve
-            $prevStatus = $state->getState($mac ?: $serial);
             if ($glpi_id > 0) {
-                if ($prevStatus === 'online' && $status === 'offline') {
+                // Also create ticket if device is offline and was ALREADY offline in DB
+                // (catches devices that were offline before ticket logic was working)
+                $alreadyOffline = ($prevStatus === 'offline' && $status === 'offline');
+                if (($prevStatus === 'online' && $status === 'offline') || $alreadyOffline) {
                     self::createOfflineTicket(
                         $name,
                         $mac,
