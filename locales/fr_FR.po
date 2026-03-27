@@ -436,3 +436,66 @@ msgstr "Fermer"
 
 msgid "Dashboard"
 msgstr "Tableau de bord"
+
+msgid "WAN"
+msgstr "WAN"
+
+msgid "WAN Port Status"
+msgstr "État des ports WAN"
+
+msgid "Disconnected"
+msgstr "Déconnecté"
+
+msgid "No internet"
+msgstr "Sans internet"
+
+msgid "Link down"
+msgstr "Lien interrompu"
+
+msgid "Link up"
+msgstr "Lien actif"
+
+msgid "No WAN ports found"
+msgstr "Aucun port WAN trouvé"
+
+msgid "IP Address"
+msgstr "Adresse IP"
+
+msgid "Link speed"
+msgstr "Vitesse de lien"
+
+msgid "Connected for"
+msgstr "Connecté depuis"
+
+msgid "Ports"
+msgstr "Ports"
+
+msgid "No ports found"
+msgstr "Aucun port trouvé"
+
+msgid "WAN online"
+msgstr "WAN en ligne"
+
+msgid "WAN up, no internet"
+msgstr "WAN actif, sans internet"
+
+msgid "WAN up, unknown"
+msgstr "WAN actif"
+
+msgid "LAN up"
+msgstr "LAN actif"
+
+msgid "Connection"
+msgstr "Connexion"
+
+msgid "Port type"
+msgstr "Type de port"
+
+msgid "HDX"
+msgstr "HDX"
+
+msgid "FDX"
+msgstr "FDX"
+
+msgid "Model"
+msgstr "Modèle"

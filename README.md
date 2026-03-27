@@ -71,7 +71,24 @@ The same tiers and thresholds apply to both the NOC dashboard and the Excel expo
 - **Click the icon** to open a Bootstrap modal with current vs. latest version, `Official` badge, reboot warning, and a **Schedule update** button.
 - Schedule calls `POST /oapi/v1.0.0/upgrade/add` — success/error shown inline in the modal.
 
-### Incident Tickets
+### Port Monitoring (GDMS Networking — Routers only)
+
+- **Ports column** in the NOC dashboard shows one colour-coded dot per physical port for every online GWN router.
+- **Colour legend:**
+
+  | Colour | Meaning |
+  |--------|---------|
+  | 🟢 Green | WAN port — link up, internet confirmed |
+  | 🟠 Orange | WAN port — link up, no internet |
+  | 🟡 Amber | WAN port — link up, status unknown |
+  | 🔵 Teal | LAN port — link up |
+  | ⚫ Gray | Link down (any port type) |
+
+- **Click any dot** to open a detail modal per port showing: port label (silk-screen), port name, WAN name, connection status, IP address, WAN type (DHCP/Static/PPPoE), link speed, and time connected.
+- **WAN-down ticket** — when a sync detects a WAN port transitioning from link-up to link-down, a `[GDMS-WAN:portName]` incident ticket is created (urgency High) and linked to the asset. A duplicate guard prevents repeat tickets for the same port.
+- Port data is updated each sync cycle and stored per device for transition detection. Only applies to online GWN routers (GWN7001, GWN7002, etc.) — switches, APs and phones do not report port info.
+
+### Incident Tickets -- WORK IN PROGRESS
 
 - **Auto-open** — `[GDMS]` incident ticket created on online → offline transition.
 - **Urgency routing** — High (4) for routers; Medium (3) for switches and phones.
@@ -157,7 +174,7 @@ After saving, the plugin tests both API connections and shows green/red status b
 | Table | Purpose |
 |-------|---------|
 | `glpi_plugin_gdmsintegration_configs` | Credentials and settings per entity |
-| `glpi_plugin_gdmsintegration_devices` | Live device state: MAC, status, network_id, network_name, IP, firmware, uptime_sec, sn_cloud |
+| `glpi_plugin_gdmsintegration_devices` | Live device state: MAC, status, network_id, network_name, IP, firmware, uptime_sec, sn_cloud, wan_ports_json |
 | `glpi_plugin_gdmsintegration_history` | Per-device status snapshots (60-day retention) |
 | `glpi_plugin_gdmsintegration_links` | Network topology edges |
 

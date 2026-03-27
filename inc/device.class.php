@@ -34,26 +34,36 @@ class PluginGdmsintegrationDevice extends CommonDBTM {
         string $mac,
         string $status,
         string $network_name,
-        string $ip         = '',
-        string $firmware   = '',
-        int    $uptime_sec = 0,
-        string $sn_cloud   = '',
-        int    $network_id = 0
+        string $ip             = '',
+        string $firmware       = '',
+        int    $uptime_sec     = 0,
+        string $sn_cloud       = '',
+        int    $network_id     = 0,
+        string $wan_ports_json = '',
+        string $model          = ''
     ): bool {
         $rows = $this->find(['mac' => $mac]);
         $data = [
-            'status'       => $status,
-            'network_name' => $network_name,
-            'network_id'   => $network_id,
-            'ip'           => $ip,
-            'firmware'     => $firmware,
-            'uptime_sec'   => $uptime_sec,
-            'sn_cloud'     => $sn_cloud,
+            'status'         => $status,
+            'network_name'   => $network_name,
+            'network_id'     => $network_id,
+            'ip'             => $ip,
+            'firmware'       => $firmware,
+            'uptime_sec'     => $uptime_sec,
+            'sn_cloud'       => $sn_cloud,
+            'wan_ports_json' => $wan_ports_json,
+            'model'          => $model,
         ];
         if (!empty($rows)) {
             return (bool) $this->update(array_merge(['id' => array_key_first($rows)], $data));
         }
         return (bool) $this->add(array_merge(['mac' => $mac], $data));
+    }
+
+    public function getWanPortsJson(string $mac): string {
+        $fresh = new self();
+        $rows  = $fresh->find(['mac' => $mac]);
+        return empty($rows) ? '' : (reset($rows)['wan_ports_json'] ?? '');
     }
 
     public function getNetworkName(string $mac): string {

@@ -93,10 +93,28 @@ foreach ($all_states as $state) {
     }
 
     $isOnline ? $online++ : $offline++;
+    // Resolve model: GLPI catalog first, then apType stored by sync (e.g. "GWN7001")
+    $model_name = '';
+    if ($glpi) {
+        $model_id = (int)($glpi['networkequipmentmodels_id'] ?? $glpi['phonemodels_id'] ?? 0);
+        if ($model_id > 0) {
+            $model_class = $itemtype === 'Phone' ? 'PhoneModel' : 'NetworkEquipmentModel';
+            $model_obj   = new $model_class();
+            if ($model_obj->getFromDB($model_id)) {
+                $model_name = $model_obj->getName();
+            }
+        }
+    }
+    // Fallback: apType from GWN/GDMS cloud stored during sync (e.g. "GWN7001", "GRP2601")
+    if (!$model_name) {
+        $model_name = $state['model'] ?? '';
+    }
+
     $rows[] = [
         'name'         => $name,
         'asset_url'    => htmlspecialchars($asset_url, ENT_QUOTES, 'UTF-8'),
         'type'         => $itemtype,
+        'model'        => htmlspecialchars($model_name, ENT_QUOTES, 'UTF-8'),
         'mac'          => htmlspecialchars($mac, ENT_QUOTES, 'UTF-8'),
         'serial'       => $sn_cloud ?: $serial,
         'network_name' => $net_name,
@@ -269,11 +287,13 @@ foreach ($links_raw as $l) {
                <tr>
                   <th class="ps-3"><?= __('Device Name', 'gdmsintegration') ?></th>
                   <th><?= __('Type', 'gdmsintegration') ?></th>
+                  <th><?= __('Model', 'gdmsintegration') ?></th>
                   <th><?= __('Network', 'gdmsintegration') ?></th>
                   <th><?= __('IP', 'gdmsintegration') ?></th>
                   <th><?= __('MAC Address', 'gdmsintegration') ?></th>
                   <th><?= __('Serial', 'gdmsintegration') ?></th>
                   <th><?= __('Firmware', 'gdmsintegration') ?></th>
+                  <th><?= __('Ports', 'gdmsintegration') ?></th>
                   <th><?= __('Uptime', 'gdmsintegration') ?></th>
                   <th><?= __('Status', 'gdmsintegration') ?></th>
                   <th><?= __('Avail. %', 'gdmsintegration') ?></th>
@@ -308,6 +328,7 @@ foreach ($links_raw as $l) {
                      <span class="badge border border-secondary" style="color:inherit"><?= __('Network', 'gdmsintegration') ?></span>
                      <?php endif; ?>
                   </td>
+                  <td><small class="text-muted font-monospace"><?= htmlspecialchars($r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?: '—' ?></small></td>
                   <td><small><?= $r['network_name'] ?: '—' ?></small></td>
                   <td><small class="font-monospace">
                      <?php if (!empty($r['ip'])): ?>
@@ -326,6 +347,14 @@ foreach ($links_raw as $l) {
                            data-current="<?= htmlspecialchars($r['firmware'], ENT_QUOTES, 'UTF-8') ?>"
                            title="<?= __('Firmware update available', 'gdmsintegration') ?>">
                         <i class="fas fa-arrow-circle-up text-warning ms-1"></i>
+                     </span>
+                     <?php endif; ?>
+                  </td>
+                  <td>
+                     <?php if ($r['type'] !== 'Phone' && !empty($r['mac'])): ?>
+                     <span class="gdms-wan-ports d-flex gap-1 align-items-center flex-nowrap"
+                           data-mac="<?= htmlspecialchars(strtolower($r['mac']), ENT_QUOTES, 'UTF-8') ?>">
+                        <span class="text-muted small">—</span>
                      </span>
                      <?php endif; ?>
                   </td>
@@ -605,6 +634,175 @@ foreach ($links_raw as $l) {
             $(modalEl).modal('show');
         }
     });
+
+    // ── WAN port status ─────────────────────────────────────────────────────
+    var PORTS_URL = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/ports.ajax.php?action=status&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
+
+    // Port speed map
+    // portSpeed encoding per GWN API: 0=no link, 1=10M HDX, 2=10M FDX, 3=100M HDX,
+    // 4=100M FDX, 5=1G FDX, 6=2.5G FDX, 7=10G FDX.
+    // If the API returns an unexpected value, enable verbose debug logging to see raw portInfo.
+    var portSpeeds = {0:'—', 1:'10M <?= __('HDX','gdmsintegration') ?>', 2:'10M <?= __('FDX','gdmsintegration') ?>', 3:'100M <?= __('HDX','gdmsintegration') ?>', 4:'100M <?= __('FDX','gdmsintegration') ?>', 5:'1G <?= __('FDX','gdmsintegration') ?>', 6:'1G <?= __('FDX','gdmsintegration') ?>', 7:'10G <?= __('FDX','gdmsintegration') ?>'};
+    var wanTypeNames = {0:'DHCP', 1:'Static', 2:'PPPoE', 3:'PPTP', 4:'L2TP'};
+    var connectNames = {0:'<?= __('Disconnected', 'gdmsintegration') ?>', 1:'<?= __('No internet', 'gdmsintegration') ?>', 2:'<?= __('Online', 'gdmsintegration') ?>'};
+
+    function fmtDuration(secs) {
+        if (!secs) return '—';
+        var d = Math.floor(secs / 86400), h = Math.floor((secs % 86400) / 3600), m = Math.floor((secs % 3600) / 60);
+        var r = '';
+        if (d) r += d + 'd ';
+        if (h) r += h + 'h ';
+        r += m + 'm';
+        return r.trim() || '<1m';
+    }
+
+    var portModal = document.createElement('div');
+    portModal.className = 'modal fade';
+    portModal.id = 'gdmsPortModal';
+    portModal.setAttribute('tabindex', '-1');
+    portModal.setAttribute('aria-hidden', 'true');
+    portModal.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="fas fa-network-wired me-2 text-primary"></i>
+              <?= __('WAN Port Status', 'gdmsintegration') ?>
+              <small class="text-muted ms-2" id="gdmsPortModalDevice"></small>
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" id="gdmsPortModalBody">
+            <div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= __('Close', 'gdmsintegration') ?></button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(portModal);
+
+    var portData = {}; // mac → [{id, silk, link, speed, wanName, ip, connectStatus, connectDuration}]
+
+    // Fetch port status 3s after load
+    setTimeout(function() {
+        fetch(PORTS_URL, { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                portData = data || {};
+                Object.keys(portData).forEach(function(mac) {
+                    var ports = portData[mac];
+                    if (!Array.isArray(ports) || !ports.length) return;
+                    var container = document.querySelector('.gdms-wan-ports[data-mac="' + mac + '"]');
+                    if (!container) return;
+                    container.innerHTML = '';
+                    ports.forEach(function(p) {
+                        var isWan = p.role == 1;
+                        var linkUp = p.link == 1;
+                        // Color logic:
+                        // WAN: green=up+internet, amber=up+no-internet or unknown, gray=down
+                        // LAN: teal=up, gray=down
+                        var color;
+                        if (isWan) {
+                            if (!linkUp)       color = '#6c757d'; // gray = link down
+                            else if (p.connectStatus === 2) color = '#28a745'; // green = internet OK
+                            else if (p.connectStatus === 1) color = '#fd7e14'; // orange = up, no internet
+                            else               color = '#ffc107'; // amber = up, status unknown
+                        } else {
+                            color = linkUp ? '#20c997' : '#6c757d'; // teal=up, gray=down
+                        }
+                        var label = p.silk || p.name || (isWan ? 'WAN' : 'LAN');
+                        var wanLabel = p.wanName ? ' — ' + p.wanName : '';
+                        var portLabel = p.name && p.name !== p.silk ? ' (' + p.name + ')' : '';
+                        var dot = document.createElement('span');
+                        dot.title = label + portLabel + wanLabel + (!linkUp ? ' — <?= __('Link down', 'gdmsintegration') ?>' : (p.connectStatus === 2 ? ' — <?= __('Online', 'gdmsintegration') ?>' : p.connectStatus === 1 ? ' — <?= __('No internet', 'gdmsintegration') ?>' : ''));
+                        dot.style.cssText = 'display:inline-block;width:9px;height:9px;border-radius:50%;background:' + color + ';cursor:pointer;flex-shrink:0' + (isWan ? ';outline:1px solid rgba(255,255,255,.3)' : '');
+                        container.appendChild(dot);
+                    });
+                });
+            })
+            .catch(function() {});
+    }, 3000);
+
+    // Click on port container → open modal
+    document.addEventListener('click', function(e) {
+        var container = e.target.closest('.gdms-wan-ports');
+        if (!container) return;
+        var mac   = container.getAttribute('data-mac');
+        var ports = portData[mac];
+        if (!ports) return;
+
+        // Find device name
+        var row   = container.closest('tr');
+        var dName = row ? (row.querySelector('td a') || row.querySelector('td')).textContent.trim() : mac;
+        document.getElementById('gdmsPortModalDevice').textContent = dName;
+
+        var body  = document.getElementById('gdmsPortModalBody');
+        if (!ports.length) { body.innerHTML = '<p class="text-muted text-center"><?= addslashes(__('No ports found', 'gdmsintegration')) ?></p>'; }
+        else {
+            // Legend
+            // Legend — strings rendered by PHP through gettext, assembled in JS
+            var legendItems = [
+                {color:'#28a745', label:'<?= addslashes(__('WAN online',          'gdmsintegration')) ?>'},
+                {color:'#fd7e14', label:'<?= addslashes(__('WAN up, no internet', 'gdmsintegration')) ?>'},
+                {color:'#ffc107', label:'<?= addslashes(__('WAN up, unknown',     'gdmsintegration')) ?>'},
+                {color:'#20c997', label:'<?= addslashes(__('LAN up',              'gdmsintegration')) ?>'},
+                {color:'#6c757d', label:'<?= addslashes(__('Link down',           'gdmsintegration')) ?>'},
+            ];
+            var legend = '<div class="d-flex flex-wrap gap-3 mb-3 small border-bottom pb-2">';
+            legendItems.forEach(function(li) {
+                legend += '<span style="display:inline-flex;align-items:center;gap:5px">'
+                        + '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + li.color + ';outline:1px solid rgba(128,128,128,.35);flex-shrink:0"></span>'
+                        + '<span>' + li.label + '</span>'
+                        + '</span>';
+            });
+            legend += '</div>';
+            var html = legend + '<div class="row g-2">';
+            ports.forEach(function(p) {
+                var isWan  = p.role == 1;
+                var linkUp = p.link == 1;
+                var cs     = (p.connectStatus !== undefined) ? p.connectStatus : -1;
+                var statusColor, statusIcon, statusText;
+                if (isWan) {
+                    if (!linkUp)  { statusColor='secondary'; statusIcon='times-circle';    statusText='<?= __('Link down', 'gdmsintegration') ?>'; }
+                    else if(cs==2){ statusColor='success';   statusIcon='check-circle';    statusText='<?= __('Online', 'gdmsintegration') ?>'; }
+                    else if(cs==1){ statusColor='warning';   statusIcon='exclamation-circle'; statusText='<?= __('No internet', 'gdmsintegration') ?>'; }
+                    else          { statusColor='warning';   statusIcon='exclamation-circle'; statusText='<?= __('Link up', 'gdmsintegration') ?>'; }
+                } else {
+                    statusColor = linkUp ? 'info'  : 'secondary';
+                    statusIcon  = linkUp ? 'plug'  : 'times-circle';
+                    statusText  = linkUp ? '<?= __('Link up', 'gdmsintegration') ?>' : '<?= __('Link down', 'gdmsintegration') ?>';
+                }
+                var label    = p.silk  || (isWan ? 'WAN' : 'LAN');
+                var portName = (p.name && p.name !== p.silk) ? p.name : '';
+                html += '<div class="col-md-6"><div class="card border-' + statusColor + ' h-100">';
+                html += '<div class="card-header bg-transparent border-' + statusColor + ' d-flex justify-content-between align-items-center py-2">';
+                html += '<strong class="text-' + statusColor + '"><i class="fas fa-' + statusIcon + ' me-1"></i>' + label;
+                if (portName) html += ' <small class="fw-normal opacity-75">(' + portName + ')</small>';
+                html += '</strong>';
+                if (p.wanName) html += '<small class="text-muted ms-2">' + p.wanName + '</small>';
+                html += '</div><div class="card-body py-2 small"><dl class="row mb-0">';
+                if (isWan) {
+                    html += '<dt class="col-5 text-muted fw-normal"><?= __('Connection', 'gdmsintegration') ?></dt><dd class="col-7">' + statusText + '</dd>';
+                    if (p.ip) html += '<dt class="col-5 text-muted fw-normal"><?= __('IP Address', 'gdmsintegration') ?></dt><dd class="col-7"><code>' + p.ip + '</code></dd>';
+                    if (p.wanType !== undefined) html += '<dt class="col-5 text-muted fw-normal"><?= __('Type', 'gdmsintegration') ?></dt><dd class="col-7">' + (wanTypeNames[p.wanType] || '—') + '</dd>';
+                    if (p.connectDuration) html += '<dt class="col-5 text-muted fw-normal"><?= __('Connected for', 'gdmsintegration') ?></dt><dd class="col-7">' + fmtDuration(p.connectDuration) + '</dd>';
+                } else {
+                    html += '<dt class="col-5 text-muted fw-normal"><?= __('Status', 'gdmsintegration') ?></dt><dd class="col-7">' + statusText + '</dd>';
+                }
+                html += '<dt class="col-5 text-muted fw-normal"><?= __('Link speed', 'gdmsintegration') ?></dt><dd class="col-7">' + (portSpeeds[p.speed] || '—') + '</dd>';
+                if (p.type) html += '<dt class="col-5 text-muted fw-normal"><?= __('Port type', 'gdmsintegration') ?></dt><dd class="col-7">' + p.type + '</dd>';
+                html += '</dl></div></div></div>';
+            });
+            html += '</div>';
+            body.innerHTML = html;
+        }
+
+        var bsModal = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(portModal) : null;
+        if (bsModal) bsModal.show();
+        else if (typeof $ !== 'undefined') $(portModal).modal('show');
+    });
+
 })();
 </script>
 

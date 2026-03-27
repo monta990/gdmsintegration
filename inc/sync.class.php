@@ -84,7 +84,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 $gwnDevices = PluginGdmsintegrationAPI::gwnGetDevices($config);
                 $gwnCount   = count($gwnDevices);
                 PluginGdmsintegrationUtils::log("[{$ts}] GWN API returned {$gwnCount} device(s)");
-                $synced = self::syncDeviceList($gwnDevices, $entities_id);
+                $synced = self::syncDeviceList($gwnDevices, $entities_id, $config);
                 PluginGdmsintegrationUtils::log("[{$ts}] GWN sync complete — {$synced} device(s) processed");
                 $total += $synced;
             } else {
@@ -106,7 +106,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 $gdmsDevices = PluginGdmsintegrationAPI::gdmsGetDevices($config);
                 $gdmsCount   = count($gdmsDevices);
                 PluginGdmsintegrationUtils::log("[{$ts}] GDMS API returned {$gdmsCount} device(s)");
-                $synced = self::syncDeviceList($gdmsDevices, $entities_id);
+                $synced = self::syncDeviceList($gdmsDevices, $entities_id, $config);
                 PluginGdmsintegrationUtils::log("[{$ts}] GDMS sync complete — {$synced} device(s) processed");
                 $total += $synced;
             } else {
@@ -279,6 +279,63 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 "  STATE {$name}: prev=" . ($prevStatus ?? 'null') . " → new={$status}"
             );
 
+            // For routers: fetch WAN port info and check for state changes
+            $wan_ports_json = '';
+            $network_id_val = (int)($d['networkId'] ?? 0);
+            $is_gwn_router  = !empty($d['networkId']) && !empty($mac)
+                              && ($matched_type === 'NetworkEquipment')
+                              && ($is_online); // only fetch if online
+            if ($is_gwn_router && !empty($config_data['gwn_client_id'])) {
+                $port_data = PluginGdmsintegrationAPI::gwnGetRouterPortInfo(
+                    $config_data, strtoupper(str_replace(':', '', $mac)), $network_id_val
+                );
+                if (!empty($port_data['portInfo'])) {
+                    // Summarize WAN ports for storage and comparison
+                    $wan_summary = [];
+                    foreach ($port_data['portInfo'] as $port) {
+                        $role        = (int)($port['role']     ?? 0);
+                        $embedded    = $port['ipv4Info']          ?? [];
+                        $wan_summary[] = [
+                            'id'              => $port['portId']         ?? $port['silkScreenPort'] ?? '',
+                            'name'            => $port['portName']        ?? '',
+                            'silk'            => $port['silkScreenPort']  ?? '',
+                            'role'            => $role,
+                            'link'            => (int)($port['linkStatus'] ?? 0),
+                            'speed'           => (int)($port['portSpeed']  ?? 0),
+                            'type'            => ($port['type'] ?? 0) == 1 ? 'SFP' : 'GE',
+                            'wanName'         => $port['wanName']          ?? '',
+                            'connectDuration' => (int)($port['connectDuration'] ?? 0),
+                            'ip'              => $embedded['ip4Address']   ?? '',
+                            'connectStatus'   => isset($embedded['connectStatus'])
+                                                  ? (int)$embedded['connectStatus'] : -1,
+                        ];
+                    }
+                    // ipv4Info is embedded inside each port object — already extracted above
+                    $wan_ports_json = json_encode($wan_summary);
+
+                    // Check for WAN port state changes and create tickets
+                    $prev_ports_json = $state->getWanPortsJson($mac);
+                    if (!empty($prev_ports_json) && $glpi_id > 0) {
+                        $prev_ports = json_decode($prev_ports_json, true) ?? [];
+                        $prev_map   = array_column($prev_ports, null, 'id');
+                        foreach ($wan_summary as $wp) {
+                            if (($wp['role'] ?? 0) != 1) continue; // Only WAN ports for tickets
+                            $prev_wp = $prev_map[$wp['id']] ?? null;
+                            if ($prev_wp && ($prev_wp['link'] == 1) && ($wp['link'] == 0)) {
+                                // WAN link was up, now down → create ticket
+                                self::createWanDownTicket(
+                                    $name, $mac, $serial, $entities_id,
+                                    $matched_type, $glpi_id,
+                                    $wp['silk'] ?: $wp['name'],
+                                    $wp['wanName'] ?? '',
+                                    $d['networkName'] ?? $d['siteName'] ?? ''
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
             $state->saveStateWithNetwork(
                 $mac ?: $serial,
                 $status,
@@ -287,7 +344,9 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 $d['firmwareVersion'] ?? $d['versionFirmware'] ?? $d['firmware'] ?? '',
                 (int)($d['upTime']    ?? 0),
                 $d['sn']              ?? $d['SN']    ?? $serial,
-                (int)($d['networkId'] ?? 0)
+                $network_id_val,
+                $wan_ports_json,
+                $d['apType']          ?? $d['deviceType'] ?? $d['type'] ?? ''
             );
 
             // Ticket transitions: offline → create ticket, offline→online → resolve
@@ -408,6 +467,57 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
     // Open an offline incident ticket and link the asset as an element.
     // Skips creation if an open GDMS ticket already exists for this asset.
     // -----------------------------------------------------------------------
+    private static function createWanDownTicket(
+        string $deviceName,
+        string $mac,
+        string $serial,
+        int    $entities_id,
+        string $itemtype,
+        int    $glpi_id,
+        string $portSilk,
+        string $wanName  = '',
+        string $network  = ''
+    ): void {
+        // Duplicate guard: check for existing open WAN ticket for same port
+        $existing = new Item_Ticket();
+        $marker   = "[GDMS-WAN:{$portSilk}]";
+        foreach ($existing->find(['itemtype' => $itemtype, 'items_id' => $glpi_id]) as $link) {
+            $t = new Ticket();
+            if ($t->getFromDB($link['tickets_id'])) {
+                $open = [Ticket::INCOMING, Ticket::ASSIGNED, Ticket::PLANNED, Ticket::WAITING];
+                if (in_array((int)$t->fields['status'], $open) && str_contains($t->fields['name'], $marker)) {
+                    PluginGdmsintegrationUtils::log("GDMS: WAN ticket already open for {$deviceName} {$portSilk} — skipping");
+                    return;
+                }
+            }
+        }
+        $now     = date('Y-m-d H:i:s');
+        $wanLabel = $wanName ? " ({$wanName})" : '';
+        $content = sprintf(
+            "**%s** — WAN port **%s**%s went down.\n\n" .
+            "| Field | Value |\n|---|---|\n" .
+            "| MAC | %s |\n| Serial | %s |\n| Network | %s |\n| Detected | %s |\n\n" .
+            "*Automatically generated by GDMS Integration.*",
+            $deviceName, $portSilk, $wanLabel,
+            strtoupper($mac), strtoupper($serial) ?: 'N/A', $network ?: 'N/A', $now
+        );
+        $ticket    = new Ticket();
+        $ticket_id = (int) $ticket->add([
+            'name'        => sprintf('%s [GDMS] %s — WAN %s%s down', '', $deviceName, $portSilk, $wanLabel),
+            'content'     => $content,
+            'entities_id' => $entities_id,
+            'urgency'     => 4,  // High — WAN down is always high priority
+            'impact'      => 4,
+            'priority'    => 4,
+            'type'        => Ticket::INCIDENT_TYPE,
+            'status'      => Ticket::INCOMING,
+        ]);
+        if ($ticket_id > 0) {
+            (new Item_Ticket())->add(['tickets_id' => $ticket_id, 'itemtype' => $itemtype, 'items_id' => $glpi_id, '_disablenotif' => true]);
+            PluginGdmsintegrationUtils::log("GDMS: WAN ticket #{$ticket_id} → {$deviceName} port {$portSilk}");
+        }
+    }
+
     private static function createOfflineTicket(
         string $name,
         string $mac,

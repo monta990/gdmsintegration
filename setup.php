@@ -143,6 +143,8 @@ function plugin_gdmsintegration_install(): bool {
                 `firmware`     varchar(50) NOT NULL DEFAULT '',
                 `uptime_sec`   bigint unsigned NOT NULL DEFAULT 0,
                 `sn_cloud`     varchar(100) NOT NULL DEFAULT '',
+                `wan_ports_json` text NOT NULL DEFAULT '',
+                `model`         varchar(100) NOT NULL DEFAULT '',
                 PRIMARY KEY (`id`),
                 UNIQUE KEY `mac` (`mac`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}"
@@ -194,6 +196,8 @@ function plugin_gdmsintegration_install(): bool {
     foreach ([
         "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `debug_logging` tinyint unsigned NOT NULL DEFAULT 0",
         "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `network_id` int unsigned NOT NULL DEFAULT 0",
+        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `wan_ports_json` text NOT NULL DEFAULT '',
+                `model`         varchar(100) NOT NULL DEFAULT ''",
     ] as $alter) {
         try { $DB->doQuery($alter); } catch (\Throwable $e) { /* column already exists */ }
     }

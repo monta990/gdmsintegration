@@ -366,3 +366,60 @@ msgstr ""
 
 msgid "Dashboard"
 msgstr ""
+
+msgid "WAN"
+msgstr ""
+
+msgid "WAN Port Status"
+msgstr ""
+
+msgid "Disconnected"
+msgstr ""
+
+msgid "No internet"
+msgstr ""
+
+msgid "Link down"
+msgstr ""
+
+msgid "Link up"
+msgstr ""
+
+msgid "No WAN ports found"
+msgstr ""
+
+msgid "IP Address"
+msgstr ""
+
+msgid "Link speed"
+msgstr ""
+
+msgid "Connected for"
+msgstr ""
+
+msgid "Ports"
+msgstr ""
+
+msgid "No ports found"
+msgstr ""
+
+msgid "WAN online"
+msgstr ""
+
+msgid "WAN up, no internet"
+msgstr ""
+
+msgid "WAN up, unknown"
+msgstr ""
+
+msgid "LAN up"
+msgstr ""
+
+msgid "Connection"
+msgstr ""
+
+msgid "Port type"
+msgstr ""
+
+msgid "Model"
+msgstr ""

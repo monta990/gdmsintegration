@@ -529,7 +529,54 @@ class PluginGdmsintegrationAPI {
      * POST /oapi/v1.0.0/upgrade/version {networkId}
      * Returns: [{mac, type, currentVersion, lastVersion}]
      */
-    public static function gwnGetFirmwareVersions(array $config, int $networkId): array {
+    /**
+     * Get router port info including WAN status via device/info.
+     * Returns portInfo[] and ipv4Info[] for the given router MAC.
+     * Only meaningful for routers (GWN7001, GWN7002, etc.) — APs return empty portInfo.
+     */
+    public static function gwnGetRouterPortInfo(array $config, string $mac, int $networkId): array {
+        $token  = self::gwnGetToken($config);
+        if (!$token) return [];
+        $appId  = $config['gwn_client_id']     ?? '';
+        $secret = $config['gwn_client_secret'] ?? '';
+
+        $body = json_encode(['mac' => $mac, 'networkId' => $networkId]);
+        $sig  = self::gwnBuildSignature($token, $appId, $secret, (int)(microtime(true) * 1000), $body);
+        $ts   = (int)(microtime(true) * 1000);
+        $sig  = self::gwnBuildSignature($token, $appId, $secret, $ts, $body);
+        $url  = self::GWN_BASE . '/oapi/v1.0.0/device/info'
+                . '?access_token=' . urlencode($token)
+                . '&appID='        . urlencode($appId)
+                . "&timestamp={$ts}&signature={$sig}";
+
+        $data = self::curl($url, ['Content-Type: application/json'], $body);
+        if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
+            PluginGdmsintegrationUtils::log("GWN device/info port error for {$mac}: " . ($data['msg'] ?? json_encode($data)));
+            return [];
+        }
+
+        $info      = $data['data'] ?? [];
+        $portInfo  = [];
+        // Flatten result[] array of {type,value,key} objects into associative
+        $resultArr = $info['result'] ?? [];
+        if (is_array($resultArr)) {
+            foreach ($resultArr as $item) {
+                if (isset($item['key'])) {
+                    $portInfo[$item['key']] = $item['value'] ?? '';
+                }
+            }
+        }
+
+        PluginGdmsintegrationUtils::debug("GWN portInfo for {$mac}: " . json_encode($info['portInfo'] ?? []));
+        PluginGdmsintegrationUtils::debug("GWN ipv4Info for {$mac}: " . json_encode($info['ipv4Info'] ?? []));
+        return [
+            'portInfo'  => $info['portInfo']  ?? [],
+            'ipv4Info'  => $info['ipv4Info']  ?? [],
+            'raw_info'  => $info,
+        ];
+    }
+
+        public static function gwnGetFirmwareVersions(array $config, int $networkId): array {
         $token  = self::gwnGetToken($config);
         if (!$token) return [];
         $appId  = $config['gwn_client_id']     ?? '';
