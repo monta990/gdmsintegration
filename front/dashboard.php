@@ -503,10 +503,11 @@ foreach ($net_stats as $ns) {
                   <td><small class="text-muted"><?= $r['serial'] ?: '—' ?></small></td>
                   <td class="text-nowrap">
                      <small class="font-monospace text-muted"><?= $r['firmware'] ?: '—' ?></small>
-                     <?php if (!empty($r['firmware']) && $r['type'] !== 'Phone'): ?>
+                     <?php if (!empty($r['firmware'])): ?>
                      <span class="gdms-fw-badge" style="display:none; cursor:pointer;"
                            data-mac="<?= htmlspecialchars(strtolower($r['mac'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                            data-current="<?= htmlspecialchars($r['firmware'], ENT_QUOTES, 'UTF-8') ?>"
+                           data-model="<?= htmlspecialchars($r['raw_model'] ?? $r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                            title="<?= __('Firmware update available', 'gdmsintegration') ?>">
                         <i class="ti ti-arrow-up-circle text-warning ms-1"></i>
                      </span>
@@ -609,6 +610,41 @@ foreach ($net_stats as $ns) {
 </div>
 
 <?php if ($show_topology): ?>
+<link rel="stylesheet" href="<?= ($CFG_GLPI['root_doc'] ?? '') ?>/plugins/gdmsintegration/front/flatpickrcss.php">
+<style>
+/* Flatpickr: adapt to GLPI dark/light theme */
+.flatpickr-calendar {
+    font-family: inherit;
+    font-size: .875rem;
+    background: var(--glpi-card-bg, var(--bs-body-bg, #fff));
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 4px 16px rgba(0,0,0,.2);
+}
+.flatpickr-months .flatpickr-month,
+.flatpickr-weekdays,
+span.flatpickr-weekday {
+    background: var(--glpi-mainmenu-bg, var(--bs-primary, #006eca));
+    color: #fff;
+}
+.flatpickr-day:hover,
+.flatpickr-day.prevMonthDay:hover,
+.flatpickr-day.nextMonthDay:hover {
+    background: var(--bs-primary-bg-subtle, #cfe2ff);
+    color: var(--bs-emphasis-color, #000);
+}
+.flatpickr-day.selected,
+.flatpickr-day.selected:hover {
+    background: var(--bs-primary, #006eca);
+    border-color: var(--bs-primary, #006eca);
+    color: #fff;
+}
+.flatpickr-time input { color: var(--bs-body-color); background: transparent; }
+.flatpickr-time .flatpickr-time-separator,
+.flatpickr-time .flatpickr-am-pm { color: var(--bs-body-color); }
+.numInputWrapper:hover { background: var(--bs-tertiary-bg, rgba(0,0,0,.05)); }
+</style>
+<script src="<?= ($CFG_GLPI['root_doc'] ?? '') ?>/plugins/gdmsintegration/front/flatpickr.php"></script>
 <script src="<?= ($CFG_GLPI['root_doc'] ?? '') ?>/plugins/gdmsintegration/front/visnetwork.php"></script>
 <?php endif; ?>
 <script src="<?= ($CFG_GLPI['root_doc'] ?? '') ?>/plugins/gdmsintegration/front/chartjs.php"></script>
@@ -653,6 +689,11 @@ foreach ($net_stats as $ns) {
         portType:      <?= json_encode(__('Port type',                                                                   'gdmsintegration')) ?>,
         unknown:       <?= json_encode(__('Unknown',                                                                     'gdmsintegration')) ?>,
         official:      <?= json_encode(__('Official',                                                                    'gdmsintegration')) ?>,
+        officialFw:    <?= json_encode(__('Official firmware',                                                              'gdmsintegration')) ?>,
+        betaFw:        <?= json_encode(__('Beta firmware',                                                                  'gdmsintegration')) ?>,
+        gdmsManaged:   <?= json_encode(__('GDMS managed',                                                                   'gdmsintegration')) ?>,
+        gdmsVersionNote: <?= json_encode(__('GDMS applies the latest firmware available in its repository. The selected version is informational only.', 'gdmsintegration')) ?>,
+        selectVersion: <?= json_encode(__('Select version',                                                                 'gdmsintegration')) ?>,
         curFw:         <?= json_encode(__('Current firmware',                                                            'gdmsintegration')) ?>,
         latestFw:      <?= json_encode(__('Latest stable firmware',                                                      'gdmsintegration')) ?>,
         deviceMac:     <?= json_encode(__('Device MAC',                                                                  'gdmsintegration')) ?>,
@@ -763,15 +804,17 @@ foreach ($net_stats as $ns) {
     }, 1000);
 
     // ── Firmware update check ─────────────────────────────────────────────────
-    var FW_URL = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/firmware.ajax.php?action=check&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
-    var FW_UPGRADE_URL = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/firmware.ajax.php?action=upgrade&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
+    var FW_URL             = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/firmware.ajax.php?action=check&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
+    var FW_UPGRADE_URL     = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/firmware.ajax.php?action=upgrade&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
+    var FW_CHECK_ALL_URL   = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/firmware.ajax.php?action=check_all&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
+    var FW_UPGRADE_GDMS_URL= '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/firmware.ajax.php?action=upgrade_gdms&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
 
     // Inject modal HTML once
     var modalHtml = `
 <div class="modal fade" id="gdmsFwModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:min(540px,94vw);">
     <div class="modal-content">
-      <div class="modal-header">
+      <div class="modal-header py-3">
         <h5 class="modal-title">
           <i class="ti ti-arrow-up-circle text-warning me-2"></i>
           <?= __('Firmware Update Available', 'gdmsintegration') ?>
@@ -784,21 +827,23 @@ foreach ($net_stats as $ns) {
           <span><?= __('Checking firmware…', 'gdmsintegration') ?></span>
         </div>
       </div>
-      <div class="modal-footer flex-column align-items-stretch gap-2">
-        <div class="d-flex align-items-center gap-2 w-100" id="gdmsFwScheduleRow" style="display:none!important;">
-          <label class="form-label mb-0 text-nowrap small fw-semibold"><?= __('Schedule for', 'gdmsintegration') ?>:</label>
-          <input type="datetime-local" class="form-control form-control-sm" id="gdmsFwDatetime" style="max-width:220px;">
-          <small class="text-muted"><?= __('Leave empty to apply as soon as possible', 'gdmsintegration') ?></small>
+      <div class="modal-footer flex-column align-items-stretch gap-2 pt-2">
+        <div id="gdmsFwScheduleRow" style="display:none;">
+          <div class="d-flex align-items-center gap-2">
+            <label class="form-label mb-0 text-nowrap small fw-semibold"><?= __('Schedule for', 'gdmsintegration') ?>:</label>
+            <input type="datetime-local" class="form-control form-control-sm flex-grow-1" id="gdmsFwDatetime">
+          </div>
+          <small class="text-muted d-block mt-1"><?= __('Leave empty to apply as soon as possible', 'gdmsintegration') ?></small>
         </div>
-        <div class="d-flex justify-content-end gap-2 w-100">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-            <?= __('Close', 'gdmsintegration') ?>
-          </button>
-          <button type="button" class="btn btn-success" id="gdmsFwAsapBtn" style="display:none;">
+        <div class="d-flex flex-column gap-2 w-100">
+          <button type="button" class="btn btn-success text-white w-100" id="gdmsFwAsapBtn" style="display:none;">
             <i class="ti ti-bolt me-1"></i><?= __('Apply now (ASAP)', 'gdmsintegration') ?>
           </button>
-          <button type="button" class="btn btn-warning" id="gdmsFwScheduleBtn" style="display:none;">
+          <button type="button" class="btn btn-warning text-dark w-100" id="gdmsFwScheduleBtn" style="display:none;">
             <i class="ti ti-calendar-check me-1"></i><?= __('Schedule update', 'gdmsintegration') ?>
+          </button>
+          <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">
+            <?= __('Close', 'gdmsintegration') ?>
           </button>
         </div>
       </div>
@@ -809,20 +854,20 @@ foreach ($net_stats as $ns) {
 
     var fwData = {};  // mac → {currentVersion, latestVersion, hasUpdate}
 
-    // Fetch firmware info after page load (non-blocking, ~2s)
+    // Fetch firmware info for ALL devices 2s after page load (non-blocking)
     setTimeout(function() {
-        fetch(FW_URL, { credentials: 'same-origin' })
+        fetch(FW_CHECK_ALL_URL, { credentials: 'same-origin' })
             .then(function(r) { return r.json(); })
             .then(function(list) {
                 if (!Array.isArray(list)) return;
                 list.forEach(function(item) {
+                    fwData[item.mac] = item; // store always, badge shown only if hasUpdate
                     if (!item.hasUpdate) return;
-                    fwData[item.mac] = item;
                     document.querySelectorAll('.gdms-fw-badge[data-mac="' + item.mac + '"]')
                         .forEach(function(el) { el.style.display = 'inline'; });
                 });
             })
-            .catch(function() { /* silently ignore if GWN not configured */ });
+            .catch(function() { /* silently ignore if APIs not configured */ });
     }, 2000);
 
     // Click on badge → open modal with details
@@ -831,8 +876,15 @@ foreach ($net_stats as $ns) {
         if (!badge) return;
         var mac     = badge.getAttribute('data-mac');
         var current = badge.getAttribute('data-current');
+        var model   = badge.getAttribute('data-model') || '';
         var info    = fwData[mac] || {};
-        var latest  = info.latestVersion || STR.unknown;
+        var isGwn   = info.isGwn || /^GWN|^GSS/i.test(model);
+        var official= info.official || null;
+        var beta    = info.beta     || null;
+        // For GWN: official comes from GWN Cloud API (no beta available via API)
+        // For UC/phones: both official and beta come from grandstream.com scraper
+        var latestFw = info.latestVersion || official || beta || null; // legacy fallback
+
         var body     = document.getElementById('gdmsFwModalBody');
         var schedBtn = document.getElementById('gdmsFwScheduleBtn');
         var asapBtn  = document.getElementById('gdmsFwAsapBtn');
@@ -840,25 +892,70 @@ foreach ($net_stats as $ns) {
         var dtInput  = document.getElementById('gdmsFwDatetime');
 
         var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; };
+
+        // Build version selector rows
+        var versionRows = '';
+        if (official) {
+            versionRows += '<tr>'
+              + '<td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
+              + '<input type="radio" name="gdmsFwVersion" value="' + esc(official) + '" class="form-check-input mt-0"' + (official ? ' checked' : '') + '>'
+              + '<code class="text-warning">' + esc(official) + '</code>'
+              + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
+              + '</label></td></tr>';
+        }
+        if (beta && beta !== official && isGwn) {
+            // Beta only shown for GWN devices — GDMS ignores fwVersion for UCM/phones
+            versionRows += '<tr>'
+              + '<td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
+              + '<input type="radio" name="gdmsFwVersion" value="' + esc(beta) + '" class="form-check-input mt-0"' + (!official ? ' checked' : '') + '>'
+              + '<code class="fw-semibold" style="color:var(--bs-warning-text,var(--bs-warning,#fd7e14));">' + esc(beta) + '</code>'
+              + ' <span class="badge bg-warning text-dark ms-1">' + STR.betaFw + '</span>'
+              + '</label></td></tr>';
+        } else if (beta && beta !== official && !isGwn) {
+            // For GDMS devices: show beta info but note GDMS controls actual version
+            versionRows += '<tr>'
+              + '<td class="pe-2 small" style="color:var(--bs-secondary-color,#6c757d);">'
+              + '<i class="ti ti-info-circle me-1"></i>'
+              + STR.betaFw + ': <code style="color:inherit;">' + esc(beta) + '</code>'
+              + ' <span class="badge ms-1" style="background:var(--bs-primary,#006eca);color:#fff;">' + STR.gdmsManaged + '</span>'
+              + '</td></tr>';
+        }
+        if (!official && !beta && latestFw) {
+            // Legacy: GWN check action only returned latestVersion
+            versionRows += '<tr><td><code class="text-warning">' + esc(latestFw) + '</code>'
+              + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span></td></tr>';
+        }
+
         body.innerHTML = '<table class="table table-sm mb-0">'
           + '<tr><th class="text-muted fw-normal w-50">' + STR.curFw + '</th>'
           + '<td><code>' + esc(current) + '</code></td></tr>'
-          + '<tr><th class="text-muted fw-normal">' + STR.latestFw + '</th>'
-          + '<td><code class="text-warning">' + esc(latest) + '</code>'
-          + ' <span class="badge bg-success ms-1">' + STR.official + '</span></td></tr>'
+          + '<tr><th class="text-muted fw-normal align-top pt-2">' + STR.selectVersion + '</th>'
+          + '<td>' + (versionRows ? '<table class="mb-0">' + versionRows + '</table>' : '<span class="text-muted">—</span>') + '</td></tr>'
           + '<tr><th class="text-muted fw-normal">' + STR.deviceMac + '</th>'
           + '<td><code>' + esc(mac.toUpperCase()) + '</code></td></tr>'
           + '</table>'
           + '<div class="alert alert-warning mt-3 mb-0 py-2 small">'
           + '<i class="ti ti-alert-triangle me-1"></i>'
           + STR.rebootWarning
-          + '</div>';
+          + '</div>'
+          + (!isGwn ? '<div class="alert alert-info mt-2 mb-0 py-2 small">'
+            + '<i class="ti ti-info-circle me-1"></i>'
+            + STR.gdmsVersionNote
+            + '</div>' : '');
 
-        // Reset datetime picker — clear and set min to now+5min
-        var nowPlus5 = new Date(Date.now() + 5*60*1000);
-        dtInput.min   = nowPlus5.toISOString().slice(0,16);
-        dtInput.value = '';
-
+        // Init / reset flatpickr
+        if (!dtInput._fp) {
+            dtInput._fp = flatpickr(dtInput, {
+                enableTime: true,
+                dateFormat: 'd/m/Y H:i',
+                time_24hr:  true,
+                minDate:    new Date(Date.now() + 5 * 60 * 1000),
+                locale: { firstDayOfWeek: 1 }
+            });
+        } else {
+            dtInput._fp.set('minDate', new Date(Date.now() + 5 * 60 * 1000));
+            dtInput._fp.clear();
+        }
         schedRow.style.display = '';
         asapBtn.style.display  = 'inline-block';
         schedBtn.style.display = 'inline-block';
@@ -867,18 +964,46 @@ foreach ($net_stats as $ns) {
         asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i>' + STR.applyAsap;
         schedBtn.innerHTML = '<i class="ti ti-calendar-check me-1"></i>' + STR.schedUpdate;
 
-        function doUpgrade(scheduleTimeMs) {
-            var activeBtn = scheduleTimeMs > 0 ? schedBtn : asapBtn;
+        function getSelectedVersion() {
+            var radio = body.querySelector('input[name="gdmsFwVersion"]:checked');
+            return radio ? radio.value : (latestFw || '');
+        }
+
+        function doUpgrade(scheduleMs) {
+            var version = getSelectedVersion();
+            if (!version) return;
+            var activeBtn = scheduleMs > 0 ? schedBtn : asapBtn;
             asapBtn.disabled = true; schedBtn.disabled = true;
             activeBtn.innerHTML = '<i class="ti ti-loader me-1" style="animation:spin .8s linear infinite;display:inline-block;"></i>' + STR.scheduling;
+
             var csrfValue = (typeof window.glpiGetNewCSRFToken === 'function')
                 ? window.glpiGetNewCSRFToken()
                 : (document.querySelector('meta[property="glpi:csrf_token"]') || {}).getAttribute('content') || '';
-            var formData = new FormData();
-            formData.append('_glpi_csrf_token', csrfValue);
-            formData.append('macs', JSON.stringify([mac.replace(/:/g, '').toUpperCase()]));
-            if (scheduleTimeMs > 0) formData.append('scheduleTimeMs', scheduleTimeMs);
-            fetch(FW_UPGRADE_URL, { method: 'POST', credentials: 'same-origin', body: formData })
+
+            var fetchUrl, fetchBody, fetchHeaders;
+
+            if (isGwn) {
+                // GWN: POST to upgrade action with macs array (existing path)
+                var formData = new FormData();
+                formData.append('_glpi_csrf_token', csrfValue);
+                formData.append('macs', JSON.stringify([mac.replace(/:/g, '').toUpperCase()]));
+                if (scheduleMs > 0) formData.append('scheduleTimeMs', scheduleMs);
+                fetchUrl     = FW_UPGRADE_URL;
+                fetchBody    = formData;
+                fetchHeaders = {};
+            } else {
+                // UC/phones: POST to upgrade_gdms with mac + version
+                var formData2 = new FormData();
+                formData2.append('_glpi_csrf_token', csrfValue);
+                formData2.append('mac', mac);
+                formData2.append('version', version);
+                if (scheduleMs > 0) formData2.append('scheduleMs', scheduleMs);
+                fetchUrl     = FW_UPGRADE_GDMS_URL;
+                fetchBody    = formData2;
+                fetchHeaders = {};
+            }
+
+            fetch(fetchUrl, { method: 'POST', credentials: 'same-origin', body: fetchBody })
                 .then(function(r) { return r.json(); })
                 .then(function(resp) {
                     if (resp.error) {
@@ -914,11 +1039,9 @@ foreach ($net_stats as $ns) {
 
         asapBtn.onclick  = function() { doUpgrade(0); };
         schedBtn.onclick = function() {
-            var dtVal = dtInput.value;
-            if (!dtVal) { doUpgrade(0); return; }
-            var ms = new Date(dtVal).getTime();
-            if (!ms || ms <= Date.now()) { doUpgrade(0); return; }
-            doUpgrade(ms);
+            var sel = dtInput._fp && dtInput._fp.selectedDates[0];
+            if (!sel || sel.getTime() <= Date.now()) { doUpgrade(0); return; }
+            doUpgrade(sel.getTime());
         };
 
         var modalEl = document.getElementById('gdmsFwModal');

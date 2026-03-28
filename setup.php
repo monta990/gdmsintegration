@@ -8,7 +8,7 @@ use Glpi\Plugin\Hooks;
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.2.0');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.2.2');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI',  '11.0');
 define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '11.99');
 
@@ -68,6 +68,14 @@ function plugin_gdmsintegration_boot(): void {
     \Glpi\Http\SessionManager::registerPluginStatelessPath(
         'gdmsintegration',
         '#^/front/visnetwork\.php#'
+    );
+    \Glpi\Http\SessionManager::registerPluginStatelessPath(
+        'gdmsintegration',
+        '#^/front/flatpickr\.php#'
+    );
+    \Glpi\Http\SessionManager::registerPluginStatelessPath(
+        'gdmsintegration',
+        '#^/front/flatpickrcss\.php#'
     );
     // firmware.ajax.php: NOT stateless — uses session normally, CSRF via X-Glpi-Csrf-Token header
     // sync.ajax.php uses normal GLPI session (browser sends cookie automatically)

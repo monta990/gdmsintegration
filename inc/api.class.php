@@ -652,6 +652,120 @@ class PluginGdmsintegrationAPI {
         return ['success' => $ok];
     }
 
+    // -----------------------------------------------------------------------
+    // GDMS — Task signature (different from device/list signature)
+    // task/add: SHA256(&access_token=…&client_id=…&client_secret=…&timestamp=…&SHA256(body)&)
+    // -----------------------------------------------------------------------
+    private static function gdmsBuildTaskSignature(
+        string $accessToken,
+        string $clientId,
+        string $clientSecret,
+        int    $timestamp,
+        string $body
+    ): string {
+        $bodyHash = hash('sha256', $body);
+        $toSign   = '&access_token='  . $accessToken
+                  . '&client_id='     . $clientId
+                  . '&client_secret=' . $clientSecret
+                  . '&timestamp='     . $timestamp
+                  . '&' . $bodyHash . '&';
+        PluginGdmsintegrationUtils::debug("GDMS task sign input: {$toSign}");
+        $sig = hash('sha256', $toSign);
+        PluginGdmsintegrationUtils::debug("GDMS task signature:  {$sig}");
+        return $sig;
+    }
+
+    // -----------------------------------------------------------------------
+    // GDMS — Create upgrade task for UC devices (UCM/GCC/GRP/GXP/WP/HT etc.)
+    // POST /oapi/v1.0.0/task/add
+    // $mac        — colon-format MAC e.g. "C0:74:AD:DE:E2:8E"
+    // $version    — target firmware e.g. "1.0.31.7"
+    // $scheduleMs — 0 = ASAP, >0 = epoch ms scheduled time
+    // -----------------------------------------------------------------------
+    public static function gdmsCreateUpgradeTask(
+        array  $config,
+        string $mac,
+        string $version,
+        int    $scheduleMs = 0
+    ): array {
+        $tokenData = self::gdmsGetToken($config);
+        if (!$tokenData) return ['error' => 'Cannot obtain GDMS token'];
+
+        $token    = $tokenData['access_token'] ?? '';
+        $clientId = $tokenData['client_id']    ?? ($config['client_id'] ?? '');
+        $secret   = $config['client_secret'] ?? '';
+
+        $payload = [
+            'taskName'  => 'UPGRADE',
+            'taskType'  => 1,
+            'macList'   => [$mac],
+            'execType'  => 1,
+            'fwVersion' => $version,
+        ];
+        if ($scheduleMs > 0) {
+            $payload['scheduleTime'] = $scheduleMs;
+        }
+
+        $body = json_encode($payload);
+        $ts   = (int)(microtime(true) * 1000);
+        $sig  = self::gdmsBuildTaskSignature($token, $clientId, $secret, $ts, $body);
+
+        $url = self::GDMS_BASE . '/v1.0.0/task/add'
+             . '?access_token=' . urlencode($token)
+             . '&signature='    . $sig
+             . "&timestamp={$ts}";
+
+        $data = self::curl($url, ['Content-Type: application/json'], $body);
+        if (!is_array($data) || ($data['retCode'] ?? -1) != 0) {
+            $err = $data['msg'] ?? json_encode($data);
+            PluginGdmsintegrationUtils::log("GDMS task/add UPGRADE error for {$mac}: {$err}");
+            return ['error' => $err];
+        }
+        $mode = $scheduleMs > 0 ? "scheduled @{$scheduleMs}" : "ASAP";
+        PluginGdmsintegrationUtils::log("GDMS upgrade task created ({$mode}) for {$mac} v{$version}");
+        return ['success' => true, 'mac' => $mac, 'version' => $version];
+    }
+
+    // -----------------------------------------------------------------------
+    // Grandstream firmware page scraper
+    // Returns ['official' => 'x.x.x.x', 'beta' => 'x.x.x.x'|null]
+    // $slug — URL slug e.g. 'ucm6300', 'grp260x', 'gwn7001-gwn7002-gwn7003'
+    // -----------------------------------------------------------------------
+    public static function scrapeFirmwareVersions(string $slug): array {
+        $base   = 'https://www.grandstream.com/support/firmware/';
+        $result = ['official' => null, 'beta' => null];
+
+        $html = self::curlGet($base . $slug . '-official-firmware');
+        if ($html && preg_match('/(\d+\.\d+\.\d+\.\d+)/', $html, $m)) {
+            $result['official'] = $m[1];
+        }
+
+        $html = self::curlGet($base . $slug . '-beta-firmware');
+        if ($html && preg_match('/(\d+\.\d+\.\d+\.\d+)/', $html, $m)) {
+            $result['beta'] = $m[1];
+        }
+
+        return $result;
+    }
+
+    // Simple GET-only curl helper for public pages (no auth required)
+    private static function curlGet(string $url, int $timeout = 8): string|false {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => $timeout,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; GLPIPlugin/1.0)',
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+        ]);
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        return ($body !== false && $code === 200) ? $body : false;
+    }
+
+
         public static function testConnections(array $config): array {
         $result = ['gwn' => null, 'gdms' => null];
 

@@ -14,7 +14,7 @@
 
 ## Overview
 
-Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS Cloud into GLPI. Raises incident tickets when devices go offline and auto-resolves them on recovery. Assigned technicians are notified automatically. Provides a real-time NOC dashboard with per-network device stats, traffic metrics, interactive port status, configurable availability history, network topology, Excel export, and firmware update scheduling for GWN devices.
+Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS Cloud into GLPI. Raises incident tickets when devices go offline and auto-resolves them on recovery. Assigned technicians are notified automatically. Provides a real-time NOC dashboard with per-network device stats, traffic metrics, interactive port status, configurable availability history, network topology, Excel export, and firmware update scheduling for all Grandstream device families (GWN, UCM, GRP, GXV, WP, HT).
 
 ---
 
@@ -128,7 +128,37 @@ The same tiers and thresholds apply to both the NOC dashboard and the Excel expo
 
 ---
 
-### Firmware Updates (GWN devices)
+### Firmware Updates (All device families)
+
+The dashboard checks firmware availability for all Grandstream devices 2 seconds after page load, in background, without blocking the sync or the device table. A Flatpickr date/time picker is used for scheduling updates. For GDMS-managed devices (UCM, GRP, WP, HT), GDMS applies the latest firmware available in its repository — the version shown in the modal is informational.
+
+**Version sources:**
+
+| Device family | Source |
+|---------------|--------|
+| GWN routers / switches / APs | GWN Cloud API `/upgrade/version` — direct, per-network |
+| UCM / GCC PBX appliances | `grandstream.com/support/firmware` scraper |
+| GRP IP phones | `grandstream.com/support/firmware` scraper |
+| GXV video phones | `grandstream.com/support/firmware` scraper |
+| WP Wi-Fi phones | `grandstream.com/support/firmware` scraper |
+| HT ATAs | `grandstream.com/support/firmware` scraper |
+
+An amber **⬆** icon appears next to the firmware version when an update is available for any device type.
+
+**Clicking the ⬆ icon** opens a modal showing:
+- Current version installed on the device.
+- Available versions with selection radio buttons:
+  - **Official firmware** (green badge) — stable release from Grandstream.
+  - **Beta firmware** (yellow badge) — pre-release, when available for that model family.
+- Reboot warning (the device will restart during the upgrade).
+- Two action buttons that apply to the selected version:
+  - **Apply now (ASAP)** — sends the upgrade command immediately.
+    - GWN devices: calls GWN Cloud `/upgrade/add`.
+    - All other devices: creates a GDMS UC `task/add` task with `taskName=UPGRADE`.
+  - **Schedule update** — a datetime picker lets you set a specific date and time; the value is sent as milliseconds epoch.
+- Success or error is shown inline in the modal without closing it.
+
+> GWN devices do not expose beta firmware versions through the GWN Cloud API — only the official stable version is available for them.
 
 The dashboard checks firmware availability for all GWN devices 2 seconds after page load, in background, without blocking the sync or the table.
 

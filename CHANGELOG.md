@@ -3,6 +3,62 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.2] - 2026-03-28
+
+### Fixed
+
+- **Firmware modal title size** — the modal header was rendered at a smaller size than other modals due to a spurious `fs-6` Bootstrap class. Removed; title now uses the standard `h5` size consistent with the rest of the UI.
+
+- **`taskType` corrected for GDMS firmware upgrade** — `task/add` was being sent with `taskType: 2` (Factory Reset) instead of `taskType: 1` (Upgrade), causing GDMS to reject the request with `reset task not support ucm`. All GDMS upgrade tasks now use `taskType: 1`.
+
+- **Button text colors in firmware modal** — `btn-success` now carries an explicit `text-white` class and `btn-warning` carries `text-dark` to prevent dark-theme overrides from making text invisible. The beta version code color was also changed from a hardcoded hex to a CSS variable (`--bs-warning-text`) so it adapts to the active GLPI theme.
+
+- **Action buttons stacked vertically** — the three action buttons in the firmware modal footer (Apply now, Schedule, Close) are now arranged vertically with full width (`w-100`) so that translated labels are never truncated.
+
+- **Datetime picker replaced with Flatpickr** — the native `datetime-local` input (which renders differently in every browser and has no time picker on some platforms) is replaced with Flatpickr 4.6.13 served locally from `js/flatpickr.min.js` and `css/flatpickr.min.css` (same stateless-route pattern as Chart.js and vis-network). The picker shows a calendar + 24 h clock, enforces a minimum date of now + 5 minutes, and adapts its color scheme to the active GLPI theme via CSS variable overrides.
+
+### Changed
+
+- **GDMS firmware upgrade modal — version display** — for GDMS-managed devices (UCM / GCC / GRP / WP / HT), the beta firmware version is now shown as informational text only rather than a selectable radio button. A blue alert note explains that GDMS applies the latest firmware available in its own repository regardless of the version passed in the API call. GWN devices retain the full radio-button selector for both official and beta versions.
+
+- **Locale strings** — added `GDMS managed` and the repository note string to all five locales (es_MX, fr_FR, de_DE, en_US, en_GB).
+
+---
+
+## [1.2.1] - 2026-03-28 - NOT RELEASED
+
+### Added
+
+- **Firmware updates for all device types** — the firmware check and upgrade flow now covers every Grandstream device family in the dashboard, not only GWN routers. This applies uniformly to:
+  - **GWN routers, switches, and APs** — version data comes from the GWN Cloud API (`/upgrade/version`), same as before.
+  - **UCM / GCC PBX appliances** — version data scraped from `grandstream.com/support/firmware` (UCM6300/UCM62xx/UCM61xx/UCM6510/GCC601x/GCC602x pages).
+  - **GRP IP phones** — version data scraped from the GRP260x firmware page.
+  - **GXV video phones** — version data scraped from the GXV34xx firmware page.
+  - **WP Wi-Fi phones** — version data scraped from the WP8x6 firmware page.
+  - **HT ATAs** — version data scraped from the HT8xxV2 firmware page.
+
+- **Official + Beta firmware options in upgrade modal** — the firmware upgrade modal now shows both the official and beta versions when available for the device's model family. The user selects which version to install via a radio button before clicking Apply or Schedule. The `Official firmware` badge (green) marks the stable release; the `Beta firmware` badge (yellow) marks the pre-release.
+
+- **Upgrade applies to all device families (ASAP or scheduled)** — the Apply now (ASAP) and Schedule update buttons work identically for all device types:
+  - GWN devices call the existing GWN Cloud `/upgrade/add` endpoint.
+  - All other devices (UCM/GCC/GRP/GXP/WP/HT) create a GDMS UC `task/add` task with `taskName=UPGRADE` and the selected firmware version. The GDMS task supports both immediate and scheduled execution via the `scheduleTime` field (milliseconds epoch).
+
+- **`firmware.ajax.php?action=check_all`** — new AJAX action that fetches firmware versions for all tracked devices in one call. GWN devices use the GWN Cloud API; UC/phone devices use scraping with a per-slug cache to avoid duplicate HTTP requests for the same model family.
+
+- **`firmware.ajax.php?action=upgrade_gdms`** — new AJAX action that creates a GDMS upgrade task for UC and phone devices. Accepts `mac` (colon or plain format), `version`, and optional `scheduleMs`.
+
+- **`PluginGdmsintegrationAPI::gdmsCreateUpgradeTask()`** — new method in `api.class.php`. Uses a different HMAC signature scheme from `device/list`: `SHA256(&access_token=…&client_id=…&client_secret=…&timestamp=…&SHA256(body)&)`.
+
+- **`PluginGdmsintegrationAPI::scrapeFirmwareVersions()`** — new method that fetches the official and beta firmware pages from `grandstream.com/support/firmware/{slug}-official-firmware` and `{slug}-beta-firmware` and extracts the version string via regex. Uses a private `curlGet()` helper with TLS verification.
+
+### Changed
+
+- `firmware.ajax.php?action=check` — original GWN-only stable check kept unchanged for backwards compatibility.
+- Dashboard firmware fetch on page load switched from `action=check` to `action=check_all` to populate firmware data for all device types.
+- Firmware `⬆` badge now appears on **all device types** with firmware data (previously excluded `type=Phone`). Badge element gains a `data-model` attribute used by JS to determine which upgrade path to call.
+
+---
+
 ## [1.2.0] - 2026-03-28
 
 ### Added

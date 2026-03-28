@@ -563,3 +563,18 @@ msgid "Download"
 msgstr ""
 msgid "No history data yet. Data will appear after a few sync cycles."
 msgstr ""
+
+msgid "Official firmware"
+msgstr ""
+
+msgid "Beta firmware"
+msgstr ""
+
+msgid "Select version"
+msgstr ""
+
+msgid "GDMS managed"
+msgstr ""
+
+msgid "GDMS applies the latest firmware available in its repository. The selected version is informational only."
+msgstr ""

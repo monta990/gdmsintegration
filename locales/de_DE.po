@@ -589,3 +589,18 @@ msgid "Download"
 msgstr "Herunterladen"
 msgid "No history data yet. Data will appear after a few sync cycles."
 msgstr "Noch keine historischen Daten. Daten erscheinen nach einigen Synchronisierungszyklen."
+
+msgid "Official firmware"
+msgstr "Offizielle Firmware"
+
+msgid "Beta firmware"
+msgstr "Beta-Firmware"
+
+msgid "Select version"
+msgstr "Version auswählen"
+
+msgid "GDMS managed"
+msgstr "Von GDMS verwaltet"
+
+msgid "GDMS applies the latest firmware available in its repository. The selected version is informational only."
+msgstr "GDMS wendet die neueste verfügbare Firmware in seinem Repository an. Die ausgewählte Version dient nur zur Information."
