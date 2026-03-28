@@ -348,7 +348,15 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 $wan_ports_json,
                 $d['apType']          ?? $d['deviceType'] ?? $d['type'] ?? '',
                 $d['deviceName']      ?? $d['name'] ?? '',
-                (int)($d['clients']   ?? 0)
+                (int)($d['clients']   ?? 0),
+                (int)($d['usage']     ?? 0),
+                (int)($d['upload']    ?? 0),
+                (int)($d['download']  ?? 0),
+                (int)($d['channel']   ?? 0),
+                (int)($d['channel5g'] ?? 0),
+                isset($d['firstSeen']) ? date('Y-m-d H:i:s', (int)($d['firstSeen']/1000)) : null,
+                isset($d['lastSeen'])  ? date('Y-m-d H:i:s', (int)($d['lastSeen']/1000))  : null,
+                $d['ipv4']            ?? ''
             );
 
             // Ticket transitions: offline → create ticket, offline→online → resolve

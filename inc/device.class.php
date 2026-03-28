@@ -42,7 +42,15 @@ class PluginGdmsintegrationDevice extends CommonDBTM {
         string $wan_ports_json = '',
         string $model          = '',
         string $cloud_name     = '',
-        int    $clients        = 0
+        int    $clients        = 0,
+        int    $usage_bytes    = 0,
+        int    $upload_bytes   = 0,
+        int    $download_bytes = 0,
+        int    $channel_2g     = 0,
+        int    $channel_5g     = 0,
+        ?string $first_seen   = null,
+        ?string $last_seen    = null,
+        string $mgmt_ip        = ''
     ): bool {
         $rows = $this->find(['mac' => $mac]);
         $data = [
@@ -57,7 +65,15 @@ class PluginGdmsintegrationDevice extends CommonDBTM {
             'model'          => $model,
             'cloud_name'     => $cloud_name,
             'clients'        => $clients,
+            'usage_bytes'    => $usage_bytes,
+            'upload_bytes'   => $upload_bytes,
+            'download_bytes' => $download_bytes,
+            'channel_2g'     => $channel_2g,
+            'channel_5g'     => $channel_5g,
+            'mgmt_ip'        => $mgmt_ip,
         ];
+        if ($first_seen !== null) $data['first_seen'] = $first_seen;
+        if ($last_seen  !== null) $data['last_seen']  = $last_seen;
         if (!empty($rows)) {
             return (bool) $this->update(array_merge(['id' => array_key_first($rows)], $data));
         }

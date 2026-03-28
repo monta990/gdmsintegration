@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.0] - 2026-03-28
+
+### Added
+- **PBX devices counted correctly** — UCM/GCC appliances are stored as `NetworkEquipment` in GLPI (correct GLPI itemtype). The "Phones & PBX" summary card now counts them by detecting their model prefix (`UCM`, `GCC`, `CLOUDUCM`, `SOFTWAREUCM`) in addition to `type=Phone`. Previously PBX devices appeared neither in the Phones & PBX count nor in the router/switch/AP counts.
+- **Network traffic per device** — `usage_bytes`, `upload_bytes`, `download_bytes` now stored and synced from the GWN `ap/list` API (`usage`, `upload`, `download` fields). Displayed as an uptime cell tooltip (↑ / ↓) in the device table.
+- **WiFi channel per device** — `channel_2g` and `channel_5g` stored and synced. Shown in uptime tooltip alongside traffic.
+- **First seen / Last seen timestamps** — `first_seen` and `last_seen` stored from GWN `firstSeen`/`lastSeen` epoch ms fields. `last_seen` displayed in uptime tooltip.
+- **Management IP** — `mgmt_ip` (device LAN management address) stored separately from public IP. Available in DB for future use.
+- **Network traffic in network modal** — the per-network click modal now shows a "Network traffic" row with aggregate ↑ upload and ↓ download for all devices in that network (in KB/MB/GB auto-scaled).
+- **PBX excluded from networking counts** — UCM/GCC devices no longer appear in router/switch/AP category totals in the network modal or summary cards.
+
+### Changed
+- `saveStateWithNetwork()` signature extended with 8 new optional parameters (all with defaults — no existing callers broken).
+- DB: 8 new `ALTER TABLE … ADD COLUMN IF NOT EXISTS` for `usage_bytes`, `upload_bytes`, `download_bytes`, `channel_2g`, `channel_5g`, `first_seen`, `last_seen`, `mgmt_ip`.
+
 ## [1.1.0] - 2026-03-27
 
 ### Added
