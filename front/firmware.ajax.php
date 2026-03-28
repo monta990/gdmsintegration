@@ -159,7 +159,15 @@ if ($action === 'upgrade') {
     }
 
     PluginGdmsintegrationUtils::log("Firmware upgrade requested — MACs: " . implode(', ', $macs));
-    $result = PluginGdmsintegrationAPI::gwnScheduleUpgrade($config, array_values($macs));
+
+    // scheduleTimeMs: 0 = ASAP, >0 = epoch ms for scheduled time
+    $scheduleTimeMs = 0;
+    $rawTime = $_POST['scheduleTimeMs'] ?? null;
+    if ($rawTime !== null) {
+        $scheduleTimeMs = max(0, (int)$rawTime);
+    }
+
+    $result = PluginGdmsintegrationAPI::gwnScheduleUpgrade($config, array_values($macs), $scheduleTimeMs);
     if (!empty($result['error'])) {
         PluginGdmsintegrationUtils::log("Firmware upgrade FAILED — " . $result['error']);
     } else {

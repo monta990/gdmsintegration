@@ -233,7 +233,19 @@ class PluginGdmsintegrationAPI {
     // -----------------------------------------------------------------------
     // GWN — get token (client_credentials grant)
     // -----------------------------------------------------------------------
+    /** In-process token cache: [cacheKey => [token, expires_at]] */
+    private static array $gwnTokenCache = [];
+
     public static function gwnGetToken(array $config): string|false {
+        $cacheKey = ($config['gwn_client_id'] ?? '') . '|' . ($config['gwn_client_secret'] ?? '');
+        $now      = time();
+        if (isset(self::$gwnTokenCache[$cacheKey])) {
+            [$cachedToken, $expiresAt] = self::$gwnTokenCache[$cacheKey];
+            if ($now < $expiresAt) {
+                PluginGdmsintegrationUtils::debug("GWN token OK (cached) — appID:{$config['gwn_client_id']}");
+                return $cachedToken;
+            }
+        }
         $url = self::GWN_BASE . '/oauth/token?' . http_build_query([
             'grant_type'    => 'client_credentials',
             'client_id'     => $config['gwn_client_id'],
@@ -246,6 +258,8 @@ class PluginGdmsintegrationAPI {
             PluginGdmsintegrationUtils::log("GWN token ERROR — appID:{$config['gwn_client_id']}");
             return false;
         }
+        $expiresIn = (int)($data['expires_in'] ?? 3599);
+        self::$gwnTokenCache[$cacheKey] = [$data['access_token'], $now + $expiresIn - 30];
         PluginGdmsintegrationUtils::debug("GWN token OK — appID:{$config['gwn_client_id']}");
         return $data['access_token'];
     }
@@ -602,16 +616,23 @@ class PluginGdmsintegrationAPI {
 
     /**
      * Schedule firmware upgrade for given MACs.
-     * POST /oapi/v1.0.0/upgrade/add {macs: [...]}
+     * POST /oapi/v1.0.0/upgrade/add {macs: [...], time: <ms_timestamp_or_0>}
+     * time=0 means "apply as soon as possible" (Grandstream immediate mode).
      * Returns: {success_upgrade_macs: [...]}
      */
-    public static function gwnScheduleUpgrade(array $config, array $macs): array {
+    public static function gwnScheduleUpgrade(array $config, array $macs, int $scheduleTimeMs = 0): array {
         $token  = self::gwnGetToken($config);
         if (!$token) return ['error' => 'Cannot obtain token'];
         $appId  = $config['gwn_client_id']     ?? '';
         $secret = $config['gwn_client_secret'] ?? '';
 
-        $body   = json_encode(['macs' => $macs]);
+        $payload = ['macs' => $macs];
+        if ($scheduleTimeMs > 0) {
+            $payload['time'] = $scheduleTimeMs; // scheduled datetime in ms epoch
+        }
+        // scheduleTimeMs === 0 → omit field, API defaults to ASAP
+
+        $body   = json_encode($payload);
         $ts  = (int)(microtime(true) * 1000);
         $sig = self::gwnBuildSignature($token, $appId, $secret, $ts, $body);
         $url = self::GWN_BASE . '/oapi/v1.0.0/upgrade/add'
@@ -626,7 +647,8 @@ class PluginGdmsintegrationAPI {
             return ['error' => $err];
         }
         $ok = $data['data']['success_upgrade_macs'] ?? [];
-        PluginGdmsintegrationUtils::log("GWN upgrade scheduled for MACs: " . implode(', ', (array)$ok));
+        $mode = $scheduleTimeMs > 0 ? "scheduled @{$scheduleTimeMs}" : "ASAP";
+        PluginGdmsintegrationUtils::log("GWN upgrade ({$mode}) for MACs: " . implode(', ', (array)$ok));
         return ['success' => $ok];
     }
 

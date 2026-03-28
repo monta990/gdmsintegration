@@ -60,6 +60,14 @@ class PluginGdmsintegrationConfig extends CommonDBTM {
             $input['gwn_client_secret'] = PluginGdmsintegrationUtils::encrypt($input['gwn_client_secret']);
         }
 
+        // Set defaults for new fields if not provided
+        if (!isset($input['chart_days']) || (int)$input['chart_days'] < 1) {
+            $input['chart_days'] = 60;
+        }
+        $input['chart_days']     = min((int)$input['chart_days'], 365);
+        $input['show_topology']  = isset($input['show_topology']) ? (int)(bool)$input['show_topology'] : 1;
+        $input['ticket_requester_id'] = (int)($input['ticket_requester_id'] ?? 0);
+
         $input['date_mod'] = date('Y-m-d H:i:s');
 
         if (!empty($existing)) {

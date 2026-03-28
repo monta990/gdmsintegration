@@ -40,7 +40,9 @@ class PluginGdmsintegrationDevice extends CommonDBTM {
         string $sn_cloud       = '',
         int    $network_id     = 0,
         string $wan_ports_json = '',
-        string $model          = ''
+        string $model          = '',
+        string $cloud_name     = '',
+        int    $clients        = 0
     ): bool {
         $rows = $this->find(['mac' => $mac]);
         $data = [
@@ -53,6 +55,8 @@ class PluginGdmsintegrationDevice extends CommonDBTM {
             'sn_cloud'       => $sn_cloud,
             'wan_ports_json' => $wan_ports_json,
             'model'          => $model,
+            'cloud_name'     => $cloud_name,
+            'clients'        => $clients,
         ];
         if (!empty($rows)) {
             return (bool) $this->update(array_merge(['id' => array_key_first($rows)], $data));

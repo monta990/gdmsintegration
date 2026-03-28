@@ -16,15 +16,15 @@ class PluginGdmsintegrationMenu extends CommonGLPI {
         if (Session::haveRight('config', READ)) {
             $menu['title'] = __('GDMS Integration', 'gdmsintegration');
             $menu['page']  = '/plugins/gdmsintegration/front/dashboard.php';
-            $menu['icon']  = 'fas fa-network-wired';
+            $menu['icon']  = 'ti ti-network';
 
             $menu['options']['dashboard']['title'] = __('GDMS Dashboard', 'gdmsintegration');
             $menu['options']['dashboard']['page']  = '/plugins/gdmsintegration/front/dashboard.php';
-            $menu['options']['dashboard']['icon']  = 'fas fa-tachometer-alt';
+            $menu['options']['dashboard']['icon']  = 'ti ti-dashboard';
 
             $menu['options']['config']['title'] = __('GDMS Configuration', 'gdmsintegration');
             $menu['options']['config']['page']  = '/plugins/gdmsintegration/front/config.form.php';
-            $menu['options']['config']['icon']  = 'fas fa-cog';
+            $menu['options']['config']['icon']  = 'ti ti-settings';
         }
 
         return $menu;

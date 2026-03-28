@@ -25,17 +25,19 @@ $config_obj       = new PluginGdmsintegrationConfig();
 $config           = $config_obj->getConfigByEntity($entities_id);
 $is_configured    = !empty($config['client_id']) || !empty($config['gwn_client_id']);
 $refresh_interval = max(30, (int)($config['refresh_interval'] ?? 300));
+$chart_days       = max(7, min(365, (int)($config['chart_days'] ?? 60)));
+$show_topology    = (int)($config['show_topology'] ?? 1);
 
 if (!$is_configured) {
     $config_url = '/plugins/gdmsintegration/front/config.form.php';
     echo '<div class="container-xl mt-5">';
     echo '   <div class="card border-0 shadow-sm mx-auto" style="max-width:540px;">';
     echo '      <div class="card-body text-center py-5 px-4">';
-    echo '         <i class="fas fa-plug fa-3x text-secondary mb-3"></i>';
+    echo '         <i class="ti ti-plug text-secondary mb-3" style="font-size:3rem;"></i>';
     echo '         <h4 class="fw-bold mb-2">' . __('GDMS not configured yet', 'gdmsintegration') . '</h4>';
     echo '         <p class="text-muted mb-4">' . __('To start syncing your Grandstream devices, you need to connect your GDMS Cloud account. It only takes a moment.', 'gdmsintegration') . '</p>';
     echo '         <a href="' . htmlspecialchars($config_url, ENT_QUOTES, 'UTF-8') . '" class="btn btn-primary px-4">';
-    echo '            <i class="fas fa-cog me-2"></i>' . __('Set up GDMS', 'gdmsintegration');
+    echo '            <i class="ti ti-settings me-2"></i>' . __('Set up GDMS', 'gdmsintegration');
     echo '         </a>';
     echo '      </div>';
     echo '   </div>';
@@ -81,7 +83,15 @@ foreach ($all_states as $state) {
 
     // Find the GLPI asset if it exists
     $glpi     = $mac_to_asset[$mac] ?? null;
-    $name     = $glpi ? htmlspecialchars($glpi['name'],    ENT_QUOTES, 'UTF-8') : htmlspecialchars($mac, ENT_QUOTES, 'UTF-8');
+    // Name priority: 1) GLPI asset name  2) cloud name stored during sync  3) MAC
+    $cloud_name_raw = $state['cloud_name'] ?? '';
+    if ($glpi) {
+        $name = htmlspecialchars($glpi['name'], ENT_QUOTES, 'UTF-8');
+    } elseif ($cloud_name_raw !== '') {
+        $name = htmlspecialchars($cloud_name_raw, ENT_QUOTES, 'UTF-8');
+    } else {
+        $name = htmlspecialchars($mac, ENT_QUOTES, 'UTF-8');
+    }
     $serial   = $glpi ? htmlspecialchars($glpi['serial']   ?? '', ENT_QUOTES, 'UTF-8') : '';
     $itemtype = $glpi ? $glpi['_itemtype'] : 'NetworkEquipment';
     $glpi_id  = $glpi ? (int)$glpi['id'] : 0;
@@ -118,19 +128,45 @@ foreach ($all_states as $state) {
         'mac'          => htmlspecialchars($mac, ENT_QUOTES, 'UTF-8'),
         'serial'       => $sn_cloud ?: $serial,
         'network_name' => $net_name,
+        'network_id'   => (int)($state['network_id'] ?? 0),
         'ip'           => $ip,
         'firmware'     => $firmware,
         'uptime_sec'   => $uptime_sec,
         'online'       => $isOnline,
         'uptime'       => $uptime,
         'sla'          => htmlspecialchars($sla, ENT_QUOTES, 'UTF-8'),
+        'raw_model'    => $state['model'] ?? '', // raw apType for device classification
+        'clients'      => (int)($state['clients'] ?? 0),
     ];
 }
 
-// Uptime history — last 60 days per device per day
+// Build per-network device stats for tooltip (router/switch/AP/clients counts)
+// Device classification: GWN7001/7002/7003 prefix → router; GWN7800/GSS → switch; GWN76xx → AP; UCM/GCC/GRP/GXP etc → phone/pbx
+$net_stats = []; // network_name → [router_on, router_off, switch_on, switch_off, ap_on, ap_off, clients_wired, clients_wireless]
+foreach ($rows as $r) {
+    $nname = $r['network_name'];
+    if ($nname === '') continue;
+    if (!isset($net_stats[$nname])) {
+        $net_stats[$nname] = ['router_on'=>0,'router_off'=>0,'switch_on'=>0,'switch_off'=>0,'ap_on'=>0,'ap_off'=>0,'clients'=>0];
+    }
+    $m   = strtoupper($r['raw_model'] ?? '');
+    $on  = $r['online'];
+    // Classify by model prefix
+    if (preg_match('/^GWN700[0-9]/', $m)) { // GWN7001/7002/7003 = routers
+        $on ? $net_stats[$nname]['router_on']++ : $net_stats[$nname]['router_off']++;
+    } elseif (preg_match('/^GWN78|^GSS/', $m)) { // GWN7800x = switches, GSS = smart switches
+        $on ? $net_stats[$nname]['switch_on']++ : $net_stats[$nname]['switch_off']++;
+    } elseif (preg_match('/^GWN/', $m)) { // other GWN = APs
+        $on ? $net_stats[$nname]['ap_on']++ : $net_stats[$nname]['ap_off']++;
+    }
+    // clients is total connected clients reported by AP/router
+    $net_stats[$nname]['clients'] += $r['clients'];
+}
+
+// Uptime history — last N days per device per day (configurable via chart_days)
 $history_obj = new PluginGdmsintegrationHistory();
-$sixty_ago   = date('Y-m-d H:i:s', strtotime('-60 days'));
-$hist_rows   = $history_obj->find(['date' => ['>', $sixty_ago]], ['date DESC']);
+$history_ago  = date('Y-m-d H:i:s', strtotime("-{$chart_days} days"));
+$hist_rows    = $history_obj->find(['date' => ['>', $history_ago]], ['date DESC']);
 
 // Build: mac → (name) and date → per-mac status
 $mac_to_name = [];
@@ -184,25 +220,52 @@ foreach ($per_device as $mac => $days) {
     ];
 }
 
-// Topology — all MACs tracked by plugin
-$entity_macs = array_keys($mac_to_asset);
-$link        = new PluginGdmsintegrationLink();
-$links_raw   = empty($entity_macs) ? [] : $link->find(['source_mac' => $entity_macs]);
-
+// Topology — only build if show_topology is enabled (saves DB query when disabled)
 $nodes = [];
-foreach ($rows as $r) {
-    $nodes[] = [
-        'id'    => $r['mac'],
-        'label' => $r['name'],
-        'color' => ['background' => $r['online'] ? '#28a745' : '#dc3545', 'border' => '#aaa'],
-        'font'  => ['color' => '#ffffff'],
-        'title' => $r['name'] . ' — ' . ($r['online'] ? 'Online' : 'Offline'),
-    ];
-}
 $edges = [];
-foreach ($links_raw as $l) {
-    if (!empty($l['source_mac']) && !empty($l['target_mac'])) {
-        $edges[] = ['from' => $l['source_mac'], 'to' => $l['target_mac']];
+if ($show_topology) {
+    $entity_macs = array_keys($mac_to_asset);
+    $link        = new PluginGdmsintegrationLink();
+    $links_raw   = empty($entity_macs) ? [] : $link->find(['source_mac' => $entity_macs]);
+
+    foreach ($rows as $r) {
+        $nodes[] = [
+            'id'    => $r['mac'],
+            'label' => $r['name'],
+            'color' => ['background' => $r['online'] ? '#28a745' : '#dc3545', 'border' => '#aaa'],
+            'font'  => ['color' => '#ffffff'],
+            'title' => $r['name'] . ' — ' . ($r['online'] ? 'Online' : 'Offline'),
+        ];
+    }
+    foreach ($links_raw as $l) {
+        if (!empty($l['source_mac']) && !empty($l['target_mac'])) {
+            $edges[] = ['from' => $l['source_mac'], 'to' => $l['target_mac']];
+        }
+    }
+} // end show_topology block
+
+// Build global summary totals from net_stats + rows
+$total_networks = count($net_stats);
+
+$summary = [
+    'router_on'  => 0, 'router_off' => 0,
+    'switch_on'  => 0, 'switch_off' => 0,
+    'ap_on'      => 0, 'ap_off'     => 0,
+    'clients'    => 0,
+    'phone_on'   => 0, 'phone_off'  => 0,
+];
+foreach ($net_stats as $ns) {
+    $summary['router_on']  += $ns['router_on'];
+    $summary['router_off'] += $ns['router_off'];
+    $summary['switch_on']  += $ns['switch_on'];
+    $summary['switch_off'] += $ns['switch_off'];
+    $summary['ap_on']      += $ns['ap_on'];
+    $summary['ap_off']     += $ns['ap_off'];
+    $summary['clients']    += $ns['clients'];
+}
+foreach ($rows as $r) {
+    if ($r['type'] === 'Phone') {
+        $r['online'] ? $summary['phone_on']++ : $summary['phone_off']++;
     }
 }
 ?>
@@ -212,7 +275,7 @@ foreach ($links_raw as $l) {
    <div class="card mb-4">
       <div class="card-body py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
          <div class="d-flex align-items-center gap-3">
-            <i class="fas fa-satellite-dish fa-lg text-primary"></i>
+            <i class="ti ti-antenna text-primary"></i>
             <div>
                <h4 class="mb-0 fw-bold"><?= 'GDMS — ' . __('Dashboard', 'gdmsintegration') ?></h4>
                <small class="text-muted"><?= __('Live view of your Grandstream cloud devices', 'gdmsintegration') ?></small>
@@ -221,64 +284,104 @@ foreach ($links_raw as $l) {
          <div class="d-flex align-items-center gap-2">
             <small class="text-muted" id="gdms-refresh-countdown"></small>
             <button type="button" id="gdms-refresh-btn" class="btn btn-sm btn-outline-primary">
-               <i class="fas fa-sync-alt me-1" id="gdms-refresh-icon"></i><?= __('Sync now', 'gdmsintegration') ?>
+               <i class="ti ti-refresh me-1" id="gdms-refresh-icon"></i><?= __('Sync now', 'gdmsintegration') ?>
             </button>
             <a href="/plugins/gdmsintegration/front/config.form.php" class="btn btn-sm btn-outline-secondary">
-               <i class="fas fa-cog me-1"></i><?= __('Settings', 'gdmsintegration') ?>
+               <i class="ti ti-settings me-1"></i><?= __('Settings', 'gdmsintegration') ?>
             </a>
          </div>
       </div>
    </div>
 
-   <?php // Summary cards + chart ?>
-   <div class="row g-3 mb-4">
-      <div class="col-6 col-md-3">
-         <div class="card text-white bg-success text-center py-3">
-            <div class="fs-1 fw-bold"><?= $online ?></div>
-            <div><?= __('Online', 'gdmsintegration') ?></div>
+   <?php // Summary stat cards — Grandstream Cloud style ?>
+   <?php
+   $total = $online + $offline;
+   $pct   = $total > 0 ? round($online / $total * 100) : 0;
+   $cards = [
+       [
+           'icon'    => 'ti-network',
+           'label'   => __('Networks', 'gdmsintegration'),
+           'vals'    => [['v' => $total_networks, 'lbl' => __('Total', 'gdmsintegration'), 'cls' => '']],
+       ],
+       [
+           'icon'    => 'ti-sitemap',
+           'label'   => __('Router', 'gdmsintegration'),
+           'vals'    => [
+               ['v' => $summary['router_on'],  'lbl' => __('Online', 'gdmsintegration'),  'cls' => 'text-success'],
+               ['v' => $summary['router_off'], 'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger'],
+           ],
+       ],
+       [
+           'icon'    => 'ti-server',
+           'label'   => __('Switch', 'gdmsintegration'),
+           'vals'    => [
+               ['v' => $summary['switch_on'],  'lbl' => __('Online', 'gdmsintegration'),  'cls' => 'text-success'],
+               ['v' => $summary['switch_off'], 'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger'],
+           ],
+       ],
+       [
+           'icon'    => 'ti-wifi',
+           'label'   => 'AP',
+           'vals'    => [
+               ['v' => $summary['ap_on'],  'lbl' => __('Online', 'gdmsintegration'),  'cls' => 'text-success'],
+               ['v' => $summary['ap_off'], 'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger'],
+           ],
+       ],
+       [
+           'icon'    => 'ti-phone',
+           'label'   => __('Phones & PBX', 'gdmsintegration'),
+           'vals'    => [
+               ['v' => $summary['phone_on'],  'lbl' => __('Online', 'gdmsintegration'),  'cls' => 'text-success'],
+               ['v' => $summary['phone_off'], 'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger'],
+           ],
+       ],
+       [
+           'icon'    => 'ti-users',
+           'label'   => __('Clients', 'gdmsintegration'),
+           'vals'    => [['v' => $summary['clients'], 'lbl' => __('Connected', 'gdmsintegration'), 'cls' => 'text-info']],
+       ],
+   ];
+   ?>
+   <div class="row g-2 mb-3">
+      <?php foreach ($cards as $card): ?>
+      <div class="col-6 col-sm-4 col-md-2">
+         <div class="card h-100 text-center py-3 px-2">
+            <div class="mb-1">
+               <i class="ti <?= $card['icon'] ?> text-primary" style="font-size:2rem;"></i>
+            </div>
+            <div class="small fw-semibold text-muted mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;">
+               <?= $card['label'] ?>
+            </div>
+            <div class="d-flex justify-content-center gap-3">
+               <?php foreach ($card['vals'] as $v): ?>
+               <div>
+                  <div class="fw-bold fs-2 lh-1 <?= $v['cls'] ?>"><?= $v['v'] ?></div>
+                  <div class="text-muted" style="font-size:.78rem;"><?= $v['lbl'] ?></div>
+               </div>
+               <?php endforeach; ?>
+            </div>
          </div>
       </div>
-      <div class="col-6 col-md-3">
-         <div class="card text-white bg-danger text-center py-3">
-            <div class="fs-1 fw-bold"><?= $offline ?></div>
-            <div><?= __('Offline', 'gdmsintegration') ?></div>
+      <?php endforeach; ?>
+   </div>
+
+   <?php // Availability bar ?>
+   <div class="card mb-3 px-3 py-2">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+         <span class="small fw-semibold text-nowrap"><?= __('Overall availability', 'gdmsintegration') ?> — <?= __('all devices', 'gdmsintegration') ?></span>
+         <div class="progress flex-grow-1" style="height:10px;min-width:120px;">
+            <div class="progress-bar <?= $pct >= 90 ? 'bg-success' : ($pct >= 70 ? 'bg-warning' : 'bg-danger') ?>"
+                 style="width:<?= $pct ?>%"></div>
          </div>
-      </div>
-      <div class="col-md-6">
-         <div class="card p-3 h-100">
-            <?php
-            $total = $online + $offline;
-            $pct   = $total > 0 ? round($online / $total * 100) : 0;
-            ?>
-            <div class="d-flex align-items-center justify-content-between mb-2">
-               <span class="small fw-semibold"><?= __('Availability', 'gdmsintegration') ?></span>
-               <span class="small fw-bold <?= $pct >= 90 ? 'text-success' : ($pct >= 70 ? 'text-warning' : 'text-danger') ?>"><?= $pct ?>%</span>
-            </div>
-            <div class="progress mb-3" style="height:12px;">
-               <div class="progress-bar bg-success" style="width:<?= $pct ?>%"></div>
-            </div>
-            <div class="row text-center g-2">
-               <div class="col-4">
-                  <div class="small text-muted"><?= __('Total', 'gdmsintegration') ?></div>
-                  <div class="fw-bold"><?= $total ?></div>
-               </div>
-               <div class="col-4">
-                  <div class="small text-success"><?= __('Online', 'gdmsintegration') ?></div>
-                  <div class="fw-bold text-success"><?= $online ?></div>
-               </div>
-               <div class="col-4">
-                  <div class="small text-danger"><?= __('Offline', 'gdmsintegration') ?></div>
-                  <div class="fw-bold text-danger"><?= $offline ?></div>
-               </div>
-            </div>
-         </div>
+         <span class="small fw-bold <?= $pct >= 90 ? 'text-success' : ($pct >= 70 ? 'text-warning' : 'text-danger') ?>"><?= $pct ?>%</span>
+         <span class="text-muted small"><?= $online ?> / <?= $total ?> <?= __('online', 'gdmsintegration') ?></span>
       </div>
    </div>
 
    <?php // Device table ?>
    <div class="card mb-4">
       <div class="card-header d-flex align-items-center gap-2">
-         <i class="fas fa-list"></i>
+         <i class="ti ti-list"></i>
          <h5 class="mb-0"><?= __('Devices', 'gdmsintegration') ?></h5>
       </div>
       <div class="table-responsive">
@@ -315,7 +418,7 @@ foreach ($links_raw as $l) {
                      <?php if (!empty($r['asset_url'])): ?>
                      <a href="<?= $r['asset_url'] ?>" class="fw-semibold text-decoration-none">
                         <?= $r['name'] ?>
-                        <i class="fas fa-external-link-alt ms-1 small opacity-50"></i>
+                        <i class="ti ti-external-link ms-1 small opacity-50"></i>
                      </a>
                      <?php else: ?>
                      <span class="fw-semibold"><?= $r['name'] ?></span>
@@ -329,11 +432,37 @@ foreach ($links_raw as $l) {
                      <?php endif; ?>
                   </td>
                   <td><small class="text-muted font-monospace"><?= htmlspecialchars($r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?: '—' ?></small></td>
-                  <td><small><?= $r['network_name'] ?: '—' ?></small></td>
+                  <td>
+                  <?php
+                  $rnet  = $r['network_name'] ?: '';
+                  $rstat = $net_stats[$rnet] ?? null;
+                  if ($rnet !== '' && $rstat !== null):
+                      $netData = json_encode([
+                          'name'       => $rnet,
+                          'router_on'  => $rstat['router_on'],
+                          'router_off' => $rstat['router_off'],
+                          'switch_on'  => $rstat['switch_on'],
+                          'switch_off' => $rstat['switch_off'],
+                          'ap_on'      => $rstat['ap_on'],
+                          'ap_off'     => $rstat['ap_off'],
+                          'clients'    => $rstat['clients'],
+                      ]);
+                  ?>
+                  <small class="gdms-net-link"
+                      data-net="<?= htmlspecialchars($netData, ENT_QUOTES, 'UTF-8') ?>"
+                      style="cursor:pointer;color:inherit;border-bottom:1px dashed rgba(128,128,128,.5);"
+                      title="<?= htmlspecialchars(__('Click for network details', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>">
+                      <?= htmlspecialchars($rnet, ENT_QUOTES, 'UTF-8') ?>
+                      <i class="ti ti-info-circle ms-1 opacity-50" style="font-size:.7em;"></i>
+                  </small>
+                  <?php else: ?>
+                  <small><?= $rnet ?: '—' ?></small>
+                  <?php endif; ?>
+                  </td>
                   <td><small class="font-monospace">
                      <?php if (!empty($r['ip'])): ?>
                      <a href="https://www.whois.com/whois/<?= urlencode($r['ip']) ?>" target="_blank" rel="noopener" class="text-decoration-none">
-                        <?= $r['ip'] ?> <i class="fas fa-external-link-alt opacity-50" style="font-size:.65em;"></i>
+                        <?= $r['ip'] ?> <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i>
                      </a>
                      <?php else: ?>—<?php endif; ?>
                   </small></td>
@@ -346,7 +475,7 @@ foreach ($links_raw as $l) {
                            data-mac="<?= htmlspecialchars(strtolower($r['mac'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                            data-current="<?= htmlspecialchars($r['firmware'], ENT_QUOTES, 'UTF-8') ?>"
                            title="<?= __('Firmware update available', 'gdmsintegration') ?>">
-                        <i class="fas fa-arrow-circle-up text-warning ms-1"></i>
+                        <i class="ti ti-arrow-up-circle text-warning ms-1"></i>
                      </span>
                      <?php endif; ?>
                   </td>
@@ -382,12 +511,12 @@ foreach ($links_raw as $l) {
    <?php if (!empty($chart_datasets)): ?>
    <div class="card mb-4">
       <div class="card-header d-flex align-items-center gap-2">
-         <i class="fas fa-chart-line"></i>
-         <h5 class="mb-0 me-auto"><?= __('Online % — last 60 days', 'gdmsintegration') ?></h5>
+         <i class="ti ti-chart-line"></i>
+         <h5 class="mb-0 me-auto"><?= sprintf(__('Online %% — last %d days', 'gdmsintegration'), $chart_days) ?></h5>
          <a href="<?= ($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/history_export.php?entities_id=' . $entities_id ?>"
             class="btn btn-sm btn-outline-secondary"
             title="<?= __('Export to Excel', 'gdmsintegration') ?>">
-            <i class="fas fa-file-excel me-1"></i><?= __('Export', 'gdmsintegration') ?>
+            <i class="ti ti-file-spreadsheet me-1"></i><?= __('Export', 'gdmsintegration') ?>
          </a>
       </div>
       <div class="card-body p-0">
@@ -396,19 +525,26 @@ foreach ($links_raw as $l) {
    </div>
    <?php endif; ?>
 
+   <?php if ($show_topology): ?>
    <div class="card mb-4">
       <div class="card-header d-flex align-items-center gap-2">
-         <i class="fas fa-project-diagram"></i>
+         <i class="ti ti-hierarchy"></i>
          <h5 class="mb-0"><?= __('Network Topology', 'gdmsintegration') ?></h5>
       </div>
       <div id="gdms-network" style="height:450px; border-radius:0 0 .375rem .375rem; overflow:hidden;"></div>
    </div>
+   <?php endif; ?>
 
 </div>
 
-<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<?php if ($show_topology): ?>
+<script src="https://unpkg.com/vis-network@10.0.2/standalone/umd/vis-network.min.js"></script>
+<?php endif; ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
 <script>
 (function () {
     'use strict';
@@ -446,6 +582,7 @@ foreach ($links_raw as $l) {
 
     // Export handled server-side by history_export.php
 
+    <?php if ($show_topology): ?>
     // vis-network topology
     var container = document.getElementById('gdms-network');
     if (container) {
@@ -458,6 +595,7 @@ foreach ($links_raw as $l) {
             nodes:   { shape:'dot', size:18 }
         });
     }
+    <?php endif; ?>
 
     // Non-blocking sync: fires request then reloads after 2s regardless
     // PHP sets ignore_user_abort so it keeps running even after reload
@@ -476,7 +614,8 @@ foreach ($links_raw as $l) {
     function doSync(source) {
         if (gdmsSyncing) return;
         gdmsSyncing = source || 'auto';
-        if (icon) icon.className = 'fas fa-sync-alt fa-spin me-1';
+        if (icon) icon.className = 'ti ti-refresh me-1';
+        if (icon) icon.style.cssText = 'animation:spin .8s linear infinite;display:inline-block;';
         if (btn)  btn.disabled = true;
         if (countEl) countEl.textContent = '<?= __('Syncing…', 'gdmsintegration') ?>';
         var syncUrl = (gdmsSyncing === 'btn') ? AJAX_URL_BTN : AJAX_URL_AUTO;
@@ -505,7 +644,7 @@ foreach ($links_raw as $l) {
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">
-          <i class="fas fa-arrow-circle-up text-warning me-2"></i>
+          <i class="ti ti-arrow-up-circle text-warning me-2"></i>
           <?= __('Firmware Update Available', 'gdmsintegration') ?>
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -516,14 +655,23 @@ foreach ($links_raw as $l) {
           <span><?= __('Checking firmware…', 'gdmsintegration') ?></span>
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-          <?= __('Close', 'gdmsintegration') ?>
-        </button>
-        <button type="button" class="btn btn-warning" id="gdmsFwScheduleBtn" style="display:none;">
-          <i class="fas fa-calendar-check me-1"></i>
-          <?= __('Schedule update', 'gdmsintegration') ?>
-        </button>
+      <div class="modal-footer flex-column align-items-stretch gap-2">
+        <div class="d-flex align-items-center gap-2 w-100" id="gdmsFwScheduleRow" style="display:none!important;">
+          <label class="form-label mb-0 text-nowrap small fw-semibold"><?= __('Schedule for', 'gdmsintegration') ?>:</label>
+          <input type="datetime-local" class="form-control form-control-sm" id="gdmsFwDatetime" style="max-width:220px;">
+          <small class="text-muted"><?= __('Leave empty to apply as soon as possible', 'gdmsintegration') ?></small>
+        </div>
+        <div class="d-flex justify-content-end gap-2 w-100">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <?= __('Close', 'gdmsintegration') ?>
+          </button>
+          <button type="button" class="btn btn-success" id="gdmsFwAsapBtn" style="display:none;">
+            <i class="ti ti-bolt me-1"></i><?= __('Apply now (ASAP)', 'gdmsintegration') ?>
+          </button>
+          <button type="button" class="btn btn-warning" id="gdmsFwScheduleBtn" style="display:none;">
+            <i class="ti ti-calendar-check me-1"></i><?= __('Schedule update', 'gdmsintegration') ?>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -541,7 +689,6 @@ foreach ($links_raw as $l) {
                 list.forEach(function(item) {
                     if (!item.hasUpdate) return;
                     fwData[item.mac] = item;
-                    // Show upgrade icon for this MAC
                     document.querySelectorAll('.gdms-fw-badge[data-mac="' + item.mac + '"]')
                         .forEach(function(el) { el.style.display = 'inline'; });
                 });
@@ -557,10 +704,12 @@ foreach ($links_raw as $l) {
         var current = badge.getAttribute('data-current');
         var info    = fwData[mac] || {};
         var latest  = info.latestVersion || '<?= __('Unknown', 'gdmsintegration') ?>';
-        var body    = document.getElementById('gdmsFwModalBody');
+        var body     = document.getElementById('gdmsFwModalBody');
         var schedBtn = document.getElementById('gdmsFwScheduleBtn');
+        var asapBtn  = document.getElementById('gdmsFwAsapBtn');
+        var schedRow = document.getElementById('gdmsFwScheduleRow');
+        var dtInput  = document.getElementById('gdmsFwDatetime');
 
-        // Build modal body using DOM methods to prevent XSS
         var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; };
         body.innerHTML = '<table class="table table-sm mb-0">'
           + '<tr><th class="text-muted fw-normal w-50"><?= __('Current firmware', 'gdmsintegration') ?></th>'
@@ -572,61 +721,77 @@ foreach ($links_raw as $l) {
           + '<td><code>' + esc(mac.toUpperCase()) + '</code></td></tr>'
           + '</table>'
           + '<div class="alert alert-warning mt-3 mb-0 py-2 small">'
-          + '<i class="fas fa-exclamation-triangle me-1"></i>'
+          + '<i class="ti ti-alert-triangle me-1"></i>'
           + '<?= __('The device will reboot during the update. Schedule during a maintenance window.', 'gdmsintegration') ?>'
           + '</div>';
 
+        // Reset datetime picker — clear and set min to now+5min
+        var nowPlus5 = new Date(Date.now() + 5*60*1000);
+        dtInput.min   = nowPlus5.toISOString().slice(0,16);
+        dtInput.value = '';
+
+        schedRow.style.display = '';
+        asapBtn.style.display  = 'inline-block';
         schedBtn.style.display = 'inline-block';
-        schedBtn.onclick = null;
+        asapBtn.disabled  = false;
+        schedBtn.disabled = false;
+        asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i><?= __('Apply now (ASAP)', 'gdmsintegration') ?>';
+        schedBtn.innerHTML = '<i class="ti ti-calendar-check me-1"></i><?= __('Schedule update', 'gdmsintegration') ?>';
+
+        function doUpgrade(scheduleTimeMs) {
+            var activeBtn = scheduleTimeMs > 0 ? schedBtn : asapBtn;
+            asapBtn.disabled = true; schedBtn.disabled = true;
+            activeBtn.innerHTML = '<i class="ti ti-loader me-1" style="animation:spin .8s linear infinite;display:inline-block;"></i><?= __('Scheduling…', 'gdmsintegration') ?>';
+            var csrfValue = (typeof window.glpiGetNewCSRFToken === 'function')
+                ? window.glpiGetNewCSRFToken()
+                : (document.querySelector('meta[property="glpi:csrf_token"]') || {}).getAttribute('content') || '';
+            var formData = new FormData();
+            formData.append('_glpi_csrf_token', csrfValue);
+            formData.append('macs', JSON.stringify([mac.replace(/:/g, '').toUpperCase()]));
+            if (scheduleTimeMs > 0) formData.append('scheduleTimeMs', scheduleTimeMs);
+            fetch(FW_UPGRADE_URL, { method: 'POST', credentials: 'same-origin', body: formData })
+                .then(function(r) { return r.json(); })
+                .then(function(resp) {
+                    if (resp.error) {
+                        var errDiv = document.createElement('div');
+                        errDiv.className = 'alert alert-danger mt-2 mb-0 py-2 small';
+                        errDiv.textContent = resp.error;
+                        errDiv.insertAdjacentHTML('afterbegin', '<i class="ti ti-circle-x me-1"></i> ');
+                        body.appendChild(errDiv);
+                        asapBtn.disabled = false; schedBtn.disabled = false;
+                        asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i><?= __('Apply now (ASAP)', 'gdmsintegration') ?>';
+                        schedBtn.innerHTML = '<i class="ti ti-calendar-check me-1"></i><?= __('Schedule update', 'gdmsintegration') ?>';
+                    } else {
+                        var ok = document.createElement('div');
+                        ok.className = 'alert alert-success mt-2 mb-0 py-2 small';
+                        ok.innerHTML = '<i class="ti ti-check-circle me-1"></i><?= __('Update scheduled successfully. The device will update shortly.', 'gdmsintegration') ?>';
+                        body.appendChild(ok);
+                        asapBtn.style.display = 'none'; schedBtn.style.display = 'none';
+                        schedRow.style.display = 'none';
+                        document.querySelectorAll('.gdms-fw-badge[data-mac="' + mac + '"]')
+                            .forEach(function(el) { el.style.display = 'none'; });
+                    }
+                })
+                .catch(function() {
+                    var connErr = document.createElement('div');
+                    connErr.className = 'alert alert-danger mt-2 mb-0 py-2 small';
+                    connErr.textContent = '<?= __('Request failed. Check connection.', 'gdmsintegration') ?>';
+                    body.appendChild(connErr);
+                    asapBtn.disabled = false; schedBtn.disabled = false;
+                    asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i><?= __('Apply now (ASAP)', 'gdmsintegration') ?>';
+                    schedBtn.innerHTML = '<i class="ti ti-calendar-check me-1"></i><?= __('Schedule update', 'gdmsintegration') ?>';
+                });
+        }
+
+        asapBtn.onclick  = function() { doUpgrade(0); };
         schedBtn.onclick = function() {
-            schedBtn.disabled = true;
-            schedBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i><?= __('Scheduling…', 'gdmsintegration') ?>';
-            // GLPI 11 requires CSRF token on POST requests
-        // Use FormData so GLPI reads _glpi_csrf_token from $_POST (reliable in all GLPI 11 versions)
-        // glpiGetNewCSRFToken() fetches a fresh single-use token — avoids "already consumed" rejections
-        var csrfValue = (typeof window.glpiGetNewCSRFToken === 'function')
-            ? window.glpiGetNewCSRFToken()
-            : (document.querySelector('meta[property="glpi:csrf_token"]') || {}).getAttribute('content') || '';
-        var formData = new FormData();
-        formData.append('_glpi_csrf_token', csrfValue);
-        formData.append('macs', JSON.stringify([mac.replace(/:/g, '').toUpperCase()]));
-        fetch(FW_UPGRADE_URL, {
-                method: 'POST',
-                credentials: 'same-origin',
-                body: formData
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(resp) {
-                if (resp.error) {
-                    var errDiv = document.createElement('div');
-                    errDiv.className = 'alert alert-danger mt-2 mb-0 py-2 small';
-                    errDiv.textContent = resp.error;
-                    errDiv.insertAdjacentHTML('afterbegin', '<i class="fas fa-times-circle me-1"></i> ');
-                    body.appendChild(errDiv);
-                    schedBtn.disabled = false;
-                    schedBtn.innerHTML = '<i class="fas fa-calendar-check me-1"></i><?= __('Schedule update', 'gdmsintegration') ?>';
-                } else {
-                    var ok = document.createElement('div');
-                    ok.className = 'alert alert-success mt-2 mb-0 py-2 small';
-                    ok.innerHTML = '<i class="fas fa-check-circle me-1"></i><?= __('Update scheduled successfully. The device will update shortly.', 'gdmsintegration') ?>';
-                    body.appendChild(ok);
-                    schedBtn.style.display = 'none';
-                    // Hide the badge since update is scheduled
-                    document.querySelectorAll('.gdms-fw-badge[data-mac="' + mac + '"]')
-                        .forEach(function(el) { el.style.display = 'none'; });
-                }
-            })
-            .catch(function() {
-                var connErr = document.createElement('div');
-                connErr.className = 'alert alert-danger mt-2 mb-0 py-2 small';
-                connErr.textContent = '<?= __('Request failed. Check connection.', 'gdmsintegration') ?>';
-                body.appendChild(connErr);
-                schedBtn.disabled = false;
-                schedBtn.innerHTML = '<i class="fas fa-calendar-check me-1"></i><?= __('Schedule update', 'gdmsintegration') ?>';
-            });
+            var dtVal = dtInput.value;
+            if (!dtVal) { doUpgrade(0); return; }
+            var ms = new Date(dtVal).getTime();
+            if (!ms || ms <= Date.now()) { doUpgrade(0); return; }
+            doUpgrade(ms);
         };
 
-        // Show modal
         var modalEl = document.getElementById('gdmsFwModal');
         if (typeof bootstrap !== 'undefined') {
             new bootstrap.Modal(modalEl).show();
@@ -666,8 +831,8 @@ foreach ($links_raw as $l) {
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">
-              <i class="fas fa-network-wired me-2 text-primary"></i>
-              <?= __('WAN Port Status', 'gdmsintegration') ?>
+              <i class="ti ti-network me-2 text-primary"></i>
+              <?= __('Port Status', 'gdmsintegration') ?>
               <small class="text-muted ms-2" id="gdmsPortModalDevice"></small>
             </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -764,20 +929,20 @@ foreach ($links_raw as $l) {
                 var cs     = (p.connectStatus !== undefined) ? p.connectStatus : -1;
                 var statusColor, statusIcon, statusText;
                 if (isWan) {
-                    if (!linkUp)  { statusColor='secondary'; statusIcon='times-circle';    statusText='<?= __('Link down', 'gdmsintegration') ?>'; }
-                    else if(cs==1){ statusColor='success';   statusIcon='check-circle';    statusText='<?= __('Online', 'gdmsintegration') ?>'; }
-                    else if(cs==0){ statusColor='warning';   statusIcon='exclamation-circle'; statusText='<?= __('No internet', 'gdmsintegration') ?>'; }
-                    else          { statusColor='warning';   statusIcon='exclamation-circle'; statusText='<?= __('Link up', 'gdmsintegration') ?>'; }
+                    if (!linkUp)  { statusColor='secondary'; statusIcon='circle-x';       statusText='<?= __('Link down', 'gdmsintegration') ?>'; }
+                    else if(cs==1){ statusColor='success';   statusIcon='circle-check';   statusText='<?= __('Online', 'gdmsintegration') ?>'; }
+                    else if(cs==0){ statusColor='warning';   statusIcon='alert-circle';   statusText='<?= __('No internet', 'gdmsintegration') ?>'; }
+                    else          { statusColor='warning';   statusIcon='alert-circle';   statusText='<?= __('Link up', 'gdmsintegration') ?>'; }
                 } else {
                     statusColor = linkUp ? 'info'  : 'secondary';
-                    statusIcon  = linkUp ? 'plug'  : 'times-circle';
+                    statusIcon  = linkUp ? 'circle-check' : 'circle-x';
                     statusText  = linkUp ? '<?= __('Link up', 'gdmsintegration') ?>' : '<?= __('Link down', 'gdmsintegration') ?>';
                 }
                 var label    = p.silk  || (isWan ? 'WAN' : 'LAN');
                 var portName = (p.name && p.name !== p.silk) ? p.name : '';
                 html += '<div class="col-md-6"><div class="card border-' + statusColor + ' h-100">';
                 html += '<div class="card-header bg-transparent border-' + statusColor + ' d-flex justify-content-between align-items-center py-2">';
-                html += '<strong class="text-' + statusColor + '"><i class="fas fa-' + statusIcon + ' me-1"></i>' + label;
+                html += '<strong class="text-' + statusColor + '"><i class="ti ti-' + statusIcon + ' me-1"></i>' + label;
                 if (portName) html += ' <small class="fw-normal opacity-75">(' + portName + ')</small>';
                 html += '</strong>';
                 if (p.wanName) html += '<small class="text-muted ms-2">' + p.wanName + '</small>';
@@ -801,6 +966,94 @@ foreach ($links_raw as $l) {
         var bsModal = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(portModal) : null;
         if (bsModal) bsModal.show();
         else if (typeof $ !== 'undefined') $(portModal).modal('show');
+    });
+
+    // ── Network stats modal ────────────────────────────────────────────────
+    var netModal = document.createElement('div');
+    netModal.className = 'modal fade';
+    netModal.id = 'gdmsNetModal';
+    netModal.setAttribute('tabindex', '-1');
+    netModal.setAttribute('aria-hidden', 'true');
+    netModal.innerHTML = `
+      <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+          <div class="modal-header py-2">
+            <i class="ti ti-network me-2 text-primary"></i>
+            <h6 class="modal-title mb-0 fw-semibold" id="gdmsNetModalTitle"></h6>
+            <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-0" id="gdmsNetModalBody"></div>
+          <div class="modal-footer py-2 justify-content-end">
+            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+              <?= __('Close', 'gdmsintegration') ?>
+            </button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(netModal);
+
+    var LBL_ONLINE  = '<?= addslashes(__('online',  'gdmsintegration')) ?>';
+    var LBL_OFFLINE = '<?= addslashes(__('offline', 'gdmsintegration')) ?>';
+    var LBL_TOTAL   = '<?= addslashes(__('Total',   'gdmsintegration')) ?>';
+    var LBL_ROUTER  = '<?= addslashes(__('Router',  'gdmsintegration')) ?>';
+    var LBL_SWITCH  = '<?= addslashes(__('Switch',  'gdmsintegration')) ?>';
+    var LBL_AP      = '<?= addslashes(__('AP',      'gdmsintegration')) ?>';
+    var LBL_CLIENTS = '<?= addslashes(__('Clients', 'gdmsintegration')) ?>';
+
+    document.addEventListener('click', function(e) {
+        var link = e.target.closest('.gdms-net-link');
+        if (!link) return;
+        var raw = link.getAttribute('data-net');
+        if (!raw) return;
+        var nd;
+        try { nd = JSON.parse(raw); } catch(ex) { return; }
+
+        document.getElementById('gdmsNetModalTitle').textContent = nd.name;
+
+        var rows = [
+            { icon: 'ti ti-sitemap', label: LBL_ROUTER, on: nd.router_on, off: nd.router_off },
+            { icon: 'ti ti-server',  label: LBL_SWITCH, on: nd.switch_on, off: nd.switch_off },
+            { icon: 'ti ti-wifi',    label: LBL_AP,     on: nd.ap_on,     off: nd.ap_off     },
+        ];
+
+        var html = '<ul class="list-group list-group-flush">';
+        rows.forEach(function(r) {
+            var total = r.on + r.off;
+            var pct   = total > 0 ? Math.round(r.on / total * 100) : null;
+            var barClass = (pct === null) ? 'bg-secondary' : (pct >= 80 ? 'bg-success' : (pct >= 50 ? 'bg-warning' : 'bg-danger'));
+            html += '<li class="list-group-item px-3 py-2">';
+            html += '<div class="d-flex align-items-center justify-content-between mb-1">';
+            html += '<span><i class="' + r.icon + ' me-2 text-primary" style="width:14px;"></i>'
+                  + '<strong>' + r.label + '</strong></span>';
+            html += '<span class="small text-muted">';
+            if (total === 0) {
+                html += '<span class="badge text-bg-secondary opacity-50">0</span>';
+            } else {
+                html += '<span class="badge bg-success me-1">' + r.on + ' ' + LBL_ONLINE + '</span>';
+                if (r.off > 0) html += '<span class="badge bg-danger">' + r.off + ' ' + LBL_OFFLINE + '</span>';
+            }
+            html += '</span></div>';
+            if (total > 0) {
+                html += '<div class="progress" style="height:4px;border-radius:2px;">';
+                html += '<div class="progress-bar ' + barClass + '" style="width:' + (pct||0) + '%;"></div>';
+                html += '</div>';
+                html += '<div class="text-end text-muted" style="font-size:.7rem;margin-top:2px;">' + LBL_TOTAL + ': ' + total + '</div>';
+            }
+            html += '</li>';
+        });
+
+        // Clients row
+        html += '<li class="list-group-item px-3 py-2 d-flex align-items-center justify-content-between">';
+        html += '<span><i class="ti ti-users me-2 text-warning" style="width:14px;"></i><strong>' + LBL_CLIENTS + '</strong></span>';
+        html += '<span class="badge bg-warning text-dark fs-6">' + nd.clients + '</span>';
+        html += '</li>';
+
+        html += '</ul>';
+        document.getElementById('gdmsNetModalBody').innerHTML = html;
+
+        var bsNet = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(netModal) : null;
+        if (bsNet) bsNet.show();
+        else if (typeof $ !== 'undefined') $(netModal).modal('show');
     });
 
 })();

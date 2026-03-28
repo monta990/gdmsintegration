@@ -3,6 +3,33 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.1.0] - 2026-03-27
+
+### Added
+- **Device name fallback** — name resolution now uses GLPI asset name first, cloud device name second (stored in new `cloud_name` DB column), and MAC address as last resort.
+- **Tech assignment on tickets** — when a GLPI asset has a technician assigned (`users_id_tech`), automatically created incident tickets are now assigned to that user and set to status "Assigned".
+- **Configurable ticket requester** — new config option to select which GLPI user is set as requester on auto-generated tickets (defaults to system/cron user).
+- **Configurable chart days** — availability histogram range is now configurable (7–365 days, default 60). Includes a note that values above 90 may impact performance.
+- **Topology toggle** — network topology card can be hidden from the dashboard via config. When disabled, all topology data processing and vis-network loading are skipped entirely.
+- **Network tooltip** — hovering over a network name in the device table shows a breakdown of Router / Switch / AP online/offline counts and connected clients.
+- **Firmware: Apply now (ASAP)** — firmware modal now offers two options: "Apply now (ASAP)" (sends upgrade with no scheduled time) and "Schedule update" with a datetime picker. The scheduled time is passed to the GWN `upgrade/add` API as milliseconds epoch.
+- **Clients count** — new `clients` column in devices table; sync stores the connected-clients count from the cloud API, used for network tooltip stats.
+- **GWN token cache** — GWN access token is now cached in-process for its full lifetime (~3600s). A full sync cycle no longer makes 6-8 redundant token requests (one per network/call); instead it makes one and reuses it. This reduces sync wall time by 5-8 seconds.
+
+### Changed
+- **Excel export** — removed the "Raw Data" sheet (rows × history records, high volume, no operational value). Export now contains two sheets: availability pivot (% online per day per device) and device summary with SLA tiers.
+- Excel export respects the `chart_days` config setting.
+- Availability chart heading now shows the actual configured number of days.
+
+### Changed (continued)
+- **Icon library migration** — all FontAwesome icons replaced with Tabler Icons (`ti ti-*`) which is the icon library bundled with GLPI 11. Eliminates the external FontAwesome CDN dependency. Affected files: `front/dashboard.php`, `front/config.form.php`, `inc/menu.class.php` (53 icon class replacements).
+- **Port modal title** — renamed from "WAN Port Status" to "Port Status" since the modal now shows all port types (WAN and LAN), not just WAN.
+- **Network name tooltip → modal** — replaced the plain text tooltip on network names in the device table with a clickable link that opens a Bootstrap modal showing Router / Switch / AP online/offline counts with progress bars and a clients badge.
+- **Dashboard & Tickets config card** — added `ti-dashboard` icon and consistent `h5` heading to match all other configuration cards.
+
+### Fixed
+- History data range (dashboard + export) now reads from `chart_days` config instead of hardcoded 60 days.
+
 ## [1.0.3] - 2026-03-27
 
 ### Fixed

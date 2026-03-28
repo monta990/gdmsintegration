@@ -14,7 +14,7 @@
 
 ## Overview
 
-Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS Cloud into GLPI. Raises incident tickets when devices go offline and auto-resolves them on recovery. Provides a real-time NOC dashboard with uptime history, availability SLA, network topology, Excel export, and one-click firmware update scheduling for GWN devices.
+Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS Cloud into GLPI. Raises incident tickets when devices go offline and auto-resolves them on recovery. Assigned technicians are notified automatically. Provides a real-time NOC dashboard with per-network device stats, configurable availability history chart, optional network topology, Excel export, and firmware update scheduling for GWN devices.
 
 ---
 
@@ -35,24 +35,24 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 - **Model resolution** — resolves `phonemodels_id` / `networkequipmentmodels_id` from existing catalog without creating entries.
 - **Parallel SN enrichment** — GWN `device/info` requests fire simultaneously via `curl_multi`. Serial number extracted from the `result[]` array of `{type, value, key}` objects.
 - **SN caching** — once a serial is stored, `device/info` is skipped on subsequent syncs.
-- **Token efficiency** — GWN token fetched once per sync cycle and reused for all page requests and batch calls.
+- **Token efficiency** — GWN token cached in-process for its full validity period (~3600 s). A full sync cycle with 6+ networks issues only one token request instead of one per network, saving 5–8 seconds of wall time.
 
 ### NOC Dashboard
 
 - **Summary cards** — total, online, offline counts and global availability % with progress bar.
 - **Device table** — device name (link to GLPI asset), type badge, network/site, public IP (WHOIS link), MAC, serial, firmware + upgrade icon, uptime (d h m), status badge, availability %, SLA tier.
-- **Per-device history chart** — Chart.js line chart, one line per device with colour legend, last 60 days.
-- **Network topology** — vis-network interactive graph.
+- **Per-device history chart** — Chart.js line chart, one line per device with colour legend. Days shown are configurable (7–365, default 60; values > 90 may slow queries).
+- **Network name tooltip** — hovering over a network name shows a breakdown of Router / Switch / AP (online/offline) and connected clients for that network.
+- **Network topology** — vis-network interactive graph (can be hidden via config to skip all data processing).
 - **Auto-refresh** — configurable interval (default 5 min) with countdown timer.
 - **Manual sync** — background CLI dispatch, non-blocking.
-- **Excel export** — three-sheet `.xlsx` via `phpoffice/phpspreadsheet` (GLPI vendor, no extra dependency):
-  - *% Online 60 days* — pivot matrix with conditional colour fill (green ≥ 90 %, yellow ≥ 50 %, red < 50 %)
-  - *Raw Data* — individual history records
+- **Excel export** — two-sheet `.xlsx` via `phpoffice/phpspreadsheet` (GLPI vendor, no extra dependency):
+  - *% Online N days* — pivot matrix with conditional colour fill (green ≥ 90 %, yellow ≥ 50 %, red < 50 %)
   - *Summary* — per-device availability %, SLA tier
 
 ### SLA Tiers
 
-Availability % is calculated over the last 60 days of history records. Each device is assigned a tier based on its percentage of time online:
+Availability % is calculated over the configured history period (default 60 days, adjustable in Settings). Each device is assigned a tier based on its percentage of time online:
 
 | Tier | Threshold | Description |
 |------|-----------|-------------|
@@ -68,8 +68,10 @@ The same tiers and thresholds apply to both the NOC dashboard and the Excel expo
 - Firmware check runs 2 seconds after page load via `firmware.ajax.php?action=check`.
 - Calls `POST /oapi/v1.0.0/upgrade/version` per network; flags only **stable releases** (no `beta`, `rc`, `dev`, `alpha`).
 - **⬆️ amber icon** appears next to the current firmware version when a stable update is available.
-- **Click the icon** to open a Bootstrap modal with current vs. latest version, `Official` badge, reboot warning, and a **Schedule update** button.
-- Schedule calls `POST /oapi/v1.0.0/upgrade/add` — success/error shown inline in the modal.
+- **Click the icon** to open a Bootstrap modal with current vs. latest version, `Official` badge, reboot warning, and two action buttons:
+  - **Apply now (ASAP)** — sends the upgrade request immediately with no scheduled time; the device reboots as soon as the cloud delivers the command.
+  - **Schedule update** — a datetime picker lets you set a specific date and time; the value is sent as milliseconds epoch in the `time` field of `POST /oapi/v1.0.0/upgrade/add`.
+- Success/error is shown inline in the modal without closing it.
 
 ### Port Monitoring (GDMS Networking — Routers only)
 
@@ -90,11 +92,13 @@ The same tiers and thresholds apply to both the NOC dashboard and the Excel expo
 
 ### Incident Tickets
 
-- **Auto-open** — `[GDMS]` incident ticket created on online → offline transition.
+- **Auto-open** — `[GDMS]` incident ticket created on online → offline transition (device down) or link-down transition (port down).
 - **Urgency routing** — High (4) for routers; Medium (3) for switches and phones.
+- **Tech assignment** — if the GLPI asset has a technician set (`users_id_tech`), the ticket is automatically assigned to that user and opens with status "Assigned".
+- **Configurable requester** — a GLPI user can be set as ticket requester in the plugin config (defaults to system/cron user).
 - **Rich body** — table with MAC, serial, IP, network/site, firmware, last uptime, detection timestamp.
 - **Asset element** — asset linked as `Item_Ticket` affected item.
-- **Duplicate guard** — skips creation if an open `[GDMS]` ticket already exists for that asset.
+- **Duplicate guard** — skips creation if an open `[GDMS]` ticket already exists for that asset or port.
 - **Auto-resolve** — on recovery: adds followup note and sets ticket to Solved.
 
 ### Webhook
@@ -164,6 +168,9 @@ Logs written to `files/_log/gdmsintegration.log`.
 | Webhook URL | Full URL shown — paste into GDMS/GWN Cloud portal |
 | Refresh interval | Dashboard auto-refresh in seconds (default 300) |
 | Debug logging | Toggle verbose logging |
+| Availability chart days | Days of history shown in dashboard chart and exported to Excel (7–365, default 60). Values > 90 may slow the dashboard. |
+| Ticket requester | GLPI user set as requester on auto-generated incident tickets (default: system/cron user) |
+| Show topology card | Toggle the network topology card and vis-network graph on the dashboard. Disabling skips all topology data processing. |
 
 After saving, the plugin tests both API connections and shows green/red status badges.
 
@@ -174,8 +181,8 @@ After saving, the plugin tests both API connections and shows green/red status b
 | Table | Purpose |
 |-------|---------|
 | `glpi_plugin_gdmsintegration_configs` | Credentials and settings per entity |
-| `glpi_plugin_gdmsintegration_devices` | Live device state: MAC, status, network_id, network_name, IP, firmware, uptime_sec, sn_cloud, wan_ports_json, model |
-| `glpi_plugin_gdmsintegration_history` | Per-device status snapshots (60-day retention) |
+| `glpi_plugin_gdmsintegration_devices` | Live device state: MAC, status, network_id, network_name, IP, firmware, uptime_sec, sn_cloud, wan_ports_json, model, cloud_name, clients |
+| `glpi_plugin_gdmsintegration_history` | Per-device status snapshots (retention based on `chart_days` config, default 60 days) |
 | `glpi_plugin_gdmsintegration_links` | Network topology edges |
 
 ---

@@ -23,6 +23,9 @@ if (isset($_POST['save'])) {
         'webhook_secret'      => $_POST['webhook_secret']      ?? '',
         'refresh_interval'    => max(30, (int)($_POST['refresh_interval'] ?? 300)),
         'debug_logging'       => isset($_POST['debug_logging']) ? 1 : 0,
+        'chart_days'          => max(7, min(365, (int)($_POST['chart_days'] ?? 60))),
+        'show_topology'       => isset($_POST['show_topology']) ? 1 : 0,
+        'ticket_requester_id' => (int)($_POST['ticket_requester_id'] ?? 0),
     ]);
 
     // Real connection test after saving
@@ -73,6 +76,9 @@ unset($_SESSION['_gdms_debug']);
 $has_gdms         = !empty($cur['client_id']) && !empty($cur['client_secret']);
 $refresh_interval = (int)($cur['refresh_interval'] ?? 300);
 $has_gwn  = !empty($cur['gwn_client_id']) && !empty($cur['gwn_client_secret']);
+$chart_days           = max(7, min(365, (int)($cur['chart_days'] ?? 60)));
+$show_topology        = (int)($cur['show_topology'] ?? 1);
+$ticket_requester_id  = (int)($cur['ticket_requester_id'] ?? 0);
 
 // Full absolute webhook URL using the GLPI base URL
 $webhook_url = htmlspecialchars(
@@ -100,18 +106,18 @@ function gdms_pw(string $name, string $placeholder, bool $saved): string {
          . " autocomplete='new-password' placeholder='{$ph}'>"
          . "<button type='button' class='btn btn-outline-secondary gdms-pw-toggle'"
          . " data-target='{$uid}' tabindex='-1'>"
-         . "<i class='fas fa-eye'></i></button>"
+         . "<i class='ti ti-eye'></i></button>"
          . "</div>";
 }
 
 function gdms_badge(bool $ok): string {
     if ($ok) {
         return "<span class='badge bg-success'>"
-             . "<i class='fas fa-check-circle me-1'></i>"
+             . "<i class='ti ti-check-circle me-1'></i>"
              . __('Connected', 'gdmsintegration') . "</span>";
     }
     return "<span class='badge bg-warning text-dark'>"
-         . "<i class='fas fa-exclamation-triangle me-1'></i>"
+         . "<i class='ti ti-alert-triangle me-1'></i>"
          . __('Not configured', 'gdmsintegration') . "</span>";
 }
 ?>
@@ -131,7 +137,7 @@ function gdms_badge(bool $ok): string {
    <?php // ── GDMS login (separate card, top) ──────────────────────── ?>
    <div class="card mb-4">
       <div class="card-header d-flex align-items-center gap-2">
-         <i class="fas fa-user-lock"></i>
+         <i class="ti ti-user-shield"></i>
          <h5 class="mb-0"><?= __('GDMS Account', 'gdmsintegration') ?></h5>
       </div>
       <div class="card-body">
@@ -160,14 +166,14 @@ function gdms_badge(bool $ok): string {
    <div class="card mb-4">
       <div class="card-header d-flex align-items-center justify-content-between">
          <div class="d-flex align-items-center gap-2">
-            <i class="fas fa-network-wired"></i>
+            <i class="ti ti-network"></i>
             <h5 class="mb-0"><?= __('GDMS Networking — APs, Switches & Routers', 'gdmsintegration') ?></h5>
          </div>
          <?= gdms_badge($has_gwn) ?>
       </div>
       <div class="card-body">
          <div class="alert alert-info d-flex gap-2 align-items-start mb-3">
-            <i class="fas fa-info-circle mt-1 flex-shrink-0"></i>
+            <i class="ti ti-info-circle mt-1 flex-shrink-0"></i>
             <span>
                <?= __('Syncs GWN APs, switches and routers. No username or password required — only API credentials.', 'gdmsintegration') ?>
                <?= __('Credentials from', 'gdmsintegration') ?>
@@ -196,14 +202,14 @@ function gdms_badge(bool $ok): string {
    <div class="card mb-4">
       <div class="card-header d-flex align-items-center justify-content-between">
          <div class="d-flex align-items-center gap-2">
-            <i class="fas fa-phone-alt"></i>
+            <i class="ti ti-phone"></i>
             <h5 class="mb-0"><?= __('GDMS Unified Communications — Phones & PBX', 'gdmsintegration') ?></h5>
          </div>
          <?= gdms_badge($has_gdms) ?>
       </div>
       <div class="card-body">
          <div class="alert alert-info d-flex gap-2 align-items-start mb-3">
-            <i class="fas fa-info-circle mt-1 flex-shrink-0"></i>
+            <i class="ti ti-info-circle mt-1 flex-shrink-0"></i>
             <span>
                <?= __('Syncs GRP, GXP, GXV, WP phones and UCM PBX appliances.', 'gdmsintegration') ?>
                <?= __('Credentials from', 'gdmsintegration') ?>
@@ -231,7 +237,7 @@ function gdms_badge(bool $ok): string {
    <?php // ── Webhook ──────────────────────────────────────────────────── ?>
    <div class="card mb-4">
       <div class="card-header d-flex align-items-center gap-2">
-         <i class="fas fa-bolt"></i>
+         <i class="ti ti-bolt"></i>
          <h5 class="mb-0"><?= __('Webhook (optional)', 'gdmsintegration') ?></h5>
       </div>
       <div class="card-body">
@@ -254,8 +260,8 @@ function gdms_badge(bool $ok): string {
                      value="<?= $webhook_url ?>" readonly id="gdms-webhook-url">
                   <button type="button" class="btn btn-outline-secondary"
                      title="<?= htmlspecialchars(__('Copy URL', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"
-                     onclick="navigator.clipboard.writeText(document.getElementById('gdms-webhook-url').value).then(function(){var b=this;b.innerHTML='<i class=\'fas fa-check\'></i>';setTimeout(function(){b.innerHTML='<i class=\'fas fa-copy\'></i>';},1500)}.bind(this))">
-                     <i class="fas fa-copy"></i>
+                     onclick="navigator.clipboard.writeText(document.getElementById('gdms-webhook-url').value).then(function(){var b=this;b.innerHTML='<i class=\'ti ti-check\'></i>';setTimeout(function(){b.innerHTML='<i class=\'ti ti-copy\'></i>';},1500)}.bind(this))">
+                     <i class="ti ti-copy"></i>
                   </button>
                </div>
                <small class="text-muted d-block mt-1"><?= __('Copy this URL and paste it in the GDMS webhook settings.', 'gdmsintegration') ?></small>
@@ -289,13 +295,58 @@ function gdms_badge(bool $ok): string {
       </div>
    </div>
 
+   <!-- ── Dashboard & Tickets ───────────────────────────────────────────── -->
+   <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+         <i class="ti ti-dashboard"></i>
+         <h5 class="mb-0"><?= __('Dashboard & Tickets', 'gdmsintegration') ?></h5>
+      </div>
+      <div class="card-body">
+         <div class="row g-3">
+            <div class="col-md-4">
+               <label class="form-label fw-semibold"><?= __('Availability chart — days to display', 'gdmsintegration') ?></label>
+               <input type="number" class="form-control" name="chart_days"
+                  min="7" max="365" value="<?= $chart_days ?>">
+               <small class="text-muted d-block mt-1"><?= __('Recommended: 60 days. Values above 90 days may slow down the dashboard due to larger history queries.', 'gdmsintegration') ?></small>
+            </div>
+            <div class="col-md-4">
+               <label class="form-label fw-semibold"><?= __('Ticket requester (user)', 'gdmsintegration') ?></label>
+               <?php
+               $users = getAllDataFromTable('glpi_users', ['is_active' => 1, 'is_deleted' => 0]);
+               echo '<select class="form-select" name="ticket_requester_id">';
+               echo '<option value="0">' . __('System / cron user (default)', 'gdmsintegration') . '</option>';
+               foreach ($users as $u) {
+                   $uid   = (int)$u['id'];
+                   $label = htmlspecialchars(trim(($u['firstname'] ?? '') . ' ' . ($u['realname'] ?? '')) ?: ($u['name'] ?? "User #{$uid}"), ENT_QUOTES, 'UTF-8');
+                   $sel   = ($uid === $ticket_requester_id) ? ' selected' : '';
+                   echo "<option value=\"{$uid}\"{$sel}>{$label}</option>";
+               }
+               echo '</select>';
+               ?>
+               <small class="text-muted d-block mt-1"><?= __('This user will be set as the requester on automatically generated incident tickets.', 'gdmsintegration') ?></small>
+            </div>
+            <div class="col-md-4">
+               <label class="form-label fw-semibold d-block"><?= __('Network topology card', 'gdmsintegration') ?></label>
+               <div class="form-check form-switch mt-2">
+                  <input class="form-check-input" type="checkbox" name="show_topology" id="gdms_show_topology" value="1"
+                         <?= ($show_topology === 1) ? 'checked' : '' ?>>
+                  <label class="form-check-label" for="gdms_show_topology">
+                     <?= __('Show topology card on dashboard', 'gdmsintegration') ?>
+                  </label>
+               </div>
+               <small class="text-muted d-block mt-1"><?= __('When disabled, the topology graph is hidden and its data processing is skipped entirely.', 'gdmsintegration') ?></small>
+            </div>
+         </div>
+      </div>
+   </div>
+
    <div class="mb-4 d-flex align-items-center gap-3 flex-wrap">
       <button type="submit" name="save" class="btn btn-primary px-4">
-         <i class="fas fa-save me-1"></i><?= __('Save', 'gdmsintegration') ?>
+         <i class="ti ti-device-floppy me-1"></i><?= __('Save', 'gdmsintegration') ?>
       </button>
       <?php if ($has_gdms || $has_gwn): ?>
       <a href="/plugins/gdmsintegration/front/dashboard.php" class="btn btn-outline-secondary px-4">
-         <i class="fas fa-tachometer-alt me-2"></i><?= __('Go to Dashboard', 'gdmsintegration') ?>
+         <i class="ti ti-dashboard me-2"></i><?= __('Go to Dashboard', 'gdmsintegration') ?>
       </a>
       <?php endif; ?>
    </div>
@@ -313,7 +364,7 @@ document.querySelectorAll('.gdms-pw-toggle').forEach(function(btn) {
         var input = document.getElementById(this.dataset.target);
         if (!input) return;
         input.type = input.type === 'password' ? 'text' : 'password';
-        this.querySelector('i').className = input.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+        this.querySelector('i').className = input.type === 'password' ? 'ti ti-eye' : 'ti ti-eye-slash';
     });
 });
 </script>

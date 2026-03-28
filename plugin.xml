@@ -10,8 +10,8 @@
          <es>Integra Grandstream GWN Cloud con GLPI.</es>
       </short>
       <long>
-         <en>Integrates Grandstream GWN Cloud with GLPI. Automatically synchronizes GWN APs, switches and routers plus GDMS phones and PBX into GLPI assets. Features: real-time NOC dashboard with per-device uptime history chart, availability SLA tiers, network topology, one-click firmware update scheduling for GWN devices, incident ticket auto-open and auto-resolve on device state changes, Excel export via PhpSpreadsheet, and HMAC-SHA256 webhook for instant push events. Two-tier logging: minimal always-on plus verbose debug mode. Localized in es_MX, fr_FR, de_DE.</en>
-         <es>Integra Grandstream GWN Cloud con GLPI. Sincroniza automáticamente APs, switches y routers GWN así como teléfonos y PBX GDMS como activos GLPI. Incluye: dashboard NOC en tiempo real con historial de disponibilidad por dispositivo, niveles de SLA, topología de red, programación de actualizaciones de firmware GWN con un clic, apertura y resolución automática de tickets ante cambios de estado, exportación a Excel con PhpSpreadsheet y webhook HMAC-SHA256 para eventos en tiempo real. Registro en dos niveles: mínimo siempre activo y modo verbose de depuración. Localizado en es_MX, fr_FR, de_DE.</es>
+         <en>Integrates Grandstream GWN Cloud with GLPI. Automatically synchronizes GWN APs, switches and routers plus GDMS phones and PBX into GLPI assets. Features: real-time NOC dashboard with per-network device stats tooltip, configurable availability history chart (7-365 days), optional network topology, firmware ASAP or scheduled update, tech assignment on auto-created incident tickets, configurable ticket requester, Excel export, HMAC-SHA256 webhook, and in-process GWN token cache for faster syncs. Localized in es_MX, fr_FR, de_DE.</en>
+         <es>Integra Grandstream GWN Cloud con GLPI. Sincroniza automaticamente APs, switches y routers GWN asi como telefonos y PBX GDMS como activos GLPI. Incluye: dashboard NOC con tooltip de estadisticas por red, historial de disponibilidad configurable (7-365 dias), topologia de red opcional, actualizacion de firmware inmediata o programada, asignacion de tecnico en tickets automaticos, solicitante de ticket configurable, exportacion a Excel, webhook HMAC-SHA256 y cache de token GWN en proceso para sincronizaciones mas rapidas. Localizado en es_MX, fr_FR, de_DE.</es>
       </long>
    </description>
    <homepage>https://github.com/monta990/gdmsintegration</homepage>
@@ -23,14 +23,14 @@
    </authors>
    <versions>
       <version>
+         <num>1.1.0</num>
+         <compatibility>~11.0.0</compatibility>
+         <download_url>https://github.com/monta990/gdmsintegration/releases/download/v1.1.0/gdmsintegration-1.1.0.zip</download_url>
+      </version>
+      <version>
          <num>1.0.3</num>
          <compatibility>~11.0.0</compatibility>
          <download_url>https://github.com/monta990/gdmsintegration/releases/download/v1.0.3/gdmsintegration-1.0.3.zip</download_url>
-      </version>
-      <version>
-         <num>1.0.2</num>
-         <compatibility>~11.0.0</compatibility>
-         <download_url>https://github.com/monta990/gdmsintegration/releases/download/v1.0.2/gdmsintegration-1.0.2.zip</download_url>
       </version>
    </versions>
    <langs>
