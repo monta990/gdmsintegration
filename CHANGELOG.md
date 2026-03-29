@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.3] - 2026-03-29
+
+### Changed
+
+- **ECharts 5 replaces Chart.js** — the availability history chart now uses GLPI's bundled ECharts 5 library (`lib/echarts.js`) instead of the previously self-hosted Chart.js 4.5.1. Automatically adapts to GLPI's dark/light theme via `data-bs-theme`. Removed `front/chartjs.php`, `js/chart.umd.min.js` and the corresponding stateless route.
+
+- **GLPI's native Flatpickr replaces bundled copy** — the firmware schedule datetime picker now uses GLPI's own Flatpickr 4.6 instance (loaded via `Html::requireJs('flatpickr')`). Removed `front/flatpickr.php`, `front/flatpickrcss.php`, `js/flatpickr.min.js`, `css/flatpickr.min.css` and their stateless routes. The `css/` directory has been removed entirely.
+
+- **Cron frequency reduced to 10 minutes** — the `syncDevices` automatic action is now registered and force-updated to run every 10 minutes on install/upgrade (previously 30 minutes).
+
+---
+
 ## [1.2.2] - 2026-03-28
 
 ### Fixed

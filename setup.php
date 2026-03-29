@@ -8,7 +8,7 @@ use Glpi\Plugin\Hooks;
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.2.2');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.2.3');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI',  '11.0');
 define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '11.99');
 
@@ -60,22 +60,10 @@ function plugin_gdmsintegration_boot(): void {
         'gdmsintegration',
         '#^/front/webhook\.php#'
     );
-    // Static JS assets — served without session via stateless path
-    \Glpi\Http\SessionManager::registerPluginStatelessPath(
-        'gdmsintegration',
-        '#^/front/chartjs\.php#'
-    );
+    // vis-network static JS asset — served without session
     \Glpi\Http\SessionManager::registerPluginStatelessPath(
         'gdmsintegration',
         '#^/front/visnetwork\.php#'
-    );
-    \Glpi\Http\SessionManager::registerPluginStatelessPath(
-        'gdmsintegration',
-        '#^/front/flatpickr\.php#'
-    );
-    \Glpi\Http\SessionManager::registerPluginStatelessPath(
-        'gdmsintegration',
-        '#^/front/flatpickrcss\.php#'
     );
     // firmware.ajax.php: NOT stateless — uses session normally, CSRF via X-Glpi-Csrf-Token header
     // sync.ajax.php uses normal GLPI session (browser sends cookie automatically)
@@ -186,19 +174,18 @@ function plugin_gdmsintegration_install(): bool {
     CronTask::register(
         'PluginGdmsintegrationSync',
         'syncDevices',
-        30 * MINUTE_TIMESTAMP,
+        10 * MINUTE_TIMESTAMP,
         [
             'comment' => 'Synchronize GDMS/GWN cloud devices with GLPI',
             'mode'    => CronTask::MODE_EXTERNAL,
             'state'   => CronTask::STATE_WAITING,
         ]
     );
-    // Force-update existing crontask — only frequency and mode
-    // log_interval/logs_days column name varies between GLPI versions; skip it here
+    // Force-update existing crontask — frequency, mode and state
     $DB->update(
         CronTask::getTable(),
         [
-            'frequency' => 30 * MINUTE_TIMESTAMP,
+            'frequency' => 10 * MINUTE_TIMESTAMP,
             'mode'      => CronTask::MODE_EXTERNAL,
             'state'     => CronTask::STATE_WAITING,
         ],

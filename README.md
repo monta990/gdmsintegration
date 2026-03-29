@@ -1,7 +1,7 @@
 <p align="center"><img src="logo.png" alt="GDMS Integration"></p>
 <h1 align="center">GDMS Integration</h1>
 <p align="center">
-  <strong>GLPI plugin — Grandstream Cloud - GDMS Networking  &amp; GDMS Unified Communications integration</strong>
+  <strong>GLPI plugin — Grandstream GWN Cloud &amp; GDMS Unified Communications integration</strong>
 </p>
 <p align="center">
   <a href="https://github.com/glpi-project/glpi" target="_blank"><img src="https://img.shields.io/badge/GLPI-11.0%2B-blue" alt="GLPI compatibility"></a>
@@ -26,7 +26,7 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 |-----|----------------|---------------|
 | GDMS Unified Communications (`gdms.cloud`) | GRP, GXP, GXV, WP, HT phones | `Phone` |
 | GDMS Unified Communications (`gdms.cloud`) | UCM, GCC PBX appliances | `NetworkEquipment` |
-| GDMS Networking (`gwn.cloud`) | GWN APs, switches, routers | `NetworkEquipment` |
+| GDMS Networking / GWN Cloud (`gwn.cloud`) | GWN APs, switches, routers | `NetworkEquipment` |
 
 ### Asset Management
 
@@ -130,7 +130,7 @@ The same tiers and thresholds apply to both the NOC dashboard and the Excel expo
 
 ### Firmware Updates (All device families)
 
-The dashboard checks firmware availability for all Grandstream devices 2 seconds after page load, in background, without blocking the sync or the device table. A Flatpickr date/time picker is used for scheduling updates. For GDMS-managed devices (UCM, GRP, WP, HT), GDMS applies the latest firmware available in its repository — the version shown in the modal is informational.
+The dashboard checks firmware availability for all Grandstream devices 2 seconds after page load, in background, without blocking the sync or the device table. GLPI's native Flatpickr date/time picker is used for scheduling updates, with locale matching the active GLPI session. For GDMS-managed devices (UCM, GRP, WP, HT), GDMS applies the latest firmware available in its repository — the version shown in the modal is informational.
 
 **Version sources:**
 
@@ -160,19 +160,6 @@ An amber **⬆** icon appears next to the firmware version when an update is ava
 
 > GWN devices do not expose beta firmware versions through the GWN Cloud API — only the official stable version is available for them.
 
-The dashboard checks firmware availability for all GWN devices 2 seconds after page load, in background, without blocking the sync or the table.
-
-- Calls `POST /oapi/v1.0.0/upgrade/version` per GWN network.
-- Flags only **stable releases** — beta, rc, dev, and alpha suffixes are excluded.
-- An amber **⬆** icon appears next to the firmware version when an update is available.
-
-**Clicking the ⬆ icon** opens a modal showing:
-- Current version vs. latest available version with an `Official` badge.
-- Reboot warning (the device will restart during the upgrade).
-- Two action buttons:
-  - **Apply now (ASAP)** — sends the upgrade command immediately; the device reboots as soon as the cloud delivers it.
-  - **Schedule update** — a datetime picker lets you set a specific date and time; sent to the GWN API as milliseconds epoch.
-- Success or error is shown inline in the modal without closing it.
 
 ---
 
@@ -289,7 +276,7 @@ The *Model* column in the NOC dashboard resolves first from the GLPI asset catal
 The GWN Cloud API requires the OAuth2 `client_credentials` grant as a `GET` request — this is Grandstream's mandated format. Credentials are encrypted at rest with `GLPIKey` and transmitted only over TLS.
 
 ### JavaScript libraries
-flatpickr v4.6.13, Chart.js 4.5.1 and vis-network 10.0.2 are bundled inside the plugin's `js/` directory and served via PHP stateless routes (`front/flatpickr.php`, `front/chartjs.php`, `front/visnetwork.php`). No external CDN requests are made. This ensures the dashboard works in air-gapped or restricted-network deployments.
+vis-network 10.0.2 is the only library bundled inside the plugin's `js/` directory and served via a PHP stateless route (`front/visnetwork.php`). Chart rendering uses **ECharts 5** and date picking uses **Flatpickr** — both are already bundled with GLPI and loaded on demand via `Html::requireJs('charts')` and `Html::requireJs('flatpickr')`. No external CDN requests are made.
 
 ### Webhook secret
 Configuring a webhook secret is strongly recommended for production deployments — a warning is shown in the configuration form when no secret is set.

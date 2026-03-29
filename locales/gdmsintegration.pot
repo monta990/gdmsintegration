@@ -1,0 +1,593 @@
+# GDMS Integration plugin for GLPI
+# Copyright (C) 2026 Edwin Elias Alvarez
+# License: GPL v3+
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: gdmsintegration 1.0.0\n"
+"POT-Creation-Date: 2026-03-24 12:00-0700\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "GDMS Integration"
+msgstr ""
+
+msgid "GDMS Configuration"
+msgstr ""
+
+msgid "GDMS Dashboard"
+msgstr ""
+
+msgid "Entity"
+msgstr ""
+
+msgid "Client ID"
+msgstr ""
+
+msgid "Client Secret"
+msgstr ""
+
+msgid "Webhook Secret"
+msgstr ""
+
+msgid "Leave empty to keep current value"
+msgstr ""
+
+msgid "Used to validate incoming GDMS webhook requests via HMAC-SHA256."
+msgstr ""
+
+msgid "Save"
+msgstr ""
+
+msgid "Configuration saved."
+msgstr ""
+
+msgid "Online"
+msgstr ""
+
+msgid "Offline"
+msgstr ""
+
+msgid "Devices"
+msgstr ""
+
+msgid "Device Name"
+msgstr ""
+
+msgid "MAC Address"
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "Uptime %"
+msgstr ""
+
+msgid "SLA"
+msgstr ""
+
+msgid "Network Topology"
+msgstr ""
+
+msgid "Device Offline: %s"
+msgstr ""
+
+msgid "GDMS device %s (MAC: %s, S/N: %s) went offline."
+msgstr ""
+
+msgid "Gold"
+msgstr ""
+
+msgid "Silver"
+msgstr ""
+
+msgid "Bronze"
+msgstr ""
+
+msgid "Critical"
+msgstr ""
+
+msgid "No GDMS devices found. Run a sync first."
+msgstr ""
+
+msgid "Synchronize GDMS cloud devices with GLPI"
+msgstr ""
+
+msgid "This plugin requires GLPI 11.0 or later."
+msgstr ""
+
+msgid "This plugin requires the PHP cURL extension."
+msgstr ""
+
+msgid "Webhook URL: %s"
+msgstr ""
+
+msgid "Type"
+msgstr ""
+
+msgid "Serial"
+msgstr ""
+
+msgid "Phone"
+msgstr ""
+
+msgid "Network"
+msgstr ""
+
+msgid "GDMS Username"
+msgstr ""
+
+msgid "GDMS Password"
+msgstr ""
+
+msgid "Your GDMS Cloud login email."
+msgstr ""
+
+msgid "Your GDMS Cloud login password."
+msgstr ""
+
+msgid "GDMS not configured yet"
+msgstr ""
+
+msgid "To start syncing your Grandstream devices, you need to connect your GDMS Cloud account. It only takes a moment."
+msgstr ""
+
+msgid "Set up GDMS"
+msgstr ""
+
+msgid "GDMS API Credentials"
+msgstr ""
+
+msgid "You can find your API ID and Secret Key in"
+msgstr ""
+
+msgid "Your GDMS username and password are the credentials you use to log in to the GDMS portal."
+msgstr ""
+
+msgid "GLPI entity this configuration applies to."
+msgstr ""
+
+msgid "Email address you use to sign in to gdms.cloud."
+msgstr ""
+
+msgid "Saved — leave empty to keep"
+msgstr ""
+
+msgid "Enter your GDMS password"
+msgstr ""
+
+msgid "Your gdms.cloud login password. Stored encrypted."
+msgstr ""
+
+msgid "API ID"
+msgstr ""
+
+msgid "API ID shown in GDMS → Sistema → Desarrollo de API."
+msgstr ""
+
+msgid "API Secret Key"
+msgstr ""
+
+msgid "Clave secreta from GDMS developer page"
+msgstr ""
+
+msgid "Secret Key (Clave secreta) shown on the same GDMS developer page. Stored encrypted."
+msgstr ""
+
+msgid "Webhook (optional)"
+msgstr ""
+
+msgid "A webhook lets GDMS notify GLPI immediately when a device goes offline, instead of waiting for the next scheduled sync. If you configure it in GDMS, paste the URL below into GDMS → Sistema → Alerta → Webhook."
+msgstr ""
+
+msgid "Optional — leave empty to skip validation"
+msgstr ""
+
+msgid "If set, GDMS must sign each request with this secret. Recommended for security."
+msgstr ""
+
+msgid "Your Webhook URL"
+msgstr ""
+
+msgid "Copy this URL and paste it in the GDMS webhook settings."
+msgstr ""
+
+msgid "Connected"
+msgstr ""
+
+msgid "Not configured"
+msgstr ""
+
+msgid "Username (not email) you use to sign in to gdms.cloud."
+msgstr ""
+
+msgid "Copy URL"
+msgstr ""
+
+msgid "GDMS Unified Communications — Phones & PBX"
+msgstr ""
+
+msgid "GDMS Networking — APs, Switches & Routers"
+msgstr ""
+
+msgid "Syncs GRP, GXP, GXV, WP phones and UCM PBX appliances."
+msgstr ""
+
+msgid "Credentials from"
+msgstr ""
+
+msgid "Syncs GWN APs, switches and routers. No username or password required — only API credentials."
+msgstr ""
+
+msgid "Your gdms.cloud username"
+msgstr ""
+
+msgid "Your gdms.cloud password"
+msgstr ""
+
+msgid "API ID from GDMS developer page"
+msgstr ""
+
+msgid "Secret Key from GDMS developer page"
+msgstr ""
+
+msgid "Clave secreta from GDMS → Sistema → Desarrollo de API. Stored encrypted."
+msgstr ""
+
+msgid "GWN API ID"
+msgstr ""
+
+msgid "GWN Secret Key"
+msgstr ""
+
+msgid "API ID from GWN developer page"
+msgstr ""
+
+msgid "Secret Key from GWN developer page"
+msgstr ""
+
+msgid "Clave secreta from gdms.cloud → GDMS Networking → API Developer. Stored encrypted."
+msgstr ""
+
+msgid "API ID from gdms.cloud → GDMS Networking → API Developer."
+msgstr ""
+
+msgid "Username (not email) to sign in to gdms.cloud."
+msgstr ""
+
+msgid "GDMS Account"
+msgstr ""
+
+msgid "Your gdms.cloud login credentials. Used to authenticate against the GDMS API."
+msgstr ""
+
+msgid "GWN Networking: connection successful."
+msgstr ""
+
+msgid "GDMS Unified Communications: connection successful."
+msgstr ""
+
+msgid "GWN Networking:"
+msgstr ""
+
+msgid "GDMS Unified Communications:"
+msgstr ""
+
+msgid "Configuration saved. No credentials to test yet."
+msgstr ""
+
+msgid "Go to Dashboard"
+msgstr ""
+
+
+msgid "Refresh"
+msgstr ""
+
+msgid "Sync from cloud now"
+msgstr ""
+
+msgid "IP"
+msgstr ""
+
+msgid "Firmware"
+msgstr ""
+
+msgid "Uptime"
+msgstr ""
+
+msgid "Avail. %"
+msgstr ""
+
+msgid "Availability"
+msgstr ""
+
+msgid "Total"
+msgstr ""
+
+msgid "Syncing…"
+msgstr ""
+
+msgid "Sync now"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Live view of your Grandstream cloud devices"
+msgstr ""
+
+msgid "Online % — last 60 days"
+msgstr ""
+
+msgid "Dashboard auto-refresh (seconds)"
+msgstr ""
+
+msgid "How often the dashboard syncs from the cloud. Minimum 30s, default 300s (5 min)."
+msgstr ""
+
+#. Button label to export history to Excel
+msgid "Export"
+msgstr ""
+
+#. Tooltip on export button
+msgid "Export to Excel"
+msgstr ""
+
+#. Excel workbook title
+msgid "Device Availability"
+msgstr ""
+
+#. Excel description metadata
+msgid "Last 60 days — generated by GDMS Integration plugin"
+msgstr ""
+
+#. Excel sheet 1 tab name
+msgid "% Online 60 days"
+msgstr ""
+
+#. Excel sheet 2 tab name
+msgid "Raw Data"
+msgstr ""
+
+#. Excel sheet 3 tab name
+msgid "Summary"
+msgstr ""
+
+#. Column header in Excel
+msgid "Date"
+msgstr ""
+
+#. Column header in Excel
+msgid "Device"
+msgstr ""
+
+#. Column header in Excel summary sheet
+msgid "Availability %"
+msgstr ""
+
+#. Column header in Excel summary sheet
+msgid "Days online"
+msgstr ""
+
+#. Column header in Excel summary sheet
+msgid "Total days"
+msgstr ""
+
+#. Ticket title with GDMS prefix
+msgid "[GDMS] Device Offline: %s"
+msgstr ""
+
+#. Ticket body phrase
+msgid "went offline and is no longer reachable."
+msgstr ""
+
+#. Table header in ticket body
+msgid "Field"
+msgstr ""
+
+#. Table header in ticket body
+msgid "Value"
+msgstr ""
+
+#. Ticket footer note
+msgid "This ticket was automatically generated by the GDMS Integration plugin."
+msgstr ""
+
+#. Followup text on recovery
+msgid "✅ Device **%s** is back online as of %s. Ticket auto-resolved by GDMS Integration."
+msgstr ""
+
+#. Config label for debug toggle
+msgid "Debug logging"
+msgstr ""
+
+#. Config label
+msgid "Verbose logging (debug mode)"
+msgstr ""
+
+#. Config help text
+msgid "Enable verbose API and sync logging. Recommended only for troubleshooting — generates large log entries."
+msgstr ""
+
+#. Config help text
+msgid "When disabled, only errors and key sync results are logged."
+msgstr ""
+
+msgid "Firmware Update Available"
+msgstr ""
+
+msgid "Firmware update available"
+msgstr ""
+
+msgid "Checking firmware…"
+msgstr ""
+
+msgid "Device MAC"
+msgstr ""
+
+msgid "Schedule update"
+msgstr ""
+
+msgid "Current firmware"
+msgstr ""
+
+msgid "Latest stable firmware"
+msgstr ""
+
+msgid "Official"
+msgstr ""
+
+msgid "The device will reboot during the update. Schedule during a maintenance window."
+msgstr ""
+
+msgid "Scheduling…"
+msgstr ""
+
+msgid "Update scheduled successfully. The device will update shortly."
+msgstr ""
+
+msgid "Request failed. Check connection."
+msgstr ""
+
+msgid "Unknown"
+msgstr ""
+
+msgid "Close"
+msgstr ""
+
+msgid "Dashboard"
+msgstr ""
+
+msgid "WAN"
+msgstr ""
+
+msgid "Port Status"
+msgstr ""
+
+msgid "Disconnected"
+msgstr ""
+
+msgid "No internet"
+msgstr ""
+
+msgid "Link down"
+msgstr ""
+
+msgid "Link up"
+msgstr ""
+
+msgid "No WAN ports found"
+msgstr ""
+
+msgid "IP Address"
+msgstr ""
+
+msgid "Link speed"
+msgstr ""
+
+msgid "Connected for"
+msgstr ""
+
+msgid "Ports"
+msgstr ""
+
+msgid "No ports found"
+msgstr ""
+
+msgid "WAN online"
+msgstr ""
+
+msgid "WAN up, no internet"
+msgstr ""
+
+msgid "WAN up, unknown"
+msgstr ""
+
+msgid "LAN up"
+msgstr ""
+
+msgid "Connection"
+msgstr ""
+
+msgid "Port type"
+msgstr ""
+
+msgid "HDX"
+msgstr ""
+
+msgid "FDX"
+msgstr ""
+
+msgid "Model"
+msgstr ""
+msgid "Apply now (ASAP)"
+msgstr ""
+msgid "Schedule for"
+msgstr ""
+msgid "Leave empty to apply as soon as possible"
+msgstr ""
+msgid "Availability chart — days to display"
+msgstr ""
+msgid "Recommended: 60 days. Values above 90 days may slow down the dashboard due to larger history queries."
+msgstr ""
+msgid "Dashboard & Tickets"
+msgstr ""
+msgid "Network topology card"
+msgstr ""
+msgid "Show topology card on dashboard"
+msgstr ""
+msgid "When disabled, the topology graph is hidden and its data processing is skipped entirely."
+msgstr ""
+msgid "Ticket requester (user)"
+msgstr ""
+msgid "System / cron user (default)"
+msgstr ""
+msgid "This user will be set as the requester on automatically generated incident tickets."
+msgstr ""
+msgid "Router"
+msgstr ""
+msgid "Switch"
+msgstr ""
+msgid "AP"
+msgstr ""
+msgid "Clients"
+msgstr ""
+msgid "online"
+msgstr ""
+msgid "offline"
+msgstr ""
+msgid "Online %% — last %d days"
+msgstr ""
+msgid "%% Online %d days"
+msgstr ""
+msgid "Last %d days — generated by GDMS Integration plugin"
+msgstr ""
+msgid "Click for network details"
+msgstr ""
+msgid "Networks"
+msgstr ""
+msgid "Phones & PBX"
+msgstr ""
+msgid "Overall availability"
+msgstr ""
+msgid "all devices"
+msgstr ""
+msgid "Network traffic"
+msgstr ""
+msgid "Last seen"
+msgstr ""
+msgid "First seen"
+msgstr ""
+msgid "Network usage"
+msgstr ""
+msgid "Upload"
+msgstr ""
+msgid "Download"
+msgstr ""
+msgid "No history data yet. Data will appear after a few sync cycles."
+msgstr ""
