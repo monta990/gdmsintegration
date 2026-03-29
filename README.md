@@ -1,7 +1,7 @@
 <p align="center"><img src="logo.png" alt="GDMS Integration"></p>
 <h1 align="center">GDMS Integration</h1>
 <p align="center">
-  <strong>GLPI plugin — Grandstream GWN Cloud &amp; GDMS Unified Communications integration</strong>
+  <strong>GLPI plugin — GDMS Networking &amp; GDMS Unified Communications integration</strong>
 </p>
 <p align="center">
   <a href="https://github.com/glpi-project/glpi" target="_blank"><img src="https://img.shields.io/badge/GLPI-11.0%2B-blue" alt="GLPI compatibility"></a>
@@ -26,7 +26,7 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 |-----|----------------|---------------|
 | GDMS Unified Communications (`gdms.cloud`) | GRP, GXP, GXV, WP, HT phones | `Phone` |
 | GDMS Unified Communications (`gdms.cloud`) | UCM, GCC PBX appliances | `NetworkEquipment` |
-| GDMS Networking / GWN Cloud (`gwn.cloud`) | GWN APs, switches, routers | `NetworkEquipment` |
+| GDMS Networking (`gwn.cloud`) | GWN APs, switches, routers | `NetworkEquipment` |
 
 ### Asset Management
 
