@@ -209,7 +209,7 @@ foreach ($rows as $r) {
 
 // Uptime history — last N days per device per day (configurable via chart_days)
 $history_obj = new PluginGdmsintegrationHistory();
-$history_ago  = date('Y-m-d H:i:s', strtotime("-{$chart_days} days"));
+$history_ago  = gmdate('Y-m-d H:i:s', strtotime("-{$chart_days} days"));
 $hist_rows    = $history_obj->find(['date' => ['>', $history_ago]], ['date DESC']);
 
 // Build: mac → (name) and date → per-mac status

@@ -58,7 +58,7 @@ class PluginGdmsintegrationSync extends CommonGLPI {
         }
 
         $total = 0;
-        $ts    = date('Y-m-d H:i:s');
+        $ts    = gmdate('Y-m-d H:i:s');
 
         // Identify caller: cron task, ajax button, or auto-refresh
 $source = $_GET['source'] ?? null;
@@ -268,7 +268,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
             $history->add([
                 'mac'    => $mac ?: $serial,
                 'status' => $status,
-                'date'   => date('Y-m-d H:i:s'),
+                'date'   => gmdate('Y-m-d H:i:s'),
             ]);
             // Store full cloud state for dashboard display
             // GDMS fields: publicIp, privateip, firmwareVersion, siteName, sn
@@ -354,8 +354,8 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 (int)($d['download']  ?? 0),
                 (int)($d['channel']   ?? 0),
                 (int)($d['channel5g'] ?? 0),
-                isset($d['firstSeen']) ? date('Y-m-d H:i:s', (int)($d['firstSeen']/1000)) : null,
-                isset($d['lastSeen'])  ? date('Y-m-d H:i:s', (int)($d['lastSeen']/1000))  : null,
+                isset($d['firstSeen']) ? gmdate('Y-m-d H:i:s', (int)($d['firstSeen']/1000)) : null,
+                isset($d['lastSeen'])  ? gmdate('Y-m-d H:i:s', (int)($d['lastSeen']/1000))  : null,
                 $d['ipv4']            ?? ''
             );
 
@@ -501,7 +501,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 }
             }
         }
-        $now     = date('Y-m-d H:i:s');
+        $now     = gmdate('Y-m-d H:i:s');
         $wanLabel = $wanName ? " ({$wanName})" : '';
         $content = sprintf(
             "**%s** — WAN port **%s**%s went down.\n\n" .
@@ -592,7 +592,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         $priority  = $isRouter ? 4 : 3;
 
         // Build rich content
-        $now     = date('Y-m-d H:i:s');
+        $now     = gmdate('Y-m-d H:i:s');
         $uptimeStr = $uptime_sec > 0
             ? sprintf('%dd %dh %dm', intdiv($uptime_sec, 86400), intdiv($uptime_sec % 86400, 3600), intdiv($uptime_sec % 3600, 60))
             : __('N/A', 'gdmsintegration');
@@ -715,7 +715,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 'content'         => sprintf(
                     __('✅ Device **%s** is back online as of %s. Ticket auto-resolved by GDMS Integration.', 'gdmsintegration'),
                     $name,
-                    date('Y-m-d H:i:s')
+                    gmdate('Y-m-d H:i:s')
                 ),
                 'is_private'      => 0,
                 '_disablenotif'   => true,
@@ -793,7 +793,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         // The second parameter (1) enables purge (permanent delete, not trashbin).
         $history = new PluginGdmsintegrationHistory();
         $history->deleteByCriteria(
-            ['date' => ['<', date('Y-m-d H:i:s', strtotime('-60 days'))]],
+            ['date' => ['<', gmdate('Y-m-d H:i:s', strtotime('-60 days'))]],
             1
         );
     }

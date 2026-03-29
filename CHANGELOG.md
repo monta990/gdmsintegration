@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.2.3] - 2026-03-29
 
+### Fixed
+
+- **TIMESTAMP DST crash on cron** — all `date('Y-m-d H:i:s')` calls in `sync.class.php`, `dashboard.php`, and `history_export.php` replaced with `gmdate()`. On hosting environments with `Europe/London` timezone (and any DST-observing timezone), the MySQL 1299 *Invalid TIMESTAMP value* warning fired every cron run on the DST transition day when local times 01:00–01:59 don't exist. Using UTC avoids the gap entirely.
+
 ### Changed
 
 - **ECharts 5 replaces Chart.js** — the availability history chart now uses GLPI's bundled ECharts 5 library (`lib/echarts.js`) instead of the previously self-hosted Chart.js 4.5.1. Automatically adapts to GLPI's dark/light theme via `data-bs-theme`. Removed `front/chartjs.php`, `js/chart.umd.min.js` and the corresponding stateless route.

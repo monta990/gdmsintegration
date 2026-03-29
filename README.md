@@ -26,7 +26,7 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 |-----|----------------|---------------|
 | GDMS Unified Communications (`gdms.cloud`) | GRP, GXP, GXV, WP, HT phones | `Phone` |
 | GDMS Unified Communications (`gdms.cloud`) | UCM, GCC PBX appliances | `NetworkEquipment` |
-| GDMS Networking (`gwn.cloud`) | GWN APs, switches, routers | `NetworkEquipment` |
+| GDMS Networking / GWN Cloud (`gwn.cloud`) | GWN APs, switches, routers | `NetworkEquipment` |
 
 ### Asset Management
 

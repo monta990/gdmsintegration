@@ -24,7 +24,7 @@ $chart_days = max(7, min(365, (int)($cfg['chart_days'] ?? 60)));
 $state_obj   = new PluginGdmsintegrationDevice();
 $all_states  = $state_obj->find();
 $history_obj = new PluginGdmsintegrationHistory();
-$history_ago = date('Y-m-d H:i:s', strtotime("-{$chart_days} days"));
+$history_ago = gmdate('Y-m-d H:i:s', strtotime("-{$chart_days} days"));
 $hist_rows   = $history_obj->find(['date' => ['>', $history_ago]], ['date ASC']);
 
 // MAC → device name (GLPI first, then cloud_name stored by sync, then MAC)
