@@ -289,7 +289,7 @@ The *Model* column in the NOC dashboard resolves first from the GLPI asset catal
 The GWN Cloud API requires the OAuth2 `client_credentials` grant as a `GET` request — this is Grandstream's mandated format. Credentials are encrypted at rest with `GLPIKey` and transmitted only over TLS.
 
 ### JavaScript libraries
-Chart.js 4.5.1 and vis-network 10.0.2 are bundled inside the plugin's `js/` directory and served via PHP stateless routes (`front/chartjs.php`, `front/visnetwork.php`). No external CDN requests are made. This ensures the dashboard works in air-gapped or restricted-network deployments.
+flatpickr v4.6.13, Chart.js 4.5.1 and vis-network 10.0.2 are bundled inside the plugin's `js/` directory and served via PHP stateless routes (`front/flatpickr.php`, `front/chartjs.php`, `front/visnetwork.php`). No external CDN requests are made. This ensures the dashboard works in air-gapped or restricted-network deployments.
 
 ### Webhook secret
 Configuring a webhook secret is strongly recommended for production deployments — a warning is shown in the configuration form when no secret is set.
