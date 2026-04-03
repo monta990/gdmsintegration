@@ -48,8 +48,8 @@ class PluginGdmsintegrationDevice extends CommonDBTM {
         int    $download_bytes = 0,
         int    $channel_2g     = 0,
         int    $channel_5g     = 0,
-        ?string $first_seen   = null,
-        ?string $last_seen    = null,
+        ?string $first_seen    = null,
+        ?string $last_seen     = null,
         string $mgmt_ip        = ''
     ): bool {
         $rows = $this->find(['mac' => $mac]);

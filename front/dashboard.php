@@ -84,7 +84,7 @@ foreach ([
     "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `ticket_requester_id` int unsigned NOT NULL DEFAULT 0",
 ] as $_sql) { try { $DB->doQuery($_sql); } catch (\Throwable $_e) {} }
 
-$all_states = $state_obj->find(); // every MAC the plugin has ever synced
+$all_states = $state_obj->find(); // every MAC the plugin currently manages in the cloud
 
 // Build MAC → GLPI asset map across ALL entities (entity 0 vs active entity mismatch)
 $mac_to_asset = [];
@@ -238,12 +238,15 @@ foreach ($hist_rows as $h) {
 ksort($all_days);
 $chart_labels = array_keys($all_days);
 
-// Build dataset per device (only devices that have history)
+// Build dataset per device — only include MACs that are currently managed
+// (present in the devices table). Removed devices are excluded even if
+// their history rows survived the last cleanup cycle.
 $chart_datasets = [];
 $palette = ['#28a745','#007bff','#fd7e14','#dc3545','#6f42c1','#20c997','#ffc107','#e83e8c','#17a2b8','#6c757d'];
 $pi = 0;
 foreach ($per_device as $mac => $days) {
-    $label  = $mac_to_name[$mac] ?? $mac;
+    if (!isset($mac_to_name[$mac])) continue; // device removed from cloud — skip
+    $label  = $mac_to_name[$mac];
     $color  = $palette[$pi % count($palette)];
     $pi++;
     $vals = [];

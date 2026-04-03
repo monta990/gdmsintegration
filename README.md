@@ -1,7 +1,7 @@
 <p align="center"><img src="logo.png" alt="GDMS Integration"></p>
 <h1 align="center">GDMS Integration</h1>
 <p align="center">
-  <strong>GLPI plugin — GDMS Networking &amp; GDMS Unified Communications integration</strong>
+  <strong>GLPI plugin — Grandstream GWN Cloud &amp; GDMS Unified Communications integration</strong>
 </p>
 <p align="center">
   <a href="https://github.com/glpi-project/glpi" target="_blank"><img src="https://img.shields.io/badge/GLPI-11.0%2B-blue" alt="GLPI compatibility"></a>
@@ -19,6 +19,23 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 ---
 
 ## Features
+
+### Sync Lifecycle — What Happens to Each Device
+
+| Situation | Dashboard | GLPI Asset | Plugin Records | Ticket |
+|-----------|-----------|------------|----------------|--------|
+| Device online in cloud | ✅ Visible, **En línea** | Updated (empty fields only) | State + history kept | — |
+| Device offline in cloud | ✅ Visible, **Fuera de línea** | Unchanged | State + history kept | ✅ Opened (`online → offline`) |
+| Device back online | ✅ Visible, **En línea** | Unchanged | State updated | ✅ Auto-resolved |
+| **Device removed from cloud** | ❌ **Gone immediately** | **Untouched** | **Purged entirely** | ❌ **None** |
+
+**Device removed from cloud** — on every sync cycle, any MAC/serial no longer returned by the GDMS or GWN API is permanently deleted from the plugin's device-state table and its full history, regardless of which plugin version originally created the record. This means:
+- Ghost "offline" devices left over from previous versions are also cleaned up on the first sync after upgrading.
+- The device no longer counts toward any SLA, uptime %, availability bar, or chart series.
+- The GLPI asset (NetworkEquipment / Phone) is **never deleted** — it stays in GLPI with all its data intact.
+- If the device is re-added to the cloud later, the next sync inserts it fresh and re-links it to the existing GLPI asset via serial → MAC match.
+
+---
 
 ### Dual API Sync
 

@@ -3,9 +3,20 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.4] — 2026-04-03
+
+### Fixed
+- **Any device not present in the cloud is permanently purged from the plugin on the next sync.** On every sync cycle, any MAC or serial that is no longer returned by the GDMS/GWN API — regardless of when it was added or which plugin version was running when it was created — is deleted from `glpi_plugin_gdmsintegration_devices` and `glpi_plugin_gdmsintegration_history`. This includes devices that were left as "offline" ghosts by previous versions. The device disappears immediately from the dashboard, the uptime chart, and all SLA/availability calculations. The corresponding GLPI asset (NetworkEquipment / Phone) is never touched. If the device is re-added to the cloud in the future, the next sync inserts it fresh and re-links it to the existing GLPI asset via serial / MAC match.
+- **No ticket on cloud removal or network change.** Removing a device from the cloud account, moving it between networks, or any other administrative cloud action no longer triggers an incident ticket. Tickets are only created on genuine device reachability transitions (`online → offline`) or WAN port link-down events.
+- **Removed `alreadyOffline` hack.** Devices that stay offline across successive syncs no longer re-attempt ticket creation. The existing open-ticket guard is now the sole protection against repeat tickets for persistently offline devices.
+- **Idempotent ticket creation (race condition fix).** Two users refreshing the dashboard simultaneously could cause two concurrent syncs to both pass the duplicate-ticket guard and open two tickets for the same offline device. This is now prevented with a per-asset MySQL advisory lock (`GET_LOCK` / `RELEASE_LOCK`) wrapping the guard check and ticket creation atomically. Only the first process acquires the lock; the second detects contention and skips.
+- **Ticket entity matches device entity.** Incident tickets (offline and WAN-down) are now opened under the `entities_id` of the GLPI asset, not the sync configuration entity. This ensures the ticket appears in the correct location/branch tree.
+
 ## [1.2.3] - 2026-03-29
 
 ### Fixed
+
+- **Removed devices stay visible on dashboard** — `syncEntity()` now collects all MAC addresses returned by the API in a given cycle (`$seen_macs`). After both GWN and GDMS batches complete, `markRemovedDevicesOffline()` queries the plugin DB for any device whose MAC was not present in the cycle, marks it `offline`, writes a history entry, and opens an incident ticket if it was previously `online`. This handles device deletion from GWN Cloud / GDMS without any manual intervention in GLPI.
 
 - **TIMESTAMP DST crash on cron** — all `date('Y-m-d H:i:s')` calls in `sync.class.php`, `dashboard.php`, and `history_export.php` replaced with `gmdate()`. On hosting environments with `Europe/London` timezone (and any DST-observing timezone), the MySQL 1299 *Invalid TIMESTAMP value* warning fired every cron run on the DST transition day when local times 01:00–01:59 don't exist. Using UTC avoids the gap entirely.
 
