@@ -67,6 +67,9 @@ foreach ($all as $row) {
             'wanType'         => isset($embeddedIpv4['type'])
                                   ? (int)$embeddedIpv4['type'] : -1,
             'gateway'         => $embeddedIpv4['gateway']      ?? '',
+            // Per-port traffic aggregate (v1.2.5)
+            'txBytes'         => (int)(($port['aggregate']['txBytes']  ?? 0)),
+            'rxBytes'         => (int)(($port['aggregate']['rxBytes']  ?? 0)),
         ];
     }
     // ipv4Info is EMBEDDED inside each port object — read directly, NOT from separate array

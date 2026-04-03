@@ -8,7 +8,7 @@ use Glpi\Plugin\Hooks;
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.2.4');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.2.5');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI',  '11.0');
 define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '11.99');
 
@@ -196,29 +196,9 @@ function plugin_gdmsintegration_install(): bool {
     );
     // Note: log retention is managed by GLPI's own cron interface (Setup → Automatic Actions)
 
-    // Add columns that may be missing in existing installs (upgrade-safe)
-    foreach ([
-        "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `debug_logging` tinyint unsigned NOT NULL DEFAULT 0",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `chart_days` smallint unsigned NOT NULL DEFAULT 60",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `show_topology` tinyint unsigned NOT NULL DEFAULT 1",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `ticket_requester_id` int unsigned NOT NULL DEFAULT 0",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `network_id` int unsigned NOT NULL DEFAULT 0",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `cloud_name` varchar(255) NOT NULL DEFAULT ''",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `clients` smallint unsigned NOT NULL DEFAULT 0",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `wan_ports_json` text NOT NULL DEFAULT ''",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `model` varchar(100) NOT NULL DEFAULT ''",
-        // v1.2.0 additions
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `usage_bytes` bigint unsigned NOT NULL DEFAULT 0",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `upload_bytes` bigint unsigned NOT NULL DEFAULT 0",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `download_bytes` bigint unsigned NOT NULL DEFAULT 0",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `channel_2g` tinyint unsigned NOT NULL DEFAULT 0",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `channel_5g` tinyint unsigned NOT NULL DEFAULT 0",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `first_seen` TIMESTAMP NULL DEFAULT NULL",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `last_seen` TIMESTAMP NULL DEFAULT NULL",
-        "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `mgmt_ip` varchar(50) NOT NULL DEFAULT ''",
-    ] as $alter) {
-        try { $DB->doQuery($alter); } catch (\Throwable $e) { /* column already exists */ }
-    }
+    // Add columns that may be missing in existing installs (upgrade-safe).
+    // Single source of truth — see PluginGdmsintegrationUtils::ensureSchema()
+    PluginGdmsintegrationUtils::ensureSchema();
 
     return true;
 }

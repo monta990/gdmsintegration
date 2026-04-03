@@ -52,6 +52,7 @@ class PluginGdmsintegrationSync extends CommonGLPI {
     // Per-entity sync — called from cron and webhook
     // -----------------------------------------------------------------------
     public static function syncEntity(int $entities_id): int {
+        global $DB;
         $config = PluginGdmsintegrationConfig::getConfigByEntity($entities_id);
         if (empty($config['client_id']) || empty($config['client_secret'])) {
             return 0;
@@ -124,11 +125,22 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         }
 
         // Mark as offline any device in DB that the API no longer returns
+        $removed = 0;
         if (!empty($seen_macs)) {
-            self::markRemovedDevicesOffline($seen_macs, $ts);
+            $removed = self::markRemovedDevicesOffline($seen_macs, $ts);
         }
 
+        // Save last successful sync timestamp to config
+        $DB->update(
+            PluginGdmsintegrationConfig::getTable(),
+            ['last_sync_at' => gmdate('Y-m-d H:i:s')],
+            ['entities_id'  => $entities_id]
+        );
+
         self::cleanupHistory();
+        PluginGdmsintegrationUtils::log(
+            "[{$ts}] Sync summary — entity={$entities_id} total={$total} removed={$removed}"
+        );
         return $total;
     }
 
@@ -284,8 +296,10 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
             // GWN fields:  ip/ipv4, versionFirmware, networkName, upTime, sn (enriched)
             // Read previous status BEFORE updating state (order matters for transitions)
             $prevStatus = $state->getState($mac ?: $serial);
+            // Log state transition; note when persisting offline (no ticket generated)
+            $stateNote = ($prevStatus === 'offline' && $status === 'offline') ? ' — no ticket (persists offline)' : '';
             PluginGdmsintegrationUtils::debug(
-                "  STATE {$name}: prev=" . ($prevStatus ?? 'null') . " → new={$status}"
+                "  STATE {$name}: prev=" . ($prevStatus ?? 'null') . " → new={$status}{$stateNote}"
             );
 
             // For routers: fetch WAN port info and check for state changes
@@ -304,6 +318,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                     foreach ($port_data['portInfo'] as $port) {
                         $role        = (int)($port['role']     ?? 0);
                         $embedded    = $port['ipv4Info']          ?? [];
+                        $agg = $port['aggregate'] ?? [];
                         $wan_summary[] = [
                             'id'              => $port['portId']         ?? $port['silkScreenPort'] ?? '',
                             'name'            => $port['portName']        ?? '',
@@ -317,6 +332,9 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                             'ip'              => $embedded['ip4Address']   ?? '',
                             'connectStatus'   => isset($embedded['connectStatus'])
                                                   ? (int)$embedded['connectStatus'] : -1,
+                            // Per-port traffic aggregate (v1.2.5)
+                            'txBytes'         => (int)($agg['txBytes']     ?? 0),
+                            'rxBytes'         => (int)($agg['rxBytes']     ?? 0),
                         ];
                     }
                     // ipv4Info is embedded inside each port object — already extracted above
@@ -328,17 +346,63 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                         $prev_ports = json_decode($prev_ports_json, true) ?? [];
                         $prev_map   = array_column($prev_ports, null, 'id');
                         foreach ($wan_summary as $wp) {
-                            // All port types generate tickets on link-down transition
                             $prev_wp = $prev_map[$wp['id']] ?? null;
-                            if ($prev_wp && ($prev_wp['link'] == 1) && ($wp['link'] == 0)) {
-                                // WAN link was up, now down → create ticket
+                            if (!$prev_wp) continue;
+
+                            $portLabel   = $wp['silk'] ?: $wp['name'];
+                            $networkName = $d['networkName'] ?? $d['siteName'] ?? '';
+
+                            // Case A: physical link went down
+                            if ($prev_wp['link'] == 1 && $wp['link'] == 0) {
+                                // Build failover note: check if any other WAN port is still connected
+                                $failoverNote = '';
+                                foreach ($wan_summary as $other) {
+                                    if ($other['id'] === $wp['id']) continue;
+                                    if ($other['role'] != 1) continue;
+                                    if ($other['link'] == 1 && ($other['connectStatus'] ?? -1) == 1) {
+                                        $failoverNote = $other['wanName'] ?: ('Port ' . ($other['silk'] ?: $other['id']));
+                                        break;
+                                    }
+                                }
                                 self::createWanDownTicket(
                                     $name, $mac, $serial, $entities_id,
                                     $matched_type, $glpi_id,
-                                    $wp['silk'] ?: $wp['name'],
-                                    $wp['wanName'] ?? '',
-                                    $d['networkName'] ?? $d['siteName'] ?? ''
+                                    $portLabel, $wp['wanName'] ?? '', $networkName,
+                                    'link_down', $failoverNote
                                 );
+                            }
+
+                            // Case B: link is up but internet connectivity lost (ISP issue / PPPoE failure)
+                            elseif ($prev_wp['link'] == 1 && $wp['link'] == 1
+                                 && ($prev_wp['connectStatus'] ?? -1) == 1
+                                 && ($wp['connectStatus'] ?? -1) == 0) {
+                                $failoverNote = '';
+                                foreach ($wan_summary as $other) {
+                                    if ($other['id'] === $wp['id']) continue;
+                                    if ($other['role'] != 1) continue;
+                                    if ($other['link'] == 1 && ($other['connectStatus'] ?? -1) == 1) {
+                                        $failoverNote = $other['wanName'] ?: ('Port ' . ($other['silk'] ?: $other['id']));
+                                        break;
+                                    }
+                                }
+                                self::createWanDownTicket(
+                                    $name, $mac, $serial, $entities_id,
+                                    $matched_type, $glpi_id,
+                                    $portLabel, $wp['wanName'] ?? '', $networkName,
+                                    'no_internet', $failoverNote
+                                );
+                            }
+
+                            // Case C: port recovered — auto-resolve any open WAN ticket for this port
+                            elseif ($wp['link'] == 1 && ($wp['connectStatus'] ?? -1) == 1) {
+                                // Was previously link-down?
+                                if (($prev_wp['link'] ?? 1) == 0) {
+                                    self::resolveWanTicket($name, $portLabel, 'link_down', $matched_type, $glpi_id);
+                                }
+                                // Was previously no-internet (link up but no connectivity)?
+                                elseif (($prev_wp['link'] ?? 0) == 1 && ($prev_wp['connectStatus'] ?? -1) == 0) {
+                                    self::resolveWanTicket($name, $portLabel, 'no_internet', $matched_type, $glpi_id);
+                                }
                             }
                         }
                     }
@@ -493,14 +557,16 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         string $itemtype,
         int    $glpi_id,
         string $portSilk,
-        string $wanName  = '',
-        string $network  = ''
+        string $wanName      = '',
+        string $network      = '',
+        string $reason       = 'link_down', // 'link_down' | 'no_internet'
+        string $failoverWan  = ''           // name of WAN that took over, if detected
     ): void {
         global $DB;
 
         // Advisory lock — prevents race condition when two concurrent syncs both
         // attempt to open a WAN ticket for the same port at the same time.
-        $lock_name = 'gdmsinteg_' . substr(md5("wan_{$itemtype}_{$glpi_id}_{$portSilk}"), 0, 24);
+        $lock_name = 'gdmsinteg_' . substr(md5("wan_{$reason}_{$itemtype}_{$glpi_id}_{$portSilk}"), 0, 24);
         $locked    = 0;
         foreach ($DB->request("SELECT GET_LOCK('{$lock_name}', 5) AS lk") as $lk_row) {
             $locked = (int)($lk_row['lk'] ?? 0);
@@ -513,7 +579,8 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         try {
         // Duplicate guard: check for existing open WAN ticket for same port
         $existing = new Item_Ticket();
-        $marker   = "[GDMS-WAN:{$portSilk}]";
+        // Marker includes reason so link-down and no-internet are tracked as separate tickets
+        $marker   = $reason === 'no_internet' ? "[GDMS-WAN-NOINET:{$portSilk}]" : "[GDMS-WAN:{$portSilk}]";
         foreach ($existing->find(['itemtype' => $itemtype, 'items_id' => $glpi_id]) as $link) {
             $t = new Ticket();
             if ($t->getFromDB($link['tickets_id'])) {
@@ -524,15 +591,22 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 }
             }
         }
-        $now      = gmdate('Y-m-d H:i:s');
-        $wanLabel = $wanName ? " ({$wanName})" : '';
+        $now       = gmdate('Y-m-d H:i:s');
+        $wanLabel  = $wanName ? " ({$wanName})" : '';
+        $isNoInet  = ($reason === 'no_internet');
+        $eventDesc = $isNoInet
+            ? __('WAN link is up but internet connectivity was lost (ISP / PPPoE failure).', 'gdmsintegration')
+            : __('WAN port physical link went down.', 'gdmsintegration');
+        $failoverLine = $failoverWan
+            ? "\n| **Failover** | Active → {$failoverWan} |"
+            : '';
         $content  = sprintf(
-            "**%s** — WAN port **%s**%s went down.\n\n" .
+            "**%s** — WAN port **%s**%s\n%s\n\n" .
             "| Field | Value |\n|---|---|\n" .
-            "| MAC | %s |\n| Serial | %s |\n| Network | %s |\n| Detected | %s |\n\n" .
+            "| MAC | %s |\n| Serial | %s |\n| Network | %s |\n| Detected | %s |%s\n\n" .
             "*Automatically generated by GDMS Integration.*",
-            $deviceName, $portSilk, $wanLabel,
-            strtoupper($mac), strtoupper($serial) ?: 'N/A', $network ?: 'N/A', $now
+            $deviceName, $portSilk, $wanLabel, $eventDesc,
+            strtoupper($mac), strtoupper($serial) ?: 'N/A', $network ?: 'N/A', $now, $failoverLine
         );
         $ticket  = new Ticket();
         // Resolve tech and use asset's own entity for the ticket location
@@ -546,9 +620,10 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         }
         $cfg_req      = PluginGdmsintegrationConfig::getConfigByEntity($entities_id);
         $requester_id = (int)($cfg_req['ticket_requester_id'] ?? 0);
+        $ticketSuffix = $isNoInet ? __('No Internet', 'gdmsintegration') : __('Link Down', 'gdmsintegration');
 
         $ticket_data = [
-            'name'        => sprintf('%s [GDMS] %s — WAN %s%s down', '', $deviceName, $portSilk, $wanLabel),
+            'name'        => sprintf('[GDMS] %s — WAN %s%s: %s', $deviceName, $portSilk, $wanLabel, $ticketSuffix),
             'content'     => $content,
             'entities_id' => $entities_id,
             'urgency'     => 4,
@@ -575,6 +650,47 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         }
         } finally {
             foreach ($DB->request("SELECT RELEASE_LOCK('{$lock_name}')") as $_) {}
+        }
+    }
+
+
+    // -----------------------------------------------------------------------
+    // Auto-resolve an open WAN ticket when the port recovers.
+    // -----------------------------------------------------------------------
+    private static function resolveWanTicket(
+        string $deviceName,
+        string $portSilk,
+        string $reason,
+        string $itemtype,
+        int    $glpi_id
+    ): void {
+        $marker   = $reason === 'no_internet'
+            ? "[GDMS-WAN-NOINET:{$portSilk}]"
+            : "[GDMS-WAN:{$portSilk}]";
+
+        $existing = new Item_Ticket();
+        foreach ($existing->find(['itemtype' => $itemtype, 'items_id' => $glpi_id]) as $link) {
+            $t = new Ticket();
+            if (!$t->getFromDB($link['tickets_id'])) continue;
+            $open = [Ticket::INCOMING, Ticket::ASSIGNED, Ticket::PLANNED, Ticket::WAITING];
+            if (!in_array((int)$t->fields['status'], $open)) continue;
+            if (!str_contains($t->fields['name'], $marker)) continue;
+
+            $followup = new ITILFollowup();
+            $followup->add([
+                'itemtype'      => 'Ticket',
+                'items_id'      => $link['tickets_id'],
+                'content'       => sprintf(
+                    __('✅ WAN port **%s** on **%s** has recovered — link up and internet connectivity confirmed as of %s. Ticket auto-resolved by GDMS Integration.', 'gdmsintegration'),
+                    $portSilk, $deviceName, gmdate('Y-m-d H:i:s')
+                ),
+                'is_private'    => 0,
+                '_disablenotif' => true,
+            ]);
+            $t->update(['id' => $link['tickets_id'], 'status' => Ticket::SOLVED]);
+            PluginGdmsintegrationUtils::log(
+                "GDMS: WAN ticket #{$link['tickets_id']} auto-resolved — {$deviceName} port {$portSilk} recovered"
+            );
         }
     }
 
@@ -820,7 +936,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
     // -----------------------------------------------------------------------
     // Mark devices no longer returned by the API as offline
     // -----------------------------------------------------------------------
-    private static function markRemovedDevicesOffline(array $seen_macs, string $ts): void {
+    private static function markRemovedDevicesOffline(array $seen_macs, string $ts): int {
         global $DB;
 
         $device  = new PluginGdmsintegrationDevice();
@@ -831,6 +947,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
             'FROM'   => PluginGdmsintegrationDevice::getTable(),
         ]);
 
+        $removed = 0;
         foreach ($all_rows as $row) {
             $mac = strtolower($row['mac']);
             if (in_array($mac, $seen_macs, true)) {
@@ -851,7 +968,9 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
 
             $device->deleteByCriteria(['mac' => $mac], 1);   // purge=1
             $history->deleteByCriteria(['mac' => $mac], 1);  // purge=1
+            $removed++;
         }
+        return $removed;
     }
 
     public static function cleanupHistory(): void {

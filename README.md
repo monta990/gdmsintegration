@@ -24,9 +24,9 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 
 | Situation | Dashboard | GLPI Asset | Plugin Records | Ticket |
 |-----------|-----------|------------|----------------|--------|
-| Device online in cloud | ✅ Visible, **En línea** | Updated (empty fields only) | State + history kept | — |
-| Device offline in cloud | ✅ Visible, **Fuera de línea** | Unchanged | State + history kept | ✅ Opened (`online → offline`) |
-| Device back online | ✅ Visible, **En línea** | Unchanged | State updated | ✅ Auto-resolved |
+| Device online in cloud | ✅ Visible, **Online** | Updated (empty fields only) | State + history kept | — |
+| Device offline in cloud | ✅ Visible, **Offline** | Unchanged | State + history kept | ✅ Opened (`online → offline`) |
+| Device back online | ✅ Visible, **Online** | Unchanged | State updated | ✅ Auto-resolved |
 | **Device removed from cloud** | ❌ **Gone immediately** | **Untouched** | **Purged entirely** | ❌ **None** |
 
 **Device removed from cloud** — on every sync cycle, any MAC/serial no longer returned by the GDMS or GWN API is permanently deleted from the plugin's device-state table and its full history, regardless of which plugin version originally created the record. This means:
@@ -182,7 +182,11 @@ An amber **⬆** icon appears next to the firmware version when an update is ava
 
 ### Incident Tickets
 
-- **Auto-open** — `[GDMS]` incident ticket created on online → offline transition (device down) or port link-down transition.
+- **Auto-open** — `[GDMS]` incident ticket created on:
+  - Device `online → offline` transition (device unreachable).
+  - WAN port physical link-down (`linkStatus` 1 → 0).
+  - WAN port internet loss while link stays up (`linkStatus=1`, `connectStatus` 1 → 0) — title suffix "No Internet".
+- **Failover detection** — when a WAN port goes down and another WAN port on the same router has verified internet, the ticket body includes a "Failover → \<ISP name\>" row.
 - **Urgency routing** — High (4) for routers; Medium (3) for switches and phones.
 - **Tech assignment** — if the GLPI asset has a technician set (`users_id_tech`), the ticket is automatically assigned to that user and opens with status "Assigned".
 - **Configurable requester** — a GLPI user can be set as ticket requester in the plugin config (defaults to system/cron user).

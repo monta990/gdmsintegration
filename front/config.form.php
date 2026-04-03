@@ -192,7 +192,7 @@ function gdms_badge(bool $ok): string {
             <div class="col-md-6">
                <label class="form-label fw-semibold"><?= __('API Secret Key', 'gdmsintegration') ?></label>
                <?= gdms_pw('gwn_client_secret', __('Secret Key from GWN developer page', 'gdmsintegration'), !empty($cur['gwn_client_secret'])) ?>
-               <small class="text-muted d-block mt-1"><?= __('Clave secreta from gdms.cloud → GDMS Networking → API Developer. Stored encrypted.', 'gdmsintegration') ?></small>
+               <small class="text-muted d-block mt-1"><?= __('API Secret Key from gdms.cloud → GDMS Networking → API Developer. Stored encrypted.', 'gdmsintegration') ?></small>
             </div>
          </div>
       </div>
@@ -213,7 +213,7 @@ function gdms_badge(bool $ok): string {
             <span>
                <?= __('Syncs GRP, GXP, GXV, WP phones and UCM PBX appliances.', 'gdmsintegration') ?>
                <?= __('Credentials from', 'gdmsintegration') ?>
-               <a href="https://www.gdms.cloud/developer" target="_blank" rel="noopener">gdms.cloud → Sistema → Desarrollo de API</a>.
+               <a href="https://www.gdms.cloud/developer" target="_blank" rel="noopener">gdms.cloud → System → API Development</a>.
             </span>
          </div>
          <div class="row g-3">
@@ -223,12 +223,12 @@ function gdms_badge(bool $ok): string {
                   value="<?= htmlspecialchars($cur['client_id'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                   autocomplete="off"
                   placeholder="<?= htmlspecialchars(__('API ID from GDMS developer page', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>">
-               <small class="text-muted d-block mt-1"><?= __('API ID shown in GDMS → Sistema → Desarrollo de API.', 'gdmsintegration') ?></small>
+               <small class="text-muted d-block mt-1"><?= __('API ID shown in GDMS → System → API Development.', 'gdmsintegration') ?></small>
             </div>
             <div class="col-md-6">
                <label class="form-label fw-semibold"><?= __('API Secret Key', 'gdmsintegration') ?></label>
                <?= gdms_pw('client_secret', __('Secret Key from GDMS developer page', 'gdmsintegration'), !empty($cur['client_secret'])) ?>
-               <small class="text-muted d-block mt-1"><?= __('Clave secreta from GDMS → Sistema → Desarrollo de API. Stored encrypted.', 'gdmsintegration') ?></small>
+               <small class="text-muted d-block mt-1"><?= __('API Secret Key from GDMS → System → API Development. Stored encrypted.', 'gdmsintegration') ?></small>
             </div>
          </div>
       </div>
@@ -242,7 +242,7 @@ function gdms_badge(bool $ok): string {
       </div>
       <div class="card-body">
          <p class="text-muted mb-3">
-            <?= __('A webhook lets GDMS notify GLPI immediately when a device goes offline, instead of waiting for the next scheduled sync. If you configure it in GDMS, paste the URL below into GDMS → Sistema → Alerta → Webhook.', 'gdmsintegration') ?>
+            <?= __('A webhook lets GDMS notify GLPI immediately when a device goes offline, instead of waiting for the next scheduled sync. If you configure it in GDMS, paste the URL below into GDMS → System → Alerts → Webhook.', 'gdmsintegration') ?>
          </p>
          <div class="row g-3">
             <div class="col-md-6">

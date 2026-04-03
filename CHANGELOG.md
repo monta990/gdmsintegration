@@ -3,6 +3,33 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.5] — 2026-04-03
+
+### Added
+- **WAN "link up / no internet" ticket.** Detects when a WAN port stays physically connected but loses internet connectivity (`linkStatus=1` + `connectStatus=0`). Opens a separate incident ticket with title suffix "No Internet" and urgency High. Duplicate guard and advisory lock apply equally.
+- **WAN ticket auto-resolve.** When a WAN port recovers (link up + internet confirmed), any open WAN ticket for that port is automatically closed with a followup note — same behaviour as device offline/online auto-resolve.
+- **Failover note in WAN tickets.** When a WAN port goes down, the ticket body includes "Failover → \<ISP name\>" if another WAN port on the same router has verified internet.
+- **Per-port traffic in port modal.** Upload / download byte counters from the GWN `portInfo` aggregate are stored in `wan_ports_json` during sync and displayed in the WAN port cards.
+- **Traffic ↑↓ column.** Shows WAN aggregate traffic per device (sum of all WAN port `txBytes`/`rxBytes`). Falls back to device-reported usage for non-router devices. Tooltip clarifies the data source and measurement period.
+- **Clients column.** Shows the number of connected wireless clients per device.
+- **Last sync timestamp.** Dashboard header shows "Last sync: X min ago" derived from a `last_sync_at` field written to the config table after every successful sync cycle.
+- **Critical SLA banner.** A prominent warning banner appears above the device table whenever any device reaches Critical SLA tier and is currently offline, listing each affected device with its uptime percentage.
+- **`PluginGdmsintegrationUtils::ensureSchema()`** — single authoritative source for all upgrade-safe `ALTER TABLE … ADD COLUMN IF NOT EXISTS` statements, called from both `setup.php` and `dashboard.php`. No more duplicate ALTER lists.
+- **Locales up to date.** `.pot` regenerated from source (172 strings). All `.po` files merged and recompiled. New strings fully translated in `es_MX`; `fr_FR` and `de_DE` retain existing coverage.
+
+### Fixed
+- **`$DB` undefined in `syncEntity()`.** `global $DB;` was missing, causing `Call to a member function update() on null` on every cron run and "Sync now" click. Fixed.
+- **Clients column invisible in dark theme.** Badge changed from `bg-secondary` to `text-bg-info`.
+- **Traffic column showed wrong values.** `upload`/`download` from `ap/list` is wireless client traffic, not WAN throughput. Column now uses WAN port aggregate (`txBytes`/`rxBytes`) which correctly shows hundreds of GB to TB for routers.
+- **README sync lifecycle table** — status labels corrected to English ("Online" / "Offline").
+
+### Changed
+- **WAN ticket titles** follow the format `[GDMS] <Device> — WAN <Port> (<ISP>): Link Down` or `: No Internet`.
+- **Sync log summary** now reports: `Sync summary — entity=0 total=7 removed=1`.
+- **State transition log** notes when a device persists offline: `prev=offline → new=offline — no ticket (persists offline)`.
+- `markRemovedDevicesOffline()` returns the count of purged devices for use in the log summary.
+
+
 ## [1.2.4] — 2026-04-03
 
 ### Fixed

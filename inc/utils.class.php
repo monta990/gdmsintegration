@@ -68,4 +68,40 @@ class PluginGdmsintegrationUtils {
             return $value;
         }
     }
+
+    /**
+     * Upgrade-safe schema guard — runs all ADD COLUMN IF NOT EXISTS statements.
+     * Called from setup.php (install/upgrade) AND from dashboard.php (FTP-only deployments
+     * that never trigger the GLPI plugin upgrade path).
+     * Keeping both call sites in sync is the responsibility of this single function.
+     */
+    public static function ensureSchema(): void {
+        global $DB;
+        $alters = [
+            // configs
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `debug_logging` tinyint unsigned NOT NULL DEFAULT 0",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `chart_days` smallint unsigned NOT NULL DEFAULT 60",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `show_topology` tinyint unsigned NOT NULL DEFAULT 1",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `ticket_requester_id` int unsigned NOT NULL DEFAULT 0",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `last_sync_at` TIMESTAMP NULL DEFAULT NULL",
+            // devices
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `network_id` int unsigned NOT NULL DEFAULT 0",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `cloud_name` varchar(255) NOT NULL DEFAULT ''",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `clients` smallint unsigned NOT NULL DEFAULT 0",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `wan_ports_json` text NOT NULL DEFAULT ''",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `model` varchar(100) NOT NULL DEFAULT ''",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `usage_bytes` bigint unsigned NOT NULL DEFAULT 0",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `upload_bytes` bigint unsigned NOT NULL DEFAULT 0",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `download_bytes` bigint unsigned NOT NULL DEFAULT 0",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `channel_2g` tinyint unsigned NOT NULL DEFAULT 0",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `channel_5g` tinyint unsigned NOT NULL DEFAULT 0",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `first_seen` TIMESTAMP NULL DEFAULT NULL",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `last_seen` TIMESTAMP NULL DEFAULT NULL",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `mgmt_ip` varchar(50) NOT NULL DEFAULT ''",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `last_sync_at` TIMESTAMP NULL DEFAULT NULL",
+        ];
+        foreach ($alters as $sql) {
+            try { $DB->doQuery($sql); } catch (\Throwable $e) { /* already exists */ }
+        }
+    }
 }

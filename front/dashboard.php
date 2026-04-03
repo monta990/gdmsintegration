@@ -28,6 +28,17 @@ $config_obj       = new PluginGdmsintegrationConfig();
 $config           = $config_obj->getConfigByEntity($entities_id);
 $is_configured    = !empty($config['client_id']) || !empty($config['gwn_client_id']);
 $refresh_interval = max(30, (int)($config['refresh_interval'] ?? 300));
+$last_sync_at     = $config['last_sync_at'] ?? null;
+$last_sync_label  = '';
+if ($last_sync_at) {
+    // last_sync_at is stored as UTC (gmdate). Append ' UTC' so strtotime() parses it correctly
+    // regardless of the server's local timezone setting.
+    $diff = max(0, time() - strtotime($last_sync_at . ' UTC'));
+    if ($diff < 60)         $last_sync_label = __('Last sync: just now', 'gdmsintegration');
+    elseif ($diff < 3600)   $last_sync_label = sprintf(__('Last sync: %d min ago', 'gdmsintegration'), intdiv($diff, 60));
+    elseif ($diff < 86400)  $last_sync_label = sprintf(__('Last sync: %dh ago', 'gdmsintegration'), intdiv($diff, 3600));
+    else                    $last_sync_label = sprintf(__('Last sync: %dd ago', 'gdmsintegration'), intdiv($diff, 86400));
+}
 $chart_days       = max(7, min(365, (int)($config['chart_days'] ?? 60)));
 $show_topology    = (int)($config['show_topology'] ?? 1);
 
@@ -66,23 +77,8 @@ $rows    = [];
 $root    = rtrim($CFG_GLPI['root_doc'] ?? '', '/');
 
 $state_obj  = new PluginGdmsintegrationDevice();
-// Self-healing: ensure v1.2.0 columns exist even on FTP-only deployments
-global $DB;
-foreach ([
-    "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `usage_bytes` bigint unsigned NOT NULL DEFAULT 0",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `upload_bytes` bigint unsigned NOT NULL DEFAULT 0",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `download_bytes` bigint unsigned NOT NULL DEFAULT 0",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `channel_2g` tinyint unsigned NOT NULL DEFAULT 0",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `channel_5g` tinyint unsigned NOT NULL DEFAULT 0",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `first_seen` TIMESTAMP NULL DEFAULT NULL",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `last_seen` TIMESTAMP NULL DEFAULT NULL",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `mgmt_ip` varchar(50) NOT NULL DEFAULT ''",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `cloud_name` varchar(255) NOT NULL DEFAULT ''",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `clients` smallint unsigned NOT NULL DEFAULT 0",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `chart_days` smallint unsigned NOT NULL DEFAULT 60",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `show_topology` tinyint unsigned NOT NULL DEFAULT 1",
-    "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `ticket_requester_id` int unsigned NOT NULL DEFAULT 0",
-] as $_sql) { try { $DB->doQuery($_sql); } catch (\Throwable $_e) {} }
+// Self-healing for FTP-only deployments — single source of truth in Utils::ensureSchema()
+PluginGdmsintegrationUtils::ensureSchema();
 
 $all_states = $state_obj->find(); // every MAC the plugin currently manages in the cloud
 
@@ -169,6 +165,15 @@ foreach ($all_states as $state) {
         'clients'        => (int)($state['clients']        ?? 0),
         'upload_bytes'   => (int)($state['upload_bytes']   ?? 0),
         'download_bytes' => (int)($state['download_bytes'] ?? 0),
+        // WAN aggregate: sum txBytes/rxBytes from all WAN ports (more accurate than ap/list usage field)
+        'wan_tx_bytes'   => (function() use ($state): int {
+            $ports = json_decode($state['wan_ports_json'] ?? '', true) ?? [];
+            $tx = 0; foreach ($ports as $p) { if (($p['role'] ?? 0) == 1) $tx += (int)($p['txBytes'] ?? 0); } return $tx;
+        })(),
+        'wan_rx_bytes'   => (function() use ($state): int {
+            $ports = json_decode($state['wan_ports_json'] ?? '', true) ?? [];
+            $rx = 0; foreach ($ports as $p) { if (($p['role'] ?? 0) == 1) $rx += (int)($p['rxBytes'] ?? 0); } return $rx;
+        })(),
         'channel_2g'     => (int)($state['channel_2g']     ?? 0),
         'channel_5g'     => (int)($state['channel_5g']     ?? 0),
         'last_seen'      => $state['last_seen']  ?? '',
@@ -326,6 +331,9 @@ foreach ($net_stats as $ns) {
             </div>
          </div>
          <div class="d-flex align-items-center gap-2">
+            <?php if ($last_sync_label): ?>
+            <small class="text-muted" id="gdms-last-sync" title="<?= htmlspecialchars($last_sync_at ?? '', ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($last_sync_label, ENT_QUOTES, 'UTF-8') ?></small>
+            <?php endif; ?>
             <small class="text-muted" id="gdms-refresh-countdown"></small>
             <button type="button" id="gdms-refresh-btn" class="btn btn-sm btn-outline-primary">
                <i class="ti ti-refresh me-1" id="gdms-refresh-icon"></i><?= __('Sync now', 'gdmsintegration') ?>
@@ -422,6 +430,33 @@ foreach ($net_stats as $ns) {
       </div>
    </div>
 
+   <?php
+   // Critical SLA banner — shown when any device has been persistently offline (Critical SLA tier)
+   $critical_devices = array_filter($rows, fn($r) => $r['sla'] === __('Critical', 'gdmsintegration') && !$r['online']);
+   if (!empty($critical_devices)):
+   ?>
+   <div class="alert border-danger mb-3 d-flex align-items-start gap-3" role="alert"
+        style="border-left:4px solid var(--bs-danger) !important; background:rgba(220,53,69,.08);">
+      <i class="ti ti-alert-triangle text-danger mt-1" style="font-size:1.4rem;flex-shrink:0;"></i>
+      <div>
+         <strong class="text-danger"><?= __('Critical SLA — devices offline', 'gdmsintegration') ?></strong>
+         <div class="mt-1 small">
+         <?php foreach ($critical_devices as $cr): ?>
+            <span class="me-3">
+               <i class="ti ti-circle-x text-danger me-1"></i>
+               <?php if (!empty($cr['asset_url'])): ?>
+               <a href="<?= $cr['asset_url'] ?>" class="text-danger fw-semibold text-decoration-none"><?= $cr['name'] ?></a>
+               <?php else: ?>
+               <span class="fw-semibold"><?= $cr['name'] ?></span>
+               <?php endif; ?>
+               <span class="text-muted">(<?= $cr['uptime'] ?>% <?= __('uptime', 'gdmsintegration') ?>)</span>
+            </span>
+         <?php endforeach; ?>
+         </div>
+      </div>
+   </div>
+   <?php endif; ?>
+
    <?php // Device table ?>
    <div class="card mb-4">
       <div class="card-header d-flex align-items-center gap-2">
@@ -443,6 +478,8 @@ foreach ($net_stats as $ns) {
                   <th><?= __('Ports', 'gdmsintegration') ?></th>
                   <th><?= __('Uptime', 'gdmsintegration') ?></th>
                   <th><?= __('Status', 'gdmsintegration') ?></th>
+                  <th title="<?= htmlspecialchars(__('Cumulative upload / download since device first registered in cloud. Hover a cell for the exact period.', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>" style="cursor:default;"><?= __('Traffic ↑↓', 'gdmsintegration') ?> <i class="ti ti-info-circle opacity-50" style="font-size:.75em;"></i></th>
+                  <th><?= __('Clients', 'gdmsintegration') ?></th>
                   <th><?= __('Avail. %', 'gdmsintegration') ?></th>
                   <th><?= __('SLA', 'gdmsintegration') ?></th>
                </tr>
@@ -580,12 +617,59 @@ foreach ($net_stats as $ns) {
                         <?= $r['online'] ? __('Online', 'gdmsintegration') : __('Offline', 'gdmsintegration') ?>
                      </span>
                   </td>
+                  <?php
+                  // Traffic column — format upload + download per device
+                  $fmtB = function(int $b): string {
+                      if ($b >= 1073741824) return round($b/1073741824,1).' GB';
+                      if ($b >= 1048576)    return round($b/1048576,1).' MB';
+                      if ($b >= 1024)       return round($b/1024,0).' KB';
+                      return $b.' B';
+                  };
+                  // Prefer WAN port aggregate (router WAN total) over ap/list usage (wireless client traffic)
+                  $wan_tx = (int)($r['wan_tx_bytes'] ?? 0);
+                  $wan_rx = (int)($r['wan_rx_bytes'] ?? 0);
+                  $ul_val = $wan_tx > 0 ? $wan_tx : (int)($r['upload_bytes']   ?? 0);
+                  $dl_val = $wan_rx > 0 ? $wan_rx : (int)($r['download_bytes'] ?? 0);
+                  $traffic_src = $wan_tx > 0
+                      ? __('WAN port aggregate (sum of all WAN ports since last router reboot)', 'gdmsintegration')
+                      : __('Device-reported traffic (wireless client usage)', 'gdmsintegration');
+                  ?>
+                  <?php
+                  // Traffic tooltip: show period (first_seen → now) and note cumulative
+                  $fs_raw = $r['first_seen'] ?? '';
+                  if ($fs_raw) {
+                      $fs_fmt   = substr($fs_raw, 0, 10);
+                      $fs_diff  = max(1, (int)((time() - strtotime($fs_raw)) / 86400));
+                      $tip_traffic = sprintf(
+                          __('%s — since first seen in cloud (%s, ~%d days)', 'gdmsintegration'),
+                          $traffic_src, $fs_fmt, $fs_diff
+                      );
+                  } else {
+                      $tip_traffic = $traffic_src;
+                  }
+                  ?>
+                  <td class="text-nowrap">
+                     <?php if ($ul_val > 0 || $dl_val > 0): ?>
+                     <small class="d-block"
+                            title="<?= htmlspecialchars($tip_traffic, ENT_QUOTES, 'UTF-8') ?>"
+                            style="font-size:.72em;cursor:default;border-bottom:1px dotted rgba(128,128,128,.4);">
+                        <span class="text-success">↑<?= $fmtB($ul_val) ?></span>
+                        <span class="ms-1 text-info">↓<?= $fmtB($dl_val) ?></span>
+                     </small>
+                     <?php else: ?><small class="text-muted">—</small><?php endif; ?>
+                  </td>
+                  <td class="text-center">
+                     <?php $cli = (int)($r['clients'] ?? 0); ?>
+                     <?php if ($cli > 0): ?>
+                     <span class="badge text-bg-info fw-bold"><?= $cli ?></span>
+                     <?php else: ?><small class="text-muted">—</small><?php endif; ?>
+                  </td>
                   <td><?= $r['uptime'] ?>%</td>
                   <td><?= $r['sla'] ?></td>
                </tr>
                <?php endforeach; ?>
                <?php if (empty($rows)): ?>
-               <tr><td colspan="11" class="text-center text-muted py-3">
+               <tr><td colspan="13" class="text-center text-muted py-3">
                   <?= __('No GDMS devices found. Run a sync first.', 'gdmsintegration') ?>
                </td></tr>
                <?php endif; ?>
@@ -1207,6 +1291,11 @@ foreach ($net_stats as $ns) {
                     if (p.ip) html += '<dt class="col-5 text-muted fw-normal">' + STR.ipAddress + '</dt><dd class="col-7"><code>' + p.ip + '</code></dd>';
                     if (p.wanType !== undefined) html += '<dt class="col-5 text-muted fw-normal">' + STR.wanTypeLbl + '</dt><dd class="col-7">' + (wanTypeNames[p.wanType] || '—') + '</dd>';
                     if (p.connectDuration) html += '<dt class="col-5 text-muted fw-normal">' + STR.connectedFor + '</dt><dd class="col-7">' + fmtDuration(p.connectDuration) + '</dd>';
+                    // Per-port traffic (v1.2.5)
+                    if (p.txBytes || p.rxBytes) {
+                        html += '<dt class="col-5 text-muted fw-normal">↑ Upload</dt><dd class="col-7 text-success">' + fmtBytes(p.txBytes || 0) + '</dd>';
+                        html += '<dt class="col-5 text-muted fw-normal">↓ Download</dt><dd class="col-7 text-info">' + fmtBytes(p.rxBytes || 0) + '</dd>';
+                    }
                 } else {
                     html += '<dt class="col-5 text-muted fw-normal">' + STR.statusLbl + '</dt><dd class="col-7">' + statusText + '</dd>';
                 }
