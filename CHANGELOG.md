@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.6] — 2026-04-04
+
+### Fixed
+- **`DBmysqlIterator` raw query error.** GLPI 11 prohibits calling `$DB->request()` with a raw SQL string (`Building and executing raw queries with the DBmysqlIterator::execute() method is prohibited`). The advisory lock calls for ticket idempotency used `$DB->request("SELECT GET_LOCK(...)")` and `$DB->request("SELECT RELEASE_LOCK(...)")`. Replaced with `$DB->doQuery()` + `$DB->fetchAssoc()` which is the correct GLPI 11 API for raw utility queries. Affected: `createOfflineTicket()` and `createWanDownTicket()`.
+
 ## [1.2.5] — 2026-04-03
 
 ### Added

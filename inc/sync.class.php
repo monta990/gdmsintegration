@@ -568,7 +568,9 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         // attempt to open a WAN ticket for the same port at the same time.
         $lock_name = 'gdmsinteg_' . substr(md5("wan_{$reason}_{$itemtype}_{$glpi_id}_{$portSilk}"), 0, 24);
         $locked    = 0;
-        foreach ($DB->request("SELECT GET_LOCK('{$lock_name}', 5) AS lk") as $lk_row) {
+        $lk_res = $DB->doQuery("SELECT GET_LOCK('{$lock_name}', 5) AS lk");
+        if ($lk_res) {
+            $lk_row = $DB->fetchAssoc($lk_res);
             $locked = (int)($lk_row['lk'] ?? 0);
         }
         if ($locked !== 1) {
@@ -649,7 +651,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
             PluginGdmsintegrationUtils::log("GDMS: WAN ticket #{$ticket_id} → {$deviceName} port {$portSilk} | entity={$entities_id}{$tech_info}");
         }
         } finally {
-            foreach ($DB->request("SELECT RELEASE_LOCK('{$lock_name}')") as $_) {}
+            $DB->doQuery("SELECT RELEASE_LOCK('{$lock_name}')");
         }
     }
 
@@ -713,7 +715,9 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         //    same time) both pass the open-ticket check simultaneously. ──────
         $lock_name = 'gdmsinteg_' . substr(md5("offline_{$itemtype}_{$glpi_id}"), 0, 24);
         $locked    = 0;
-        foreach ($DB->request("SELECT GET_LOCK('{$lock_name}', 5) AS lk") as $lk_row) {
+        $lk_res = $DB->doQuery("SELECT GET_LOCK('{$lock_name}', 5) AS lk");
+        if ($lk_res) {
+            $lk_row = $DB->fetchAssoc($lk_res);
             $locked = (int)($lk_row['lk'] ?? 0);
         }
         if ($locked !== 1) {
@@ -830,7 +834,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
             }
         } finally {
             // Always release the advisory lock, even if an exception was thrown
-            foreach ($DB->request("SELECT RELEASE_LOCK('{$lock_name}')") as $_) {}
+            $DB->doQuery("SELECT RELEASE_LOCK('{$lock_name}')");
         }
     }
 
