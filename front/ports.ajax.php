@@ -58,6 +58,7 @@ foreach ($all as $row) {
             'speed'           => (int)($port['portSpeed']    ?? 0),
             'type'            => ($port['type'] ?? 0) == 1 ? 'SFP' : 'GE',
             'desc'            => $port['portDesc']           ?? '',
+            'customName'      => $port['portCustomName']     ?? '',
             'wanName'         => $port['wanName']            ?? '',
             'connectDuration' => (int)($port['connectDuration'] ?? 0),
             // ipv4Info embedded directly in each port object

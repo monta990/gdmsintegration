@@ -750,6 +750,9 @@ foreach ($net_stats as $ns) {
         statusLbl:     <?= json_encode(__('Status',                                                                      'gdmsintegration')) ?>,
         linkSpeed:     <?= json_encode(__('Link speed',                                                                  'gdmsintegration')) ?>,
         portType:      <?= json_encode(__('Port type',                                                                   'gdmsintegration')) ?>,
+        negotiatedSpeed: <?= json_encode(__('Negotiated speed',                                                          'gdmsintegration')) ?>,
+        portLabel:     <?= json_encode(__('Port label',                                                                  'gdmsintegration')) ?>,
+        description:   <?= json_encode(__('Description',                                                                 'gdmsintegration')) ?>,
         unknown:       <?= json_encode(__('Unknown',                                                                     'gdmsintegration')) ?>,
         official:      <?= json_encode(__('Official',                                                                    'gdmsintegration')) ?>,
         officialFw:    <?= json_encode(__('Official firmware',                                                              'gdmsintegration')) ?>,
@@ -1195,7 +1198,17 @@ foreach ($net_stats as $ns) {
                         var wanLabel = p.wanName ? ' — ' + p.wanName : '';
                         var portLabel = p.name && p.name !== p.silk ? ' (' + p.name + ')' : '';
                         var dot = document.createElement('span');
-                        dot.title = label + portLabel + wanLabel + (!linkUp ? ' — '+STR.linkDown : (p.connectStatus === 1 ? ' — '+STR.online : p.connectStatus === 0 ? ' — '+STR.noInternet : ''));
+                        var dotStatus;
+                        if (!linkUp) {
+                            dotStatus = ' — ' + STR.linkDown;
+                        } else if (isWan) {
+                            dotStatus = p.connectStatus === 1 ? ' — ' + STR.online
+                                      : p.connectStatus === 0 ? ' — ' + STR.noInternet
+                                      : ' — ' + STR.linkUp;
+                        } else {
+                            dotStatus = ' — ' + STR.linkUp; // LAN active
+                        }
+                        dot.title = label + portLabel + wanLabel + dotStatus;
                         dot.style.cssText = 'display:inline-block;width:9px;height:9px;border-radius:50%;background:' + color + ';cursor:pointer;flex-shrink:0' + (isWan ? ';outline:1px solid rgba(255,255,255,.3)' : '');
                         container.appendChild(dot);
                     });
@@ -1297,7 +1310,15 @@ foreach ($net_stats as $ns) {
                         html += '<dt class="col-5 text-muted fw-normal">↓ Download</dt><dd class="col-7 text-info">' + fmtBytes(p.rxBytes || 0) + '</dd>';
                     }
                 } else {
+                    // LAN port
                     html += '<dt class="col-5 text-muted fw-normal">' + STR.statusLbl + '</dt><dd class="col-7">' + statusText + '</dd>';
+                    if (linkUp) {
+                        // Active LAN port — show negotiated speed prominently
+                        var spStr = portSpeeds[p.speed] || '—';
+                        html += '<dt class="col-5 text-muted fw-normal">' + STR.negotiatedSpeed + '</dt><dd class="col-7 fw-semibold text-success">' + spStr + '</dd>';
+                    }
+                    if (p.customName) html += '<dt class="col-5 text-muted fw-normal">' + STR.portLabel + '</dt><dd class="col-7">' + p.customName + '</dd>';
+                    if (p.desc)       html += '<dt class="col-5 text-muted fw-normal">' + STR.description + '</dt><dd class="col-7">' + p.desc + '</dd>';
                 }
                 html += '<dt class="col-5 text-muted fw-normal">' + STR.linkSpeed + '</dt><dd class="col-7">' + (portSpeeds[p.speed] || '—') + '</dd>';
                 if (p.type) html += '<dt class="col-5 text-muted fw-normal">' + STR.portType + '</dt><dd class="col-7">' + p.type + '</dd>';

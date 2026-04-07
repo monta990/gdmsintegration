@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gdmsintegration 1.0.0\n"
 "POT-Creation-Date: 2026-03-24 12:00-0700\n"
-"PO-Revision-Date: 2026-04-03\n"
+"PO-Revision-Date: 2026-04-07\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: fr_FR\n"
 "Language: fr_FR\n"
@@ -260,11 +260,11 @@ msgstr "Paramètres"
 msgid "Networks"
 msgstr "Réseaux"
 
-#: front/dashboard.php:356 front/dashboard.php:768
+#: front/dashboard.php:356 front/dashboard.php:771
 msgid "Total"
 msgstr "Total"
 
-#: front/dashboard.php:360 front/dashboard.php:769
+#: front/dashboard.php:360 front/dashboard.php:772
 msgid "Router"
 msgstr "Routeur"
 
@@ -278,15 +278,15 @@ msgstr "En ligne"
 msgid "Offline"
 msgstr "Hors ligne"
 
-#: front/dashboard.php:368 front/dashboard.php:770
+#: front/dashboard.php:368 front/dashboard.php:773
 msgid "Switch"
 msgstr "Commutateur"
 
-#: front/dashboard.php:384 front/dashboard.php:772
+#: front/dashboard.php:384 front/dashboard.php:775
 msgid "Phones & PBX"
 msgstr "Téléphones et PBX"
 
-#: front/dashboard.php:392 front/dashboard.php:482 front/dashboard.php:773
+#: front/dashboard.php:392 front/dashboard.php:482 front/dashboard.php:776
 msgid "Clients"
 msgstr "Clients"
 
@@ -298,11 +298,11 @@ msgstr "Disponibilité générale"
 msgid "all devices"
 msgstr "tous les appareils"
 
-#: front/dashboard.php:429 front/dashboard.php:766
+#: front/dashboard.php:429 front/dashboard.php:769
 msgid "online"
 msgstr "en ligne"
 
-#: front/dashboard.php:435 front/history_export.php:159 inc/sync.class.php:1010
+#: front/dashboard.php:435 front/history_export.php:159 inc/sync.class.php:1034
 msgid "Critical"
 msgstr "Critique"
 
@@ -452,11 +452,11 @@ msgstr "La requête a échoué. Vérifiez la connexion."
 msgid "Update scheduled successfully. The device will update shortly."
 msgstr "Mise à jour planifiée avec succès. L'équipement se mettra à jour prochainement."
 
-#: front/dashboard.php:728 front/dashboard.php:888
+#: front/dashboard.php:728 front/dashboard.php:891
 msgid "Apply now (ASAP)"
 msgstr "Appliquer maintenant (dès que possible)"
 
-#: front/dashboard.php:729 front/dashboard.php:891
+#: front/dashboard.php:729 front/dashboard.php:894
 msgid "Schedule update"
 msgstr "Planifier la mise à jour"
 
@@ -521,86 +521,98 @@ msgid "Port type"
 msgstr "Type de port"
 
 #: front/dashboard.php:753
+msgid "Negotiated speed"
+msgstr ""
+
+#: front/dashboard.php:754
+msgid "Port label"
+msgstr ""
+
+#: front/dashboard.php:755
+msgid "Description"
+msgstr ""
+
+#: front/dashboard.php:756
 msgid "Unknown"
 msgstr "Inconnu"
 
-#: front/dashboard.php:754
+#: front/dashboard.php:757
 msgid "Official"
 msgstr "Officiel"
 
-#: front/dashboard.php:755
+#: front/dashboard.php:758
 msgid "Official firmware"
 msgstr "Firmware officiel"
 
-#: front/dashboard.php:756
+#: front/dashboard.php:759
 msgid "Beta firmware"
 msgstr "Firmware bêta"
 
-#: front/dashboard.php:757
+#: front/dashboard.php:760
 msgid "GDMS managed"
 msgstr "Géré par GDMS"
 
-#: front/dashboard.php:759
+#: front/dashboard.php:762
 msgid "Select version"
 msgstr "Sélectionner la version"
 
-#: front/dashboard.php:760
+#: front/dashboard.php:763
 msgid "Current firmware"
 msgstr "Firmware actuel"
 
-#: front/dashboard.php:761
+#: front/dashboard.php:764
 msgid "Latest stable firmware"
 msgstr "Dernier firmware stable"
 
-#: front/dashboard.php:762
+#: front/dashboard.php:765
 msgid "Device MAC"
 msgstr "MAC de l'appareil"
 
-#: front/dashboard.php:763
+#: front/dashboard.php:766
 msgid "HDX"
 msgstr "HDX"
 
-#: front/dashboard.php:764
+#: front/dashboard.php:767
 msgid "FDX"
 msgstr "FDX"
 
-#: front/dashboard.php:765
+#: front/dashboard.php:768
 msgid "Disconnected"
 msgstr "Déconnecté"
 
-#: front/dashboard.php:767
+#: front/dashboard.php:770
 msgid "offline"
 msgstr "hors ligne"
 
-#: front/dashboard.php:771
+#: front/dashboard.php:774
 msgid "AP"
 msgstr "PA"
 
-#: front/dashboard.php:861
+#: front/dashboard.php:864
 msgid "Firmware Update Available"
 msgstr "Mise à jour du firmware disponible"
 
-#: front/dashboard.php:868
+#: front/dashboard.php:871
 msgid "Checking firmware…"
 msgstr "Vérification du firmware…"
 
-#: front/dashboard.php:874
+#: front/dashboard.php:877
 msgid "Schedule for"
 msgstr "Planifier pour"
 
-#: front/dashboard.php:879
+#: front/dashboard.php:882
 msgid "Show date picker"
 msgstr ""
 
-#: front/dashboard.php:884
+#: front/dashboard.php:887
 msgid "Leave empty to apply as soon as possible"
 msgstr "Laisser vide pour appliquer dès que possible"
 
-#: front/dashboard.php:894 front/dashboard.php:1161 front/dashboard.php:1331
+#: front/dashboard.php:897 front/dashboard.php:1164 front/dashboard.php:1342
 msgid "Close"
 msgstr "Fermer"
 
-#: front/dashboard.php:1152
+#: front/dashboard.php:1155
 msgid "Port Status"
 msgstr "État des ports"
 
@@ -642,15 +654,15 @@ msgstr "Jours en ligne"
 msgid "Total days"
 msgstr "Jours totaux"
 
-#: front/history_export.php:159 inc/sync.class.php:1007
+#: front/history_export.php:159 inc/sync.class.php:1031
 msgid "Gold"
 msgstr "Or"
 
-#: front/history_export.php:159 inc/sync.class.php:1008
+#: front/history_export.php:159 inc/sync.class.php:1032
 msgid "Silver"
 msgstr "Argent"
 
-#: front/history_export.php:159 inc/sync.class.php:1009
+#: front/history_export.php:159 inc/sync.class.php:1033
 msgid "Bronze"
 msgstr "Bronze"
 
@@ -666,40 +678,40 @@ msgstr "Tableau de bord GDMS"
 msgid "Synchronize GDMS cloud devices with GLPI"
 msgstr "Synchroniser les équipements GDMS Cloud avec GLPI"
 
-#: inc/sync.class.php:599
+#: inc/sync.class.php:621
 msgid "WAN port physical link went down."
 msgstr ""
 
-#: inc/sync.class.php:623
+#: inc/sync.class.php:645
 msgid "No Internet"
 msgstr ""
 
-#: inc/sync.class.php:623
+#: inc/sync.class.php:645
 msgid "Link Down"
 msgstr ""
 
-#: inc/sync.class.php:764 inc/sync.class.php:782 inc/sync.class.php:783
-#: inc/sync.class.php:784 inc/sync.class.php:785
+#: inc/sync.class.php:788 inc/sync.class.php:806 inc/sync.class.php:807
+#: inc/sync.class.php:808 inc/sync.class.php:809
 msgid "N/A"
 msgstr ""
 
-#: inc/sync.class.php:778
+#: inc/sync.class.php:802
 msgid "went offline and is no longer reachable."
 msgstr "s'est déconnecté et n'est plus joignable."
 
-#: inc/sync.class.php:779
+#: inc/sync.class.php:803
 msgid "Field"
 msgstr "Champ"
 
-#: inc/sync.class.php:780
+#: inc/sync.class.php:804
 msgid "Value"
 msgstr "Valeur"
 
-#: inc/sync.class.php:788
+#: inc/sync.class.php:812
 msgid "This ticket was automatically generated by the GDMS Integration plugin."
 msgstr "Ce ticket a été généré automatiquement par le plugin GDMS Integration."
 
-#: inc/sync.class.php:795
+#: inc/sync.class.php:819
 msgid "Device Offline"
 msgstr ""
 

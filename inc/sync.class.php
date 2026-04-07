@@ -346,11 +346,31 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                         $prev_ports = json_decode($prev_ports_json, true) ?? [];
                         $prev_map   = array_column($prev_ports, null, 'id');
                         foreach ($wan_summary as $wp) {
-                            $prev_wp = $prev_map[$wp['id']] ?? null;
-                            if (!$prev_wp) continue;
-
-                            $portLabel   = $wp['silk'] ?: $wp['name'];
+                            $prev_wp    = $prev_map[$wp['id']] ?? null;
+                            $portLabel  = $wp['silk'] ?: $wp['name'];
                             $networkName = $d['networkName'] ?? $d['siteName'] ?? '';
+
+                            // No previous state for this port — first time we see it.
+                            // If it is already in a bad state, open a ticket immediately
+                            // (no transition needed: the port was never known to be healthy).
+                            if (!$prev_wp) {
+                                if ($wp['link'] == 0) {
+                                    self::createWanDownTicket(
+                                        $name, $mac, $serial, $entities_id,
+                                        $matched_type, $glpi_id,
+                                        $portLabel, $wp['wanName'] ?? '', $networkName,
+                                        'link_down', ''
+                                    );
+                                } elseif ($wp['link'] == 1 && ($wp['connectStatus'] ?? -1) == 0) {
+                                    self::createWanDownTicket(
+                                        $name, $mac, $serial, $entities_id,
+                                        $matched_type, $glpi_id,
+                                        $portLabel, $wp['wanName'] ?? '', $networkName,
+                                        'no_internet', ''
+                                    );
+                                }
+                                continue; // no prev state → no transition logic applies
+                            }
 
                             // Case A: physical link went down
                             if ($prev_wp['link'] == 1 && $wp['link'] == 0) {

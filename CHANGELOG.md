@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.7] — 2026-04-07
+
+### Fixed
+- **WAN ticket not created for already-down port.** When a WAN port was already in a failed state (`link=0` or `link=1`+`connectStatus=0`) the first time the plugin synced a device, no ticket was opened because the transition check required a previous state to compare against. Fixed: if no previous port state exists (first sync or newly added port) and the port is already in a bad state, a ticket is opened immediately without requiring a prior-good-state transition.
+- **WAN ticket not auto-resolved after first-sync port recovery.** As a consequence of the above, ports that recovered after a first-sync down state had no ticket to resolve. Both are now handled consistently.
+- **LAN port modal missing info for active ports.** Active LAN ports showed only "Status: Link up" with no additional data, while inactive ports showed at least speed info. Fixed: active LAN ports now show negotiated link speed (highlighted in green), custom port label (`portCustomName`), and port description (`portDesc`) when available. All LAN ports continue to show link speed, port type (GE/SFP) and status.
+
 ## [1.2.6] — 2026-04-04
 
 ### Fixed
