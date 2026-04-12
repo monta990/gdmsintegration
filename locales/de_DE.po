@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Edwin Elias Alvarez
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.3.0\n"
+"Project-Id-Version: gdmsintegration 1.3.1\n"
 "POT-Creation-Date: 2026-04-11 00:00-0600\n"
 "PO-Revision-Date: 2026-04-11\n"
 "Last-Translator: Automatically generated\n"
@@ -865,3 +865,39 @@ msgstr "Dieses Plugin erfordert GLPI 11.0 oder höher."
 #: setup.php:44
 msgid "This plugin requires the PHP cURL extension."
 msgstr "Dieses Plugin erfordert die PHP-Erweiterung cURL."
+
+#: front/dashboard.php
+msgid "Location"
+msgstr "Standort"
+
+#: front/dashboard.php
+msgid "Private IP"
+msgstr "Private IP"
+
+#: front/dashboard.php
+msgid "SIP Extension"
+msgstr "SIP-Durchwahl"
+
+#: front/dashboard.php
+msgid "Gateway"
+msgstr "Gateway"
+
+#: front/dashboard.php
+msgid "DNS"
+msgstr "DNS"
+
+#: front/dashboard.php
+msgid "WAN MAC"
+msgstr "WAN-MAC"
+
+#: front/dashboard.php
+msgid "Packets ↑↓"
+msgstr "Pakete ↑↓"
+
+#: front/dashboard.php
+msgid "Category"
+msgstr "Kategorie"
+
+#: front/dashboard.php
+msgid "Reason"
+msgstr "Grund"

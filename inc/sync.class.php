@@ -165,7 +165,9 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                     : [];
                 foreach ($gdmsDevices as &$gd2) {
                     $gmac2 = strtolower(trim($gd2['mac'] ?? ''));
-                    $gd2['sip_status'] = $sip_map[$gmac2] ?? '';
+                    $detail = $sip_map[$gmac2] ?? null;
+                    $gd2['sip_status']    = is_array($detail) ? ($detail['status']    ?? '') : ($detail ?? '');
+                    $gd2['sip_extension'] = is_array($detail) ? ($detail['extension'] ?? '') : '';
                 }
                 unset($gd2);
 
@@ -407,9 +409,26 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                             'ip'              => $embedded['ip4Address']   ?? '',
                             'connectStatus'   => isset($embedded['connectStatus'])
                                                   ? (int)$embedded['connectStatus'] : -1,
+                            // WAN connection type (0=DHCP, 1=Static, 2=PPPoE, 3=PPTP, 4=L2TP)
+                            'wanType'         => isset($embedded['wanType']) ? (int)$embedded['wanType']
+                                                  : (isset($embedded['type']) ? (int)$embedded['type'] : -1),
+                            // Gateway and DNS
+                            'gateway'         => $embedded['gateway']    ?? '',
+                            'gatewayStatus'   => isset($embedded['gatewayStatus']) ? (int)$embedded['gatewayStatus'] : -1,
+                            'firstDns'        => $embedded['firstDns']   ?? $embedded['dns1'] ?? '',
+                            'secondDns'       => $embedded['secondDns']  ?? $embedded['dns2'] ?? '',
+                            // WAN port MAC address
+                            'wamMac'          => $port['wamMac']          ?? $port['portMac'] ?? '',
+                            // IPv6 on this WAN port
+                            'portIpv6'        => $port['ipv6Info']['ipv6Address'] ?? $port['ipv6Address'] ?? '',
+                            // isCombo port (shared SFP/GE)
+                            'isCombo'         => !empty($port['isCombo']),
                             // Per-port traffic aggregate (v1.2.5)
                             'txBytes'         => (int)($agg['txBytes']     ?? 0),
                             'rxBytes'         => (int)($agg['rxBytes']     ?? 0),
+                            // Packet counters
+                            'txPackets'       => (int)($agg['txPackets']   ?? 0),
+                            'rxPackets'       => (int)($agg['rxPackets']   ?? 0),
                         ];
                     }
                     // ipv4Info is embedded inside each port object — already extracted above
@@ -554,7 +573,11 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 $d['ipv4']            ?? '',
                 $d['firmware_latest'] ?? '',
                 $d['sip_status']      ?? '',
-                $entities_id
+                $entities_id,
+                $d['ipv6']            ?? '',
+                $d['privateIp']       ?? $d['privateip'] ?? '',
+                $d['sip_extension']   ?? '',
+                $d['location']        ?? $d['site']      ?? ''
             );
 
             // Ticket transitions: ONLY on true online→offline transition.

@@ -103,6 +103,10 @@ class PluginGdmsintegrationUtils {
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `last_sync_at` TIMESTAMP NULL DEFAULT NULL",
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `firmware_latest` varchar(50) NOT NULL DEFAULT ''",
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `sip_status` varchar(50) NOT NULL DEFAULT ''",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `ipv6` varchar(60) NOT NULL DEFAULT ''",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `private_ip` varchar(45) NOT NULL DEFAULT ''",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `sip_extension` varchar(50) NOT NULL DEFAULT ''",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `location` varchar(255) NOT NULL DEFAULT ''",
         ];
         foreach ($alters as $sql) {
             try { $DB->doQuery($sql); } catch (\Throwable $e) { /* already exists */ }

@@ -105,7 +105,11 @@ foreach ($all_states as $state) {
     $ip          = htmlspecialchars($state['ip']           ?? '', ENT_QUOTES, 'UTF-8');
     $firmware         = htmlspecialchars($state['firmware']          ?? '', ENT_QUOTES, 'UTF-8');
     $firmware_latest  = htmlspecialchars($state['firmware_latest']   ?? '', ENT_QUOTES, 'UTF-8');
-    $sip_status       = $state['sip_status'] ?? '';
+    $sip_status       = $state['sip_status']     ?? '';
+    $sip_extension    = $state['sip_extension'] ?? '';
+    $ipv6             = htmlspecialchars($state['ipv6']       ?? '', ENT_QUOTES, 'UTF-8');
+    $private_ip       = htmlspecialchars($state['private_ip'] ?? '', ENT_QUOTES, 'UTF-8');
+    $location         = htmlspecialchars($state['location']   ?? '', ENT_QUOTES, 'UTF-8');
     $uptime_sec       = (int)($state['uptime_sec']                   ?? 0);
     $sn_cloud         = htmlspecialchars($state['sn_cloud']          ?? '', ENT_QUOTES, 'UTF-8');
 
@@ -183,6 +187,10 @@ foreach ($all_states as $state) {
         'mgmt_ip'         => htmlspecialchars($state['mgmt_ip'] ?? '', ENT_QUOTES, 'UTF-8'),
         'firmware_latest' => $firmware_latest,
         'sip_status'      => $sip_status,
+        'sip_extension'   => $sip_extension,
+        'ipv6'            => $ipv6,
+        'private_ip'      => $private_ip,
+        'location'        => $location,
     ];
 }
 
@@ -577,6 +585,12 @@ foreach ($net_stats as $ns) {
                         <?= $r['ip'] ?> <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i>
                      </a>
                      <?php else: ?>—<?php endif; ?>
+                     <?php if (!empty($r['private_ip'])): ?>
+                     <br><span class="text-muted" style="font-size:.85em;" title="<?= htmlspecialchars(__('Private IP', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $r['private_ip'] ?></span>
+                     <?php endif; ?>
+                     <?php if (!empty($r['ipv6'])): ?>
+                     <br><span class="text-muted" style="font-size:.75em;word-break:break-all;" title="IPv6"><?= $r['ipv6'] ?></span>
+                     <?php endif; ?>
                   </small></td>
                   <td><code class="small"><?= $r['mac'] ?></code></td>
                   <td><small class="text-muted"><?= $r['serial'] ?: '—' ?></small></td>
@@ -639,6 +653,7 @@ foreach ($net_stats as $ns) {
                       if ($ch5 > 0) $ch_parts[] = '5GHz ch'.$ch5;
                       $tip_lines[] = implode('  ', $ch_parts);
                   }
+                  if (!empty($r['location']))   $tip_lines[] = __('Location',  'gdmsintegration').': '.$r['location'];
                   if (!empty($r['first_seen'])) $tip_lines[] = __('First seen','gdmsintegration').': '.substr($r['first_seen'],0,16);
                   if ($ls)                      $tip_lines[] = __('Last seen', 'gdmsintegration').': '.substr($ls,0,16);
                   $tip = htmlspecialchars(implode("
@@ -657,6 +672,11 @@ foreach ($net_stats as $ns) {
                      <?php if ($r['type'] === 'Phone' && !empty($r['sip_status'])): ?>
                      <br><span class="badge <?= $r['sip_status'] === 'registered' ? 'bg-primary' : 'bg-secondary' ?> mt-1" style="font-size:.68em;">
                         <?= $r['sip_status'] === 'registered' ? __('SIP Reg', 'gdmsintegration') : __('SIP Unreg', 'gdmsintegration') ?>
+                     </span>
+                     <?php endif; ?>
+                     <?php if (!empty($r['sip_extension'])): ?>
+                     <br><span class="badge bg-light text-dark border mt-1" style="font-size:.68em;" title="<?= htmlspecialchars(__('SIP Extension', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>">
+                        <?= htmlspecialchars($r['sip_extension'], ENT_QUOTES, 'UTF-8') ?>
                      </span>
                      <?php endif; ?>
                   </td>
@@ -836,6 +856,13 @@ foreach ($net_stats as $ns) {
         band:          <?= json_encode(__('Band',                                                                         'gdmsintegration')) ?>,
         signal:        <?= json_encode(__('Signal',                                                                       'gdmsintegration')) ?>,
         txrx:          <?= json_encode(__('TX / RX',                                                                      'gdmsintegration')) ?>,
+        gateway:       <?= json_encode(__('Gateway',                                                                      'gdmsintegration')) ?>,
+        dns:           <?= json_encode(__('DNS',                                                                          'gdmsintegration')) ?>,
+        wanMac:        <?= json_encode(__('WAN MAC',                                                                      'gdmsintegration')) ?>,
+        txrxPkts:      <?= json_encode(__('Packets ↑↓',                                                                  'gdmsintegration')) ?>,
+        alertCategory: <?= json_encode(__('Category',                                                                     'gdmsintegration')) ?>,
+        alertDevice:   <?= json_encode(__('Device',                                                                       'gdmsintegration')) ?>,
+        alertReason:   <?= json_encode(__('Reason',                                                                       'gdmsintegration')) ?>,
     };
 
 
@@ -1364,12 +1391,26 @@ foreach ($net_stats as $ns) {
                 if (isWan) {
                     html += '<dt class="col-5 text-muted fw-normal">' + STR.connection + '</dt><dd class="col-7">' + statusText + '</dd>';
                     if (p.ip) html += '<dt class="col-5 text-muted fw-normal">' + STR.ipAddress + '</dt><dd class="col-7"><code>' + p.ip + '</code></dd>';
-                    if (p.wanType !== undefined) html += '<dt class="col-5 text-muted fw-normal">' + STR.wanTypeLbl + '</dt><dd class="col-7">' + (wanTypeNames[p.wanType] || '—') + '</dd>';
+                    if (p.wanType !== undefined && p.wanType >= 0) html += '<dt class="col-5 text-muted fw-normal">' + STR.wanTypeLbl + '</dt><dd class="col-7">' + (wanTypeNames[p.wanType] || '—') + '</dd>';
+                    if (p.gateway) html += '<dt class="col-5 text-muted fw-normal">' + STR.gateway + '</dt><dd class="col-7"><code>' + p.gateway + '</code></dd>';
+                    if (p.firstDns || p.secondDns) {
+                        var dnsVal = [p.firstDns, p.secondDns].filter(Boolean).join(' / ');
+                        html += '<dt class="col-5 text-muted fw-normal">' + STR.dns + '</dt><dd class="col-7"><code>' + dnsVal + '</code></dd>';
+                    }
+                    if (p.wamMac) html += '<dt class="col-5 text-muted fw-normal">' + STR.wanMac + '</dt><dd class="col-7"><code>' + p.wamMac + '</code></dd>';
+                    if (p.portIpv6) html += '<dt class="col-5 text-muted fw-normal">IPv6</dt><dd class="col-7"><code style="font-size:.8em;word-break:break-all;">' + p.portIpv6 + '</code></dd>';
                     if (p.connectDuration) html += '<dt class="col-5 text-muted fw-normal">' + STR.connectedFor + '</dt><dd class="col-7">' + fmtDuration(p.connectDuration) + '</dd>';
                     // Per-port traffic (v1.2.5)
                     if (p.txBytes || p.rxBytes) {
                         html += '<dt class="col-5 text-muted fw-normal">↑ Upload</dt><dd class="col-7 text-success">' + fmtBytes(p.txBytes || 0) + '</dd>';
                         html += '<dt class="col-5 text-muted fw-normal">↓ Download</dt><dd class="col-7 text-info">' + fmtBytes(p.rxBytes || 0) + '</dd>';
+                    }
+                    if (p.txPackets || p.rxPackets) {
+                        html += '<dt class="col-5 text-muted fw-normal">' + STR.txrxPkts + '</dt>'
+                             + '<dd class="col-7 small text-nowrap">'
+                             + '<span class="text-success">↑' + (p.txPackets || 0).toLocaleString() + '</span>'
+                             + ' <span class="text-info">↓' + (p.rxPackets || 0).toLocaleString() + '</span>'
+                             + '</dd>';
                     }
                 } else {
                     // LAN port
@@ -1594,6 +1635,7 @@ foreach ($net_stats as $ns) {
                     var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle"><thead><tr>' +
                         '<th class="ps-3" style="white-space:nowrap">' + STR.alertTime + '</th>' +
                         '<th>' + STR.alertSev + '</th>' +
+                        '<th>' + STR.alertDevice + '</th>' +
                         '<th>' + STR.alertMsg + '</th>' +
                         '<th></th>' +
                         '</tr></thead><tbody>';
@@ -1603,10 +1645,20 @@ foreach ($net_stats as $ns) {
                         var ct  = parseInt(a.createTime || 0);
                         var ts  = ct ? new Date(ct).toLocaleString() : '—';
                         var desc = String(a.description || a.alertType || '');
+                        // Enrich description with reason and category if available
+                        var extras = [];
+                        if (a.category)  extras.push(STR.alertCategory + ': ' + a.category);
+                        if (a.reason)    extras.push(STR.alertReason   + ': ' + a.reason);
+                        if (a.port_id)   extras.push('Port: ' + a.port_id);
+                        var extraHtml = extras.length
+                            ? '<br><span class="text-muted" style="font-size:.8em;">' + extras.map(esc).join(' · ') + '</span>'
+                            : '';
+                        var devName = String(a.deviceName || a.deviceMac || '—');
                         html += '<tr data-alert-id="' + esc(a.id) + '">'
                             + '<td class="ps-3 text-nowrap small text-muted">' + esc(ts) + '</td>'
                             + '<td><span class="badge bg-' + cls + ' text-' + (cls === 'warning' ? 'dark' : 'white') + '">' + esc(sev) + '</span></td>'
-                            + '<td class="small">' + esc(desc) + '</td>'
+                            + '<td class="small text-nowrap">' + esc(devName) + '</td>'
+                            + '<td class="small">' + esc(desc) + extraHtml + '</td>'
                             + '<td class="text-end pe-2"><button type="button" class="btn btn-sm btn-link p-0 text-muted gdms-alert-dismiss" data-alert-id="' + esc(a.id) + '" title="' + esc(STR.alertDismiss) + '"><i class="ti ti-x"></i></button></td>'
                             + '</tr>';
                     });

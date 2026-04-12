@@ -53,7 +53,11 @@ class PluginGdmsintegrationDevice extends CommonDBTM {
         string $mgmt_ip         = '',
         string $firmware_latest = '',
         string $sip_status      = '',
-        int    $entities_id     = 0
+        int    $entities_id     = 0,
+        string $ipv6            = '',
+        string $private_ip      = '',
+        string $sip_extension   = '',
+        string $location        = ''
     ): bool {
         $rows = $this->find(['mac' => $mac]);
         $data = [
@@ -76,6 +80,10 @@ class PluginGdmsintegrationDevice extends CommonDBTM {
             'mgmt_ip'         => $mgmt_ip,
             'firmware_latest' => $firmware_latest,
             'sip_status'      => $sip_status,
+            'ipv6'            => $ipv6,
+            'private_ip'      => $private_ip,
+            'sip_extension'   => $sip_extension,
+            'location'        => $location,
         ];
         if ($first_seen !== null) $data['first_seen'] = $first_seen;
         if ($last_seen  !== null) $data['last_seen']  = $last_seen;

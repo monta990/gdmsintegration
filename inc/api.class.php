@@ -425,6 +425,8 @@ class PluginGdmsintegrationAPI {
                             'sn'          => $d['sn']     ?? '',
                             'networkId'   => $networkId,
                             'networkName' => $networkName,
+                            'ipv6'        => $d['ipv6']   ?? $d['ipv6Address'] ?? '',
+                            'location'    => $d['location'] ?? $d['site'] ?? '',
                         ]);
                     }, $batch);
                     // Enrich SN via device/info — parallel curl_multi for speed
@@ -651,6 +653,17 @@ class PluginGdmsintegrationAPI {
                 $a['description'] = $a['content'] ?? $a['alertContent'] ?? $a['alert_content']
                                  ?? $a['alertTitle'] ?? $a['title'] ?? $a['alertType'] ?? '';
             }
+            // category — basicDataKey (e.g. "offline", "wan", "cpu") for filtering/display
+            if (empty($a['category'])) {
+                $a['category'] = $a['basicDataKey'] ?? $a['alertCategory'] ?? $a['category'] ?? '';
+            }
+            // detailMap extras — reason and port_id for enriched display
+            $dm = $a['detailMap'] ?? [];
+            if (is_array($dm)) {
+                if (empty($a['reason']))      $a['reason']      = $dm['reason']      ?? $dm['failReason']   ?? '';
+                if (empty($a['port_id']))     $a['port_id']     = $dm['port_id']     ?? $dm['portId']       ?? '';
+                if (empty($a['deviceType']))  $a['deviceType']  = $dm['deviceType']  ?? '';
+            }
         }
         unset($a);
         return $raw;
@@ -726,7 +739,8 @@ class PluginGdmsintegrationAPI {
         foreach ($handles as $mac => $ch) {
             $raw  = curl_multi_getcontent($ch);
             $data = $raw ? json_decode($raw, true) : null;
-            $sipStatus = '';
+            $sipStatus    = '';
+            $sipExtension = '';
             if (is_array($data) && (int)($data['retCode'] ?? -1) === 0) {
                 $dev = $data['data'] ?? [];
                 // Look for registration status in multiple possible field names
@@ -736,18 +750,25 @@ class PluginGdmsintegrationAPI {
                     foreach ($dev['lineInfo'] as $line) {
                         if (!empty($line['registered']) || (int)($line['status'] ?? 0) === 1) {
                             $sipStatus = 'registered';
-                            break;
                         }
+                        // Extract extension number from first line with one set
+                        if ($sipExtension === '') {
+                            $ext = (string)($line['extension'] ?? $line['lineNumber'] ?? $line['number'] ?? '');
+                            if ($ext !== '' && $ext !== '0') {
+                                $sipExtension = $ext;
+                            }
+                        }
+                        if ($sipStatus !== '') break; // stop after first registered line
                     }
                     if ($sipStatus === '') $sipStatus = 'unregistered';
                 } elseif (isset($dev['sipStatus'])) {
                     $sipStatus = (int)$dev['sipStatus'] === 1 ? 'registered' : 'unregistered';
                 }
-                PluginGdmsintegrationUtils::debug("GDMS device/detail {$mac}: sip_status={$sipStatus} raw:" . substr(json_encode($dev), 0, 200));
+                PluginGdmsintegrationUtils::debug("GDMS device/detail {$mac}: sip_status={$sipStatus} extension={$sipExtension} raw:" . substr(json_encode($dev), 0, 200));
             } else {
                 PluginGdmsintegrationUtils::debug("GDMS device/detail {$mac}: error or empty response");
             }
-            $results[strtolower($mac)] = $sipStatus;
+            $results[strtolower($mac)] = ['status' => $sipStatus, 'extension' => $sipExtension];
             curl_multi_remove_handle($mh, $ch);
             curl_close($ch);
         }
