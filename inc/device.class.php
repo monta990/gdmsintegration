@@ -50,7 +50,10 @@ class PluginGdmsintegrationDevice extends CommonDBTM {
         int    $channel_5g     = 0,
         ?string $first_seen    = null,
         ?string $last_seen     = null,
-        string $mgmt_ip        = ''
+        string $mgmt_ip         = '',
+        string $firmware_latest = '',
+        string $sip_status      = '',
+        int    $entities_id     = 0
     ): bool {
         $rows = $this->find(['mac' => $mac]);
         $data = [
@@ -70,14 +73,19 @@ class PluginGdmsintegrationDevice extends CommonDBTM {
             'download_bytes' => $download_bytes,
             'channel_2g'     => $channel_2g,
             'channel_5g'     => $channel_5g,
-            'mgmt_ip'        => $mgmt_ip,
+            'mgmt_ip'         => $mgmt_ip,
+            'firmware_latest' => $firmware_latest,
+            'sip_status'      => $sip_status,
         ];
         if ($first_seen !== null) $data['first_seen'] = $first_seen;
         if ($last_seen  !== null) $data['last_seen']  = $last_seen;
+        // Only set entities_id when caller knows it (>0) so that webhook updates
+        // (which pass 0) never overwrite the entity set by a proper cron/ajax sync.
+        if ($entities_id > 0) $data['entities_id'] = $entities_id;
         if (!empty($rows)) {
             return (bool) $this->update(array_merge(['id' => array_key_first($rows)], $data));
         }
-        return (bool) $this->add(array_merge(['mac' => $mac], $data));
+        return (bool) $this->add(array_merge(['mac' => $mac, 'entities_id' => $entities_id], $data));
     }
 
     public function getWanPortsJson(string $mac): string {

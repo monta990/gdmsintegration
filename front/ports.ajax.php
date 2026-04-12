@@ -41,6 +41,36 @@ foreach ($all as $row) {
 
     // Fallback: fetch live from API (first load before sync ran)
     $apiMac    = strtoupper(str_replace(':', '', $mac));
+    $model     = $row['model'] ?? '';
+    $is_switch = preg_match('/^GWN78|^GSS/i', $model);
+
+    if ($is_switch) {
+        // Switch: LAN port info via /switch/portInfo
+        $raw_sw = PluginGdmsintegrationAPI::gwnGetSwitchPortInfo($config, $apiMac, $network_id);
+        if (empty($raw_sw)) continue;
+        $all_ports = [];
+        foreach ($raw_sw as $port) {
+            $all_ports[] = [
+                'id'         => $port['portId']          ?? $port['silkScreenPort'] ?? '',
+                'name'       => $port['portName']         ?? '',
+                'silk'       => $port['silkScreenPort']   ?? '',
+                'role'       => 0,
+                'link'       => (int)($port['linkStatus'] ?? 0),
+                'speed'      => (int)($port['portSpeed']  ?? 0),
+                'type'       => ($port['type'] ?? 0) == 1 ? 'SFP' : 'GE',
+                'customName' => $port['portCustomName']   ?? '',
+                'desc'       => $port['portDesc']         ?? '',
+                'txBytes'    => (int)($port['aggregate']['txBytes'] ?? 0),
+                'rxBytes'    => (int)($port['aggregate']['rxBytes'] ?? 0),
+                'vlan'       => (int)($port['vlan']       ?? 0),
+            ];
+        }
+        usort($all_ports, fn($a, $b) => strcmp($a['silk'] ?: $a['id'], $b['silk'] ?: $b['id']));
+        $result[$mac] = $all_ports;
+        continue;
+    }
+
+    // Router: WAN + LAN port info via /device/info
     $port_data = PluginGdmsintegrationAPI::gwnGetRouterPortInfo($config, $apiMac, $network_id);
     if (empty($port_data['portInfo'])) continue;
 
@@ -53,7 +83,7 @@ foreach ($all as $row) {
             'name'            => $port['portName']           ?? '',
             'silk'            => $port['silkScreenPort']     ?? '',
             'silkNum'         => $port['silkNum']            ?? '',
-            'role'            => $role, // 0=LAN, 1=WAN
+            'role'            => $role,
             'link'            => (int)($port['linkStatus']   ?? 0),
             'speed'           => (int)($port['portSpeed']    ?? 0),
             'type'            => ($port['type'] ?? 0) == 1 ? 'SFP' : 'GE',
@@ -61,20 +91,16 @@ foreach ($all as $row) {
             'customName'      => $port['portCustomName']     ?? '',
             'wanName'         => $port['wanName']            ?? '',
             'connectDuration' => (int)($port['connectDuration'] ?? 0),
-            // ipv4Info embedded directly in each port object
             'ip'              => $embeddedIpv4['ip4Address']   ?? '',
             'connectStatus'   => isset($embeddedIpv4['connectStatus'])
                                   ? (int)$embeddedIpv4['connectStatus'] : -1,
             'wanType'         => isset($embeddedIpv4['type'])
                                   ? (int)$embeddedIpv4['type'] : -1,
             'gateway'         => $embeddedIpv4['gateway']      ?? '',
-            // Per-port traffic aggregate (v1.2.5)
-            'txBytes'         => (int)(($port['aggregate']['txBytes']  ?? 0)),
-            'rxBytes'         => (int)(($port['aggregate']['rxBytes']  ?? 0)),
+            'txBytes'         => (int)($port['aggregate']['txBytes']  ?? 0),
+            'rxBytes'         => (int)($port['aggregate']['rxBytes']  ?? 0),
         ];
     }
-    // ipv4Info is EMBEDDED inside each port object — read directly, NOT from separate array
-    // (port_data['ipv4Info'] is always [] — the real data is at port['ipv4Info'])
     // Sort: WAN first, then LAN, by silk screen number
     usort($all_ports, fn($a, $b) =>
         ($b['role'] - $a['role']) ?: strcmp($a['silk'] ?: $a['id'], $b['silk'] ?: $b['id'])

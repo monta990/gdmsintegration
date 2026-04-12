@@ -3,6 +3,24 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.0] — 2026-04-11
+
+### Added
+- **Cloud Alerts panel — dismiss button.** Each alert row in the Cloud Alerts panel now has an × button. Clicking it hides the row immediately (optimistic local dismiss). Alerts reappear on next page load because the GWN Cloud API does not expose a programmatic alert-deletion endpoint — this is expected behaviour and not a bug.
+- **Switch LAN port status.** GWN78xx / GSS switches now fetch real-time port state via `/switch/portInfo` during sync and store it in `wan_ports_json`. Port dots and the detail modal on the NOC dashboard display link state, speed, port type (GE/SFP), custom label, description, VLAN, and per-port TX/RX bytes for every switch port. The live-API fallback in `ports.ajax.php` also routes to the switch endpoint when stored state is absent.
+- **GWN firmware update badge from cloud data.** During sync, `/upgrade/version` is now called once per GWN network and the latest available firmware is stored in the new `firmware_latest` column. The update badge in the dashboard is shown immediately on page load for any GWN device where the stored firmware differs — no async scraper call needed.
+- **WiFi client detail modal.** Clicking the Clients badge on any GWN AP row opens a modal with the real-time client list from `/client/list`: hostname, IP, MAC, band, SSID, RSSI (colour-coded), TX/RX rates.
+- **Cloud Alerts panel.** A new "Cloud Alerts" card is shown on the dashboard for GWN-configured entities. Alerts are fetched from `/alert/list` across all managed networks 4 s after page load and displayed in a table (time, severity, device, description).
+- **SIP registration status.** For GDMS UC phones, a batch call to `/device/detail` now runs during sync and stores the SIP registration state (`registered` / `unregistered`) in the new `sip_status` column. The Status column in the dashboard shows a small SIP badge for phone rows.
+
+### Fixed
+- **Cloud Alerts panel not rendering.** The `alertsBody.innerHTML` assignment was missing after the `forEach` loop that built the table rows. The alerts panel always showed the loading spinner and never displayed the alert table. Fixed by closing the table markup and assigning the result to the container.
+- **CSRF error on alert dismiss.** The dismiss endpoint (`alerts-dismiss.ajax.php`) was called without a valid CSRF token, causing GLPI 11's `CheckCsrfListener` to reject every request and log an error. Since GWN Cloud provides no working dismiss API (the `/alert/dismiss` endpoint returns HTTP 404), the server-side call has been removed entirely. Dismiss is now local-only: the row is hidden in the DOM on click. The log noise is eliminated.
+- **`$config_data` undefined in `syncDeviceList()`.** The router/switch port-info API calls inside the per-device loop referenced `$config_data` which was never assigned, causing the port-info fetch to silently skip on every sync. Fixed by loading config at the top of `syncDeviceList()` via `getConfigByEntity()`.
+- **GDMS UC token fetched on every sync.** Added in-process cache (`$gdmsTokenCache`) mirroring the existing GWN pattern. Token reused for the full process lifetime until 30s before expiry; avoids a redundant OAuth round-trip per sync cycle.
+- **Double signature calculation in `gwnGetRouterPortInfo`.** `gwnBuildSignature` was called twice with different timestamps; first result discarded. Removed the dead first call — timestamp and signature now computed once.
+- **WAN ticket never opens when port is already down on first sync.** The ticket comparison block was guarded by `!empty($prev_ports_json)`, which completely skipped all ticket logic — including the "first-seen bad port" path — whenever no previous WAN state existed. Removed the outer guard; `$prev_map` is now an empty array when there is no prior state, so every port on first sync correctly falls into the `!$prev_wp` branch and opens a ticket if `link=0` or `connectStatus=0`.
+
 ## [1.2.7] — 2026-04-07
 
 ### Fixed

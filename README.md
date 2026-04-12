@@ -332,13 +332,11 @@ curl -X POST "https://your-glpi.example.com/plugins/gdmsintegration/front/webhoo
 
 ## Locales
 
-| Locale | Status |
-|--------|--------|
-| es_MX  | ✅ Full |
-| fr_FR  | ✅ Full |
-| de_DE  | ✅ Full |
-| en_US  | Base |
-| en_GB  | Base |
+| Locale |
+|--------|
+| es_MX  |
+| fr_FR  |
+| de_DE  |
 
 ---
 

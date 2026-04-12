@@ -3,9 +3,9 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.2.7\n"
+"Project-Id-Version: gdmsintegration 1.3.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-07\n"
+"POT-Creation-Date: 2026-04-11\n"
 "PO-Revision-Date: 2026-04-07\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language-Team: \n"
@@ -271,6 +271,38 @@ msgstr ""
 
 #: front/config.form.php:349
 msgid "Go to Dashboard"
+msgstr ""
+
+#: front/dashboard.php:432
+msgid "Cloud Alerts"
+msgstr ""
+
+#: front/dashboard.php:440
+msgid "Loading alerts…"
+msgstr ""
+
+#: front/dashboard.php:828
+msgid "No recent alerts"
+msgstr ""
+
+#: front/dashboard.php:829
+msgid "Could not load alerts"
+msgstr ""
+
+#: front/dashboard.php:830
+msgid "Time"
+msgstr ""
+
+#: front/dashboard.php:831
+msgid "Severity"
+msgstr ""
+
+#: front/dashboard.php:833
+msgid "Alert"
+msgstr ""
+
+#: front/dashboard.php:834
+msgid "Dismiss"
 msgstr ""
 
 #: front/dashboard.php:17 front/dashboard.php:329

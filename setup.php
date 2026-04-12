@@ -8,7 +8,7 @@ use Glpi\Plugin\Hooks;
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.2.7');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.3.0');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI',  '11.0');
 define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '11.99');
 
@@ -140,6 +140,7 @@ function plugin_gdmsintegration_install(): bool {
         $DB->doQueryOrDie(
             "CREATE TABLE `glpi_plugin_gdmsintegration_devices` (
                 `id`     int {$sign} NOT NULL AUTO_INCREMENT,
+                `entities_id`  int unsigned NOT NULL DEFAULT 0,
                 `mac`          varchar(50) NOT NULL DEFAULT '',
                 `status`       varchar(20) NOT NULL DEFAULT '',
                 `network_name` varchar(255) NOT NULL DEFAULT '',
@@ -151,7 +152,8 @@ function plugin_gdmsintegration_install(): bool {
                 `wan_ports_json` text NOT NULL DEFAULT '',
                 `model`         varchar(100) NOT NULL DEFAULT '',
                 PRIMARY KEY (`id`),
-                UNIQUE KEY `mac` (`mac`)
+                UNIQUE KEY `mac` (`mac`),
+                KEY `entities_id` (`entities_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}"
         );
     }

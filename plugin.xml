@@ -23,9 +23,9 @@
    </authors>
       <versions>
       <version>
-         <num>1.2.7</num>
+         <num>1.3.0</num>
          <compatibility>~11.0.0</compatibility>
-         <download_url>https://github.com/monta990/gdmsintegration/releases/download/v1.2.7/gdmsintegration-1.2.7.zip</download_url>
+         <download_url>https://github.com/monta990/gdmsintegration/releases/download/v1.3.0/gdmsintegration-1.3.0.zip</download_url>
       </version>
    </versions>
    <langs>

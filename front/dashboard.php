@@ -103,9 +103,11 @@ foreach ($all_states as $state) {
     $sla         = PluginGdmsintegrationSync::calculateSLA($mac);
     $net_name    = htmlspecialchars($state['network_name'] ?? '', ENT_QUOTES, 'UTF-8');
     $ip          = htmlspecialchars($state['ip']           ?? '', ENT_QUOTES, 'UTF-8');
-    $firmware    = htmlspecialchars($state['firmware']     ?? '', ENT_QUOTES, 'UTF-8');
-    $uptime_sec  = (int)($state['uptime_sec']              ?? 0);
-    $sn_cloud    = htmlspecialchars($state['sn_cloud']     ?? '', ENT_QUOTES, 'UTF-8');
+    $firmware         = htmlspecialchars($state['firmware']          ?? '', ENT_QUOTES, 'UTF-8');
+    $firmware_latest  = htmlspecialchars($state['firmware_latest']   ?? '', ENT_QUOTES, 'UTF-8');
+    $sip_status       = $state['sip_status'] ?? '';
+    $uptime_sec       = (int)($state['uptime_sec']                   ?? 0);
+    $sn_cloud         = htmlspecialchars($state['sn_cloud']          ?? '', ENT_QUOTES, 'UTF-8');
 
     // Find the GLPI asset if it exists
     $glpi     = $mac_to_asset[$mac] ?? null;
@@ -174,11 +176,13 @@ foreach ($all_states as $state) {
             $ports = json_decode($state['wan_ports_json'] ?? '', true) ?? [];
             $rx = 0; foreach ($ports as $p) { if (($p['role'] ?? 0) == 1) $rx += (int)($p['rxBytes'] ?? 0); } return $rx;
         })(),
-        'channel_2g'     => (int)($state['channel_2g']     ?? 0),
-        'channel_5g'     => (int)($state['channel_5g']     ?? 0),
-        'last_seen'      => $state['last_seen']  ?? '',
-        'first_seen'     => $state['first_seen'] ?? '',
-        'mgmt_ip'        => htmlspecialchars($state['mgmt_ip'] ?? '', ENT_QUOTES, 'UTF-8'),
+        'channel_2g'      => (int)($state['channel_2g']     ?? 0),
+        'channel_5g'      => (int)($state['channel_5g']     ?? 0),
+        'last_seen'       => $state['last_seen']  ?? '',
+        'first_seen'      => $state['first_seen'] ?? '',
+        'mgmt_ip'         => htmlspecialchars($state['mgmt_ip'] ?? '', ENT_QUOTES, 'UTF-8'),
+        'firmware_latest' => $firmware_latest,
+        'sip_status'      => $sip_status,
     ];
 }
 
@@ -394,6 +398,7 @@ foreach ($net_stats as $ns) {
        ],
    ];
    ?>
+
    <div class="row g-2 mb-3">
       <?php foreach ($cards as $card): ?>
       <div class="col-6 col-sm-4 col-md-2">
@@ -416,6 +421,28 @@ foreach ($net_stats as $ns) {
       </div>
       <?php endforeach; ?>
    </div>
+
+   <?php if (!empty($config['gwn_client_id'])): ?>
+   <div class="card mb-4" id="gdms-alerts-card">
+      <div class="card-header d-flex align-items-center gap-2" role="button"
+           data-bs-toggle="collapse" data-bs-target="#gdms-alerts-collapse"
+           aria-expanded="false" aria-controls="gdms-alerts-collapse"
+           style="cursor:pointer;">
+         <i class="ti ti-bell text-warning"></i>
+         <h5 class="mb-0 me-auto"><?= __('Cloud Alerts', 'gdmsintegration') ?></h5>
+         <small class="text-muted me-2" id="gdms-alerts-meta"></small>
+         <i class="ti ti-chevron-down gdms-alerts-chevron" style="transition:transform .2s;"></i>
+      </div>
+      <div id="gdms-alerts-collapse" class="collapse">
+         <div id="gdms-alerts-body" class="card-body py-2">
+            <div class="text-center py-2 text-muted small">
+               <div class="spinner-border spinner-border-sm me-2"></div>
+               <?= __('Loading alerts…', 'gdmsintegration') ?>
+            </div>
+         </div>
+      </div>
+   </div>
+   <?php endif; ?>
 
    <?php // Availability bar ?>
    <div class="card mb-3 px-3 py-2">
@@ -554,15 +581,26 @@ foreach ($net_stats as $ns) {
                   <td><code class="small"><?= $r['mac'] ?></code></td>
                   <td><small class="text-muted"><?= $r['serial'] ?: '—' ?></small></td>
                   <td class="text-nowrap">
-                     <small class="font-monospace text-muted"><?= $r['firmware'] ?: '—' ?></small>
                      <?php if (!empty($r['firmware'])): ?>
-                     <span class="gdms-fw-badge" style="display:none; cursor:pointer;"
+                     <?php
+                     // Show badge immediately when stored firmware_latest differs (GWN sync data).
+                     // Also kept hidden for the async Grandstream.com scraper check (UC/phones).
+                     $fw_badge_shown = !empty($r['firmware_latest']) && $r['firmware_latest'] !== $r['firmware'];
+                     ?>
+                     <small class="font-monospace text-muted gdms-fw-badge" style="cursor:pointer;"
+                            data-mac="<?= htmlspecialchars(strtolower($r['mac'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                            data-current="<?= htmlspecialchars($r['firmware'], ENT_QUOTES, 'UTF-8') ?>"
+                            data-model="<?= htmlspecialchars($r['raw_model'] ?? $r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                            title="<?= __('Click to check firmware', 'gdmsintegration') ?>"><?= $r['firmware'] ?></small>
+                     <span class="gdms-fw-badge" style="<?= $fw_badge_shown ? '' : 'display:none; ' ?>cursor:pointer;"
                            data-mac="<?= htmlspecialchars(strtolower($r['mac'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                            data-current="<?= htmlspecialchars($r['firmware'], ENT_QUOTES, 'UTF-8') ?>"
                            data-model="<?= htmlspecialchars($r['raw_model'] ?? $r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                            title="<?= __('Firmware update available', 'gdmsintegration') ?>">
                         <i class="ti ti-arrow-up-circle text-warning ms-1"></i>
                      </span>
+                     <?php else: ?>
+                     <small class="font-monospace text-muted">—</small>
                      <?php endif; ?>
                   </td>
                   <td>
@@ -612,10 +650,15 @@ foreach ($net_stats as $ns) {
                   <small><?= $uptime_display ?></small>
                   <?php endif; ?>
                   </td>
-                  <td>
+                  <td class="text-nowrap">
                      <span class="badge <?= $r['online'] ? 'bg-success' : 'bg-danger' ?> text-white">
                         <?= $r['online'] ? __('Online', 'gdmsintegration') : __('Offline', 'gdmsintegration') ?>
                      </span>
+                     <?php if ($r['type'] === 'Phone' && !empty($r['sip_status'])): ?>
+                     <br><span class="badge <?= $r['sip_status'] === 'registered' ? 'bg-primary' : 'bg-secondary' ?> mt-1" style="font-size:.68em;">
+                        <?= $r['sip_status'] === 'registered' ? __('SIP Reg', 'gdmsintegration') : __('SIP Unreg', 'gdmsintegration') ?>
+                     </span>
+                     <?php endif; ?>
                   </td>
                   <?php
                   // Traffic column — format upload + download per device
@@ -660,7 +703,14 @@ foreach ($net_stats as $ns) {
                   </td>
                   <td class="text-center">
                      <?php $cli = (int)($r['clients'] ?? 0); ?>
-                     <?php if ($cli > 0): ?>
+                     <?php if ($cli > 0 && (int)($r['network_id'] ?? 0) > 0): ?>
+                     <span class="badge text-bg-info fw-bold gdms-clients-badge"
+                           style="cursor:pointer;"
+                           data-mac="<?= htmlspecialchars($r['mac'], ENT_QUOTES, 'UTF-8') ?>"
+                           data-network-id="<?= (int)($r['network_id'] ?? 0) ?>"
+                           data-name="<?= htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8') ?>"
+                           title="<?= __('Click to see connected clients', 'gdmsintegration') ?>"><?= $cli ?></span>
+                     <?php elseif ($cli > 0): ?>
                      <span class="badge text-bg-info fw-bold"><?= $cli ?></span>
                      <?php else: ?><small class="text-muted">—</small><?php endif; ?>
                   </td>
@@ -774,6 +824,18 @@ foreach ($net_stats as $ns) {
         lbl_ap:        <?= json_encode(__('AP',                                                                          'gdmsintegration')) ?>,
         lbl_phones:    <?= json_encode(__('Phones & PBX',                                                                'gdmsintegration')) ?>,
         lbl_clients:   <?= json_encode(__('Clients',                                                                     'gdmsintegration')) ?>,
+        noClients:     <?= json_encode(__('No clients connected',                                                          'gdmsintegration')) ?>,
+        noAlerts:      <?= json_encode(__('No recent alerts',                                                              'gdmsintegration')) ?>,
+        alertsError:   <?= json_encode(__('Could not load alerts',                                                        'gdmsintegration')) ?>,
+        alertTime:     <?= json_encode(__('Time',                                                                         'gdmsintegration')) ?>,
+        alertSev:      <?= json_encode(__('Severity',                                                                     'gdmsintegration')) ?>,
+        alertDevice:   <?= json_encode(__('Device',                                                                       'gdmsintegration')) ?>,
+        alertMsg:      <?= json_encode(__('Alert',                                                                        'gdmsintegration')) ?>,
+        alertDismiss:  <?= json_encode(__('Dismiss',                                                                      'gdmsintegration')) ?>,
+        hostname:      <?= json_encode(__('Hostname',                                                                     'gdmsintegration')) ?>,
+        band:          <?= json_encode(__('Band',                                                                         'gdmsintegration')) ?>,
+        signal:        <?= json_encode(__('Signal',                                                                       'gdmsintegration')) ?>,
+        txrx:          <?= json_encode(__('TX / RX',                                                                      'gdmsintegration')) ?>,
     };
 
 
@@ -1428,6 +1490,147 @@ foreach ($net_stats as $ns) {
         if (bsNet) bsNet.show();
         else if (typeof $ !== 'undefined') $(netModal).modal('show');
     });
+
+    // ── WiFi Clients modal ───────────────────────────────────────────────────
+    var CLIENTS_URL = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/clients.ajax.php?entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
+
+    var clientModal = document.createElement('div');
+    clientModal.className = 'modal fade';
+    clientModal.id = 'gdmsClientModal';
+    clientModal.setAttribute('tabindex', '-1');
+    clientModal.setAttribute('aria-hidden', 'true');
+    clientModal.innerHTML =
+      '<div class="modal-dialog modal-dialog-centered modal-lg">' +
+      '<div class="modal-content">' +
+      '<div class="modal-header"><h5 class="modal-title"><i class="ti ti-users me-2 text-info"></i>' +
+      <?= json_encode(__('Connected Clients', 'gdmsintegration')) ?> +
+      ' <small class="text-muted ms-2" id="gdmsClientModalDevice"></small></h5>' +
+      '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
+      '</div>' +
+      '<div class="modal-body p-0" id="gdmsClientModalBody">' +
+      '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>' +
+      '</div>' +
+      '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' +
+      <?= json_encode(__('Close', 'gdmsintegration')) ?> +
+      '</button></div></div></div>';
+    document.body.appendChild(clientModal);
+
+    document.addEventListener('click', function(e) {
+        var badge = e.target.closest('.gdms-clients-badge');
+        if (!badge) return;
+        var networkId = badge.getAttribute('data-network-id');
+        var apMac     = badge.getAttribute('data-mac') || '';
+        var devName   = badge.getAttribute('data-name') || apMac;
+        document.getElementById('gdmsClientModalDevice').textContent = devName;
+        var body = document.getElementById('gdmsClientModalBody');
+        body.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>';
+
+        var bsCli = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(clientModal) : null;
+        if (bsCli) bsCli.show(); else if (typeof $ !== 'undefined') $(clientModal).modal('show');
+
+        var url = CLIENTS_URL + '&network_id=' + encodeURIComponent(networkId) + '&mac=' + encodeURIComponent(apMac);
+        fetch(url, { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(list) {
+                if (!Array.isArray(list) || !list.length) {
+                    body.innerHTML = '<p class="text-muted text-center py-3">' + STR.noClients + '</p>';
+                    return;
+                }
+                var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || '—'))); return d.innerHTML; };
+                var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead><tr>' +
+                    '<th class="ps-3">' + STR.hostname + '</th>' +
+                    '<th>IP</th><th>MAC</th>' +
+                    '<th>' + STR.band + ' / SSID</th>' +
+                    '<th>' + STR.signal + '</th>' +
+                    '<th>' + STR.txrx + '</th>' +
+                    '</tr></thead><tbody>';
+                list.forEach(function(c) {
+                    var rssiColor = c.rssi <= -76 ? 'text-danger' : (c.rssi <= -60 ? 'text-warning' : 'text-success');
+                    html += '<tr>' +
+                        '<td class="ps-3 fw-semibold">' + esc(c.hostname || c.mac) + '</td>' +
+                        '<td><code class="small">' + esc(c.ip) + '</code></td>' +
+                        '<td><code class="small">' + esc(c.mac) + '</code></td>' +
+                        '<td><small>' + esc(c.band) + (c.ssid ? ' — ' + esc(c.ssid) : '') + '</small></td>' +
+                        '<td class="' + rssiColor + ' fw-semibold">' + (c.rssi ? c.rssi + ' dBm' : '—') + '</td>' +
+                        '<td class="small text-nowrap">' +
+                            (c.txRate ? '<span class="text-success">↑' + c.txRate + 'M</span> ' : '') +
+                            (c.rxRate ? '<span class="text-info">↓' + c.rxRate + 'M</span>' : '') +
+                        '</td></tr>';
+                });
+                html += '</tbody></table></div>';
+                body.innerHTML = html;
+            })
+            .catch(function() {
+                body.innerHTML = '<p class="text-danger text-center py-3">' + STR.reqFailed + '</p>';
+            });
+    });
+
+    // ── Cloud Alerts panel ────────────────────────────────────────────────────
+    var ALERTS_URL  = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/alerts.ajax.php?entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
+    var alertsBody = document.getElementById('gdms-alerts-body');
+    var alertsMeta = document.getElementById('gdms-alerts-meta');
+
+    if (alertsBody) {
+        // Dismiss click — hides row locally only; GWN Cloud has no working dismiss API
+        alertsBody.addEventListener('click', function(e) {
+            var btn = e.target.closest('.gdms-alert-dismiss');
+            if (!btn) return;
+            e.preventDefault();
+            var row = btn.closest('tr');
+            if (row) row.style.display = 'none';
+        });
+
+        setTimeout(function() {
+            fetch(ALERTS_URL, { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(list) {
+                    if (!Array.isArray(list) || !list.length) {
+                        alertsBody.innerHTML = '<p class="text-muted text-center py-2 small mb-0">' + STR.noAlerts + '</p>';
+                        return;
+                    }
+                    if (typeof console !== 'undefined') console.log('GDMS alert[0]:', list[0]);
+                    var sevColor = {'critical':'danger','warning':'warning','medium':'warning','info':'info','low':'secondary','error':'danger'};
+                    var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || ''))); return d.innerHTML; };
+                    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle"><thead><tr>' +
+                        '<th class="ps-3" style="white-space:nowrap">' + STR.alertTime + '</th>' +
+                        '<th>' + STR.alertSev + '</th>' +
+                        '<th>' + STR.alertMsg + '</th>' +
+                        '<th></th>' +
+                        '</tr></thead><tbody>';
+                    list.slice(0, 50).forEach(function(a) {
+                        var sev = String(a.severity || 'info').toLowerCase();
+                        var cls = sevColor[sev] || 'secondary';
+                        var ct  = parseInt(a.createTime || 0);
+                        var ts  = ct ? new Date(ct).toLocaleString() : '—';
+                        var desc = String(a.description || a.alertType || '');
+                        html += '<tr data-alert-id="' + esc(a.id) + '">'
+                            + '<td class="ps-3 text-nowrap small text-muted">' + esc(ts) + '</td>'
+                            + '<td><span class="badge bg-' + cls + ' text-' + (cls === 'warning' ? 'dark' : 'white') + '">' + esc(sev) + '</span></td>'
+                            + '<td class="small">' + esc(desc) + '</td>'
+                            + '<td class="text-end pe-2"><button type="button" class="btn btn-sm btn-link p-0 text-muted gdms-alert-dismiss" data-alert-id="' + esc(a.id) + '" title="' + esc(STR.alertDismiss) + '"><i class="ti ti-x"></i></button></td>'
+                            + '</tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    alertsBody.innerHTML = html;
+                })
+                .catch(function() {
+                    alertsBody.innerHTML = '<p class="text-muted text-center py-2 small mb-0">' + STR.alertsError + '</p>';
+                });
+        }, 4500);
+    }
+
+    // Chevron rotation for alerts collapse
+    var alertsCollapse = document.getElementById('gdms-alerts-collapse');
+    if (alertsCollapse) {
+        alertsCollapse.addEventListener('show.bs.collapse', function() {
+            var ch = document.querySelector('.gdms-alerts-chevron');
+            if (ch) ch.style.transform = 'rotate(180deg)';
+        });
+        alertsCollapse.addEventListener('hide.bs.collapse', function() {
+            var ch = document.querySelector('.gdms-alerts-chevron');
+            if (ch) ch.style.transform = 'rotate(0deg)';
+        });
+    }
 
 })();
 </script>

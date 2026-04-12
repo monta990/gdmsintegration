@@ -54,7 +54,10 @@ class PluginGdmsintegrationSync extends CommonGLPI {
     public static function syncEntity(int $entities_id): int {
         global $DB;
         $config = PluginGdmsintegrationConfig::getConfigByEntity($entities_id);
-        if (empty($config['client_id']) || empty($config['client_secret'])) {
+        $hasGwn  = !empty($config['gwn_client_id'])  && !empty($config['gwn_client_secret']);
+        $hasGdms = !empty($config['client_id'])       && !empty($config['client_secret'])
+                   && !empty($config['username'])     && !empty($config['password']);
+        if (!$hasGwn && !$hasGdms) {
             return 0;
         }
 
@@ -75,9 +78,15 @@ if (defined('GLPI_CRON') || php_sapi_name() === 'cli') {
 PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} entity={$entities_id}");
 
         $seen_macs = []; // Collect all MACs returned by API this cycle
+        // Track whether each configured API succeeded — if any fails we must NOT run
+        // markRemovedDevicesOffline, because an empty $seen_macs would cause all stored
+        // device state records to be deleted, triggering ghost WAN tickets on the next sync.
+        $gwn_api_ok  = true; // assume OK when not configured
+        $gdms_api_ok = true;
 
         // ── GWN API (networking: APs, Switches, Routers) ──────────────────
         if (!empty($config['gwn_client_id']) && !empty($config['gwn_client_secret'])) {
+            $gwn_api_ok = false; // will be set true only on success
             PluginGdmsintegrationUtils::log("[{$ts}] GWN sync start — entity {$entities_id}");
 
             $gwnToken = PluginGdmsintegrationAPI::gwnGetToken($config);
@@ -85,11 +94,38 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 PluginGdmsintegrationUtils::log("[{$ts}] GWN token obtained OK — API ID: {$config['gwn_client_id']}");
                 $config['gwn_access_token'] = $gwnToken;
                 $gwnDevices = PluginGdmsintegrationAPI::gwnGetDevices($config);
-                $gwnCount   = count($gwnDevices);
-                PluginGdmsintegrationUtils::log("[{$ts}] GWN API returned {$gwnCount} device(s)");
-                $synced = self::syncDeviceList($gwnDevices, $entities_id, $seen_macs);
-                PluginGdmsintegrationUtils::log("[{$ts}] GWN sync complete — {$synced} device(s) processed");
-                $total += $synced;
+                if ($gwnDevices === false) {
+                    // network/list API call failed — treat same as token failure
+                    PluginGdmsintegrationUtils::log("[{$ts}] GWN ERROR — network list failed for entity {$entities_id}");
+                } else {
+                    $gwnCount   = count($gwnDevices);
+                    $gwn_api_ok = true; // API responded — even 0 devices is a valid (empty account) state
+                    PluginGdmsintegrationUtils::log("[{$ts}] GWN API returned {$gwnCount} device(s)");
+
+                    // Inject firmware_latest from /upgrade/version — one call per unique networkId
+                    if (!empty($gwnDevices)) {
+                        $net_ids = array_unique(array_filter(array_column($gwnDevices, 'networkId')));
+                        $fw_by_mac = [];
+                        foreach ($net_ids as $nid) {
+                            $fwList = PluginGdmsintegrationAPI::gwnGetFirmwareVersions($config, (int)$nid);
+                            foreach ($fwList as $fw) {
+                                $fmac = strtolower(str_replace(':', '', $fw['mac'] ?? ''));
+                                if ($fmac && isset($fw['lastVersion'])) {
+                                    $fw_by_mac[$fmac] = $fw['lastVersion'];
+                                }
+                            }
+                        }
+                        foreach ($gwnDevices as &$gdev) {
+                            $dmac = strtolower(str_replace(':', '', $gdev['mac'] ?? ''));
+                            $gdev['firmware_latest'] = $fw_by_mac[$dmac] ?? '';
+                        }
+                        unset($gdev);
+                    }
+
+                    $synced = self::syncDeviceList($gwnDevices, $entities_id, $seen_macs);
+                    PluginGdmsintegrationUtils::log("[{$ts}] GWN sync complete — {$synced} device(s) processed");
+                    $total += $synced;
+                }
             } else {
                 PluginGdmsintegrationUtils::log("[{$ts}] GWN ERROR — could not obtain token for entity {$entities_id}. Check gwn_client_id and gwn_client_secret.");
             }
@@ -100,6 +136,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         // ── GDMS API (UC/VoIP devices: phones, UCM, GCC) ──────────────────
         if (!empty($config['client_id']) && !empty($config['client_secret'])
             && !empty($config['username']) && !empty($config['password'])) {
+            $gdms_api_ok = false; // will be set true only on success
             PluginGdmsintegrationUtils::log("[{$ts}] GDMS sync start — entity {$entities_id} — user: {$config['username']}");
 
             $gdmsToken = PluginGdmsintegrationAPI::gdmsGetToken($config);
@@ -109,9 +146,33 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 $gdmsDevices = PluginGdmsintegrationAPI::gdmsGetDevices($config);
                 $gdmsCount   = count($gdmsDevices);
                 PluginGdmsintegrationUtils::log("[{$ts}] GDMS API returned {$gdmsCount} device(s)");
+
+                // Batch-fetch SIP registration status for online UC phones
+                $sip_macs = [];
+                foreach ($gdmsDevices as $gd) {
+                    if ((int)($gd['status'] ?? 0) !== 1) continue;
+                    $gmodel = strtoupper(trim($gd['deviceType'] ?? ''));
+                    foreach (['GRP','GXP','GXV','GXW','WP','HT','DP','GHP','GVC','GSC','GDS'] as $pfx) {
+                        if (str_starts_with($gmodel, $pfx)) {
+                            $gmac = strtolower(trim($gd['mac'] ?? ''));
+                            if ($gmac) $sip_macs[] = $gmac;
+                            break;
+                        }
+                    }
+                }
+                $sip_map = !empty($sip_macs)
+                    ? PluginGdmsintegrationAPI::gdmsGetSipStatusBatch($config, array_slice($sip_macs, 0, 100))
+                    : [];
+                foreach ($gdmsDevices as &$gd2) {
+                    $gmac2 = strtolower(trim($gd2['mac'] ?? ''));
+                    $gd2['sip_status'] = $sip_map[$gmac2] ?? '';
+                }
+                unset($gd2);
+
                 $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 PluginGdmsintegrationUtils::log("[{$ts}] GDMS sync complete — {$synced} device(s) processed");
                 $total += $synced;
+                $gdms_api_ok = true;
             } else {
                 PluginGdmsintegrationUtils::log("[{$ts}] GDMS ERROR — could not obtain token for entity {$entities_id}. Check username, password, client_id and client_secret.");
             }
@@ -124,10 +185,16 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
             return 0;
         }
 
-        // Mark as offline any device in DB that the API no longer returns
+        // Mark as offline any device in DB that the API no longer returns.
+        // Guard: skip entirely if any configured API call failed this cycle.
+        // A token failure or curl error would leave $seen_macs incomplete, causing
+        // markRemovedDevicesOffline to delete state for devices it simply didn't hear
+        // about — which triggers ghost WAN tickets on the very next successful sync.
         $removed = 0;
-        if (!empty($seen_macs)) {
-            $removed = self::markRemovedDevicesOffline($seen_macs, $ts);
+        if (!empty($seen_macs) && $gwn_api_ok && $gdms_api_ok) {
+            $removed = self::markRemovedDevicesOffline($seen_macs, $ts, $entities_id);
+        } elseif (!$gwn_api_ok || !$gdms_api_ok) {
+            PluginGdmsintegrationUtils::log("[{$ts}] markRemovedDevicesOffline skipped — API error this cycle (gwn_ok=" . ($gwn_api_ok ? '1' : '0') . " gdms_ok=" . ($gdms_api_ok ? '1' : '0') . ")");
         }
 
         // Save last successful sync timestamp to config
@@ -173,6 +240,9 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         $state   = new PluginGdmsintegrationDevice();
         $history = new PluginGdmsintegrationHistory();
         $link    = new PluginGdmsintegrationLink();
+
+        // Load config so router/switch port API calls have credentials
+        $config_data = PluginGdmsintegrationConfig::getConfigByEntity($entities_id);
 
         foreach ($devices as $d) {
             // Official API fields: deviceName, deviceType, mac, sn, status (1/0/-1)
@@ -302,12 +372,17 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 "  STATE {$name}: prev=" . ($prevStatus ?? 'null') . " → new={$status}{$stateNote}"
             );
 
-            // For routers: fetch WAN port info and check for state changes
+            // For routers/switches: fetch port info and check for state changes
             $wan_ports_json = '';
             $network_id_val = (int)($d['networkId'] ?? 0);
+            $is_gwn_switch  = !empty($d['networkId']) && !empty($mac)
+                              && ($matched_type === 'NetworkEquipment')
+                              && $is_online
+                              && preg_match('/^GWN78|^GSS/i', $gdms_model);
             $is_gwn_router  = !empty($d['networkId']) && !empty($mac)
                               && ($matched_type === 'NetworkEquipment')
-                              && ($is_online); // only fetch if online
+                              && $is_online
+                              && !$is_gwn_switch; // routers only — exclude switches
             if ($is_gwn_router && !empty($config_data['gwn_client_id'])) {
                 $port_data = PluginGdmsintegrationAPI::gwnGetRouterPortInfo(
                     $config_data, strtoupper(str_replace(':', '', $mac)), $network_id_val
@@ -342,8 +417,8 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
 
                     // Check for WAN port state changes and create tickets
                     $prev_ports_json = $state->getWanPortsJson($mac);
-                    if (!empty($prev_ports_json) && $glpi_id > 0) {
-                        $prev_ports = json_decode($prev_ports_json, true) ?? [];
+                    if ($glpi_id > 0) {
+                        $prev_ports = !empty($prev_ports_json) ? (json_decode($prev_ports_json, true) ?? []) : [];
                         $prev_map   = array_column($prev_ports, null, 'id');
                         foreach ($wan_summary as $wp) {
                             $prev_wp    = $prev_map[$wp['id']] ?? null;
@@ -429,6 +504,33 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 }
             }
 
+            // For switches: fetch LAN port status and store in wan_ports_json
+            if ($is_gwn_switch && !empty($config_data['gwn_client_id'])) {
+                $raw_sw_ports = PluginGdmsintegrationAPI::gwnGetSwitchPortInfo(
+                    $config_data, strtoupper(str_replace(':', '', $mac)), $network_id_val
+                );
+                if (!empty($raw_sw_ports)) {
+                    $sw_summary = [];
+                    foreach ($raw_sw_ports as $port) {
+                        $sw_summary[] = [
+                            'id'         => $port['portId']          ?? $port['silkScreenPort'] ?? '',
+                            'name'       => $port['portName']         ?? '',
+                            'silk'       => $port['silkScreenPort']   ?? '',
+                            'role'       => 0, // LAN always for switches
+                            'link'       => (int)($port['linkStatus'] ?? 0),
+                            'speed'      => (int)($port['portSpeed']  ?? 0),
+                            'type'       => ($port['type'] ?? 0) == 1 ? 'SFP' : 'GE',
+                            'customName' => $port['portCustomName']   ?? '',
+                            'desc'       => $port['portDesc']         ?? '',
+                            'txBytes'    => (int)($port['aggregate']['txBytes'] ?? 0),
+                            'rxBytes'    => (int)($port['aggregate']['rxBytes'] ?? 0),
+                            'vlan'       => (int)($port['vlan']       ?? 0),
+                        ];
+                    }
+                    $wan_ports_json = json_encode($sw_summary);
+                }
+            }
+
             $state->saveStateWithNetwork(
                 $mac ?: $serial,
                 $status,
@@ -449,7 +551,10 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 (int)($d['channel5g'] ?? 0),
                 isset($d['firstSeen']) ? gmdate('Y-m-d H:i:s', (int)($d['firstSeen']/1000)) : null,
                 isset($d['lastSeen'])  ? gmdate('Y-m-d H:i:s', (int)($d['lastSeen']/1000))  : null,
-                $d['ipv4']            ?? ''
+                $d['ipv4']            ?? '',
+                $d['firmware_latest'] ?? '',
+                $d['sip_status']      ?? '',
+                $entities_id
             );
 
             // Ticket transitions: ONLY on true online→offline transition.
@@ -645,7 +750,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
         $ticketSuffix = $isNoInet ? __('No Internet', 'gdmsintegration') : __('Link Down', 'gdmsintegration');
 
         $ticket_data = [
-            'name'        => sprintf('[GDMS] %s — WAN %s%s: %s', $deviceName, $portSilk, $wanLabel, $ticketSuffix),
+            'name'        => sprintf('[GDMS] %s — WAN %s%s: %s %s', $deviceName, $portSilk, $wanLabel, $ticketSuffix, $marker),
             'content'     => $content,
             'entities_id' => $entities_id,
             'urgency'     => 4,
@@ -696,7 +801,13 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
             if (!$t->getFromDB($link['tickets_id'])) continue;
             $open = [Ticket::INCOMING, Ticket::ASSIGNED, Ticket::PLANNED, Ticket::WAITING];
             if (!in_array((int)$t->fields['status'], $open)) continue;
-            if (!str_contains($t->fields['name'], $marker)) continue;
+            // Match new-style tickets (marker embedded in name since 1.2.8)
+            // OR legacy tickets created before 1.2.8 that have the port number but no marker.
+            $isMarkerMatch = str_contains($t->fields['name'], $marker);
+            $isLegacyMatch = !$isMarkerMatch
+                          && str_contains($t->fields['name'], '[GDMS]')
+                          && str_contains($t->fields['name'], '— WAN ' . $portSilk);
+            if (!$isMarkerMatch && !$isLegacyMatch) continue;
 
             $followup = new ITILFollowup();
             $followup->add([
@@ -757,7 +868,8 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 if ($t->getFromDB($link_row['tickets_id'])) {
                     $open_statuses = [Ticket::INCOMING, Ticket::ASSIGNED, Ticket::PLANNED, Ticket::WAITING];
                     if (in_array((int)$t->fields['status'], $open_statuses)
-                        && str_contains($t->fields['name'], '[GDMS]')) {
+                        && str_contains($t->fields['name'], '[GDMS]')
+                        && !str_contains($t->fields['name'], '— WAN ')) {
                         PluginGdmsintegrationUtils::log(
                             "GDMS: Ticket already open for {$name} (#" . $link_row['tickets_id'] . ") — skipping"
                         );
@@ -875,6 +987,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
             $open = [Ticket::INCOMING, Ticket::ASSIGNED, Ticket::PLANNED, Ticket::WAITING];
             if (!in_array((int)$t->fields['status'], $open)) continue;
             if (!str_contains($t->fields['name'], '[GDMS]')) continue;
+            if (str_contains($t->fields['name'], '— WAN ')) continue; // skip WAN tickets
 
             // Add followup noting recovery
             $followup = new ITILFollowup();
@@ -960,16 +1073,23 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
     // -----------------------------------------------------------------------
     // Mark devices no longer returned by the API as offline
     // -----------------------------------------------------------------------
-    private static function markRemovedDevicesOffline(array $seen_macs, string $ts): int {
+    private static function markRemovedDevicesOffline(array $seen_macs, string $ts, int $entities_id = 0): int {
         global $DB;
 
         $device  = new PluginGdmsintegrationDevice();
         $history = new PluginGdmsintegrationHistory();
 
-        $all_rows = $DB->request([
+        $query = [
             'SELECT' => ['id', 'mac', 'cloud_name'],
             'FROM'   => PluginGdmsintegrationDevice::getTable(),
-        ]);
+        ];
+        // Filter by entity so that syncing entity A never purges entity B's device state.
+        // Rows with entities_id=0 are legacy records (pre-1.2.8) or webhook-only entries;
+        // include them only when syncing the root entity (0).
+        if ($entities_id > 0) {
+            $query['WHERE'] = ['entities_id' => $entities_id];
+        }
+        $all_rows = $DB->request($query);
 
         $removed = 0;
         foreach ($all_rows as $row) {

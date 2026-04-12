@@ -120,9 +120,21 @@ class PluginGdmsintegrationAPI {
     }
 
     // -----------------------------------------------------------------------
-    // GDMS — get token
+    // GDMS — get token (with in-process cache, same pattern as GWN)
     // -----------------------------------------------------------------------
+    /** In-process token cache: [cacheKey => [tokenData, expires_at]] */
+    private static array $gdmsTokenCache = [];
+
     public static function gdmsGetToken(array $config): array|false {
+        $cacheKey = ($config['username'] ?? '') . '|' . ($config['client_id'] ?? '');
+        $now      = time();
+        if (isset(self::$gdmsTokenCache[$cacheKey])) {
+            [$cachedData, $expiresAt] = self::$gdmsTokenCache[$cacheKey];
+            if ($now < $expiresAt) {
+                PluginGdmsintegrationUtils::debug("GDMS token OK (cached) — username:{$config['username']}");
+                return $cachedData;
+            }
+        }
         $hashedPw = hash('sha256', md5($config['password']));
         $data = self::curl(
             self::GDMS_BASE . '/oauth/token',
@@ -139,12 +151,15 @@ class PluginGdmsintegrationAPI {
             PluginGdmsintegrationUtils::log("GDMS token ERROR — response: " . json_encode($data));
             return false;
         }
-        PluginGdmsintegrationUtils::log("GDMS token OK — username:{$config['username']} | API ID:{$config['client_id']} | expires:{$data['expires_in']}s");
-        return [
+        $expiresIn = (int)($data['expires_in'] ?? 3600);
+        $tokenData = [
             'access_token'  => $data['access_token'],
             'refresh_token' => $data['refresh_token'] ?? '',
-            'expires_in'    => (int) ($data['expires_in'] ?? 3600),
+            'expires_in'    => $expiresIn,
         ];
+        self::$gdmsTokenCache[$cacheKey] = [$tokenData, $now + $expiresIn - 30];
+        PluginGdmsintegrationUtils::log("GDMS token OK — username:{$config['username']} | API ID:{$config['client_id']} | expires:{$expiresIn}s");
+        return $tokenData;
     }
 
     // -----------------------------------------------------------------------
@@ -288,8 +303,12 @@ class PluginGdmsintegrationAPI {
     // -----------------------------------------------------------------------
     // GWN — get all networks
     // -----------------------------------------------------------------------
-    /** @return array<string,string> networkId => networkName */
-    private static function gwnGetNetworkIds(array $config): array {
+    /**
+     * @return array<string,string>|false  networkId => networkName map, or false on API error.
+     *   An empty array means the account has no networks (valid).
+     *   false means the API call itself failed (curl error or non-zero retCode).
+     */
+    private static function gwnGetNetworkIds(array $config): array|false {
         $body = json_encode(['pageNum' => 1, 'pageSize' => 200]);
         $url  = self::gwnSignedUrl('/network/list', $config, $body);
         PluginGdmsintegrationUtils::debug("GWN network/list URL: {$url}");
@@ -298,12 +317,12 @@ class PluginGdmsintegrationAPI {
         PluginGdmsintegrationUtils::debug("GWN network/list response: " . json_encode($data));
         if ($data === false || (int)($data['retCode'] ?? -1) !== 0) {
             PluginGdmsintegrationUtils::log("GWN network/list error: " . ($data['msg'] ?? json_encode($data)));
-            return [];
+            return false;
         }
         $networks = $data['data']['result'] ?? [];
         if (!is_array($networks)) {
             PluginGdmsintegrationUtils::log("GWN network/list: unexpected data structure: " . json_encode($data['data'] ?? null));
-            return [];
+            return false;
         }
         // Return id → networkName map instead of just IDs
         $map = [];
@@ -362,10 +381,21 @@ class PluginGdmsintegrationAPI {
     // -----------------------------------------------------------------------
     // GWN — devices per network
     // -----------------------------------------------------------------------
-    public static function gwnGetDevices(array $config): array {
-        $networkMap = self::gwnGetNetworkIds($config); // id => name
+    /**
+     * Returns device list on success, or FALSE if a network-level API call failed.
+     * An empty array means the account has no devices (valid state).
+     * FALSE means the API itself could not be reached — callers must NOT purge stored state.
+     *
+     * @return array|false
+     */
+    public static function gwnGetDevices(array $config): array|false {
+        $networkMap = self::gwnGetNetworkIds($config); // id => name, or false on error
+        if ($networkMap === false) {
+            PluginGdmsintegrationUtils::log("GWN: network/list failed — aborting device fetch");
+            return false;
+        }
         if (empty($networkMap)) {
-            PluginGdmsintegrationUtils::debug("GWN: no networks — skipping devices");
+            PluginGdmsintegrationUtils::debug("GWN: no networks configured — skipping devices");
             return [];
         }
         // Pre-fetch token once — reuse for all page requests and info batches
@@ -538,11 +568,227 @@ class PluginGdmsintegrationAPI {
         return $results;
     }
 
-        /**
+    /**
+     * Get connected WiFi clients for a network (or a specific AP MAC).
+     * POST /oapi/v1.0.0/client/list {networkId[, mac, pageNum, pageSize]}
+     * Returns: [{mac, hostname, ip, rssi, band, ssid, apMac, connectTime, txRate, rxRate}]
+     */
+    public static function gwnGetClientList(array $config, int $networkId, string $mac = '', int $pageSize = 200): array {
+        $token = self::gwnGetToken($config);
+        if (!$token) return [];
+        $config['gwn_access_token'] = $token; // required by gwnSignedUrl
+        $body  = ['networkId' => $networkId, 'pageNum' => 1, 'pageSize' => $pageSize];
+        if ($mac !== '') $body['mac'] = $mac;
+        $bodyStr = json_encode($body);
+        $url = self::gwnSignedUrl('/client/list', $config, $bodyStr);
+        $data = self::curl($url, ['Content-Type: application/json'], $bodyStr);
+        if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
+            PluginGdmsintegrationUtils::debug("GWN client/list error network {$networkId}: " . ($data['msg'] ?? json_encode($data)));
+            return [];
+        }
+        $raw = $data['data']['result'] ?? $data['data'] ?? [];
+        return is_array($raw) ? $raw : [];
+    }
+
+    /**
+     * Get recent cloud alerts for a network.
+     * POST /oapi/v1.0.0/alert/list {networkId, pageNum, pageSize}
+     * Returns normalized: [{id, alertType, severity, deviceMac, deviceName, description, createTime}]
+     */
+    public static function gwnGetAlerts(array $config, int $networkId, int $pageSize = 50): array {
+        $token = self::gwnGetToken($config);
+        if (!$token) return [];
+        $config['gwn_access_token'] = $token;
+        $body    = json_encode(['networkId' => $networkId, 'pageNum' => 1, 'pageSize' => $pageSize]);
+        $url     = self::gwnSignedUrl('/alert/list', $config, $body);
+        $data    = self::curl($url, ['Content-Type: application/json'], $body);
+        if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
+            PluginGdmsintegrationUtils::log("GWN alert/list error network {$networkId}: " . ($data['msg'] ?? json_encode($data)));
+            return [];
+        }
+        $raw = $data['data']['result'] ?? $data['data']['list'] ?? $data['data'] ?? [];
+        if (!is_array($raw)) return [];
+        // Log raw structure once per call to help identify field names
+        if (!empty($raw)) {
+            PluginGdmsintegrationUtils::debug("GWN alert sample (network {$networkId}): " . json_encode($raw[0]));
+        }
+        // Normalize field names — actual GWN API uses: id, time, level, content, detailMap
+        $sevMap = [1 => 'critical', 2 => 'warning', 3 => 'medium', 4 => 'low', 5 => 'info'];
+        foreach ($raw as &$a) {
+            // id (may be int)
+            $a['id'] = (string)($a['id'] ?? $a['alertId'] ?? $a['alert_id'] ?? '');
+            // createTime (ms) — actual field is 'time'
+            if (empty($a['createTime'])) {
+                $ct = $a['time'] ?? $a['createAt'] ?? $a['create_at'] ?? $a['create_time']
+                   ?? $a['alertTime'] ?? $a['alert_time'] ?? $a['alarmTime']
+                   ?? $a['occurTime'] ?? $a['alertOccurTime'] ?? $a['timestamp'] ?? 0;
+                if ($ct && $ct < 9999999999) $ct *= 1000; // seconds → ms
+                $a['createTime'] = (int)$ct;
+            } elseif ($a['createTime'] > 0 && $a['createTime'] < 9999999999) {
+                $a['createTime'] = (int)$a['createTime'] * 1000;
+            }
+            // severity string
+            if (empty($a['severity'])) {
+                $lvl = $a['level'] ?? $a['alertLevel'] ?? $a['alert_level'] ?? null;
+                $a['severity'] = is_int($lvl) ? ($sevMap[$lvl] ?? 'info') : (string)($lvl ?? 'info');
+            }
+            // deviceName — actual field is detailMap.apName
+            if (empty($a['deviceName'])) {
+                $dm = $a['detailMap'] ?? [];
+                $a['deviceName'] = $dm['apName'] ?? $dm['name'] ?? $dm['routerName']
+                                ?? $a['device_name'] ?? $a['apName'] ?? $a['ap_name']
+                                ?? $a['routerName'] ?? $a['name'] ?? '';
+            }
+            // deviceMac — actual field is detailMap.detail (when isMac=1)
+            if (empty($a['deviceMac'])) {
+                $dm = $a['detailMap'] ?? [];
+                $a['deviceMac'] = (($dm['isMac'] ?? '') === '1' ? ($dm['detail'] ?? '') : '')
+                               ?: ($dm['apMac'] ?? $dm['mac'] ?? $a['device_mac']
+                                ?? $a['apMac'] ?? $a['ap_mac'] ?? $a['mac'] ?? '');
+            }
+            // description — actual field is 'content'
+            if (empty($a['description'])) {
+                $a['description'] = $a['content'] ?? $a['alertContent'] ?? $a['alert_content']
+                                 ?? $a['alertTitle'] ?? $a['title'] ?? $a['alertType'] ?? '';
+            }
+        }
+        unset($a);
+        return $raw;
+    }
+
+    /**
+     * POST /oapi/v1.0.0/alert/dismiss — dismiss (delete) alerts by ID.
+     * @param array $ids  alert id strings
+     */
+    public static function gwnDismissAlerts(array $config, array $ids): bool {
+        $token = self::gwnGetToken($config);
+        if (!$token) return false;
+        $config['gwn_access_token'] = $token;
+        $body = json_encode(['ids' => array_values($ids)]);
+        $url  = self::gwnSignedUrl('/alert/dismiss', $config, $body);
+        $data = self::curl($url, ['Content-Type: application/json'], $body);
+        if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
+            PluginGdmsintegrationUtils::log("GWN alert/dismiss error: " . ($data['msg'] ?? json_encode($data)));
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Batch fetch GDMS UC device detail for SIP registration status.
+     * Uses curl_multi — all requests fire simultaneously.
+     * Returns: [mac => sip_status_string] where status is 'registered'|'unregistered'|''
+     * @param array $macs  list of MACs in colon-lowercase format
+     */
+    public static function gdmsGetSipStatusBatch(array $config, array $macs): array {
+        if (empty($macs)) return [];
+        $token    = $config['access_token'] ?? '';
+        $clientId = $config['client_id']     ?? '';
+        $secret   = $config['client_secret'] ?? '';
+        if (!$token) return [];
+
+        $baseUrl = self::GDMS_BASE . '/' . self::VERSION . '/device/detail';
+        $mh      = curl_multi_init();
+        $handles = [];
+
+        foreach ($macs as $mac) {
+            $body = json_encode(['mac' => strtoupper($mac)]);
+            $ts   = (int)(microtime(true) * 1000);
+            // URL params for signing
+            $urlParams = ['access_token' => $token];
+            $sig  = self::gdmsBuildSignature($urlParams, $config, $ts, $body);
+            $url  = $baseUrl . '?' . http_build_query([
+                'access_token' => $token,
+                'timestamp'    => $ts,
+                'signature'    => $sig,
+            ]);
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $body,
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+                CURLOPT_TIMEOUT        => 8,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+            ]);
+            curl_multi_add_handle($mh, $ch);
+            $handles[$mac] = $ch;
+        }
+
+        $running = null;
+        do {
+            curl_multi_exec($mh, $running);
+            if ($running) curl_multi_select($mh, 0.5);
+        } while ($running > 0);
+
+        $results = [];
+        foreach ($handles as $mac => $ch) {
+            $raw  = curl_multi_getcontent($ch);
+            $data = $raw ? json_decode($raw, true) : null;
+            $sipStatus = '';
+            if (is_array($data) && (int)($data['retCode'] ?? -1) === 0) {
+                $dev = $data['data'] ?? [];
+                // Look for registration status in multiple possible field names
+                if (isset($dev['registrationStatus'])) {
+                    $sipStatus = (int)$dev['registrationStatus'] === 1 ? 'registered' : 'unregistered';
+                } elseif (isset($dev['lineInfo']) && is_array($dev['lineInfo'])) {
+                    foreach ($dev['lineInfo'] as $line) {
+                        if (!empty($line['registered']) || (int)($line['status'] ?? 0) === 1) {
+                            $sipStatus = 'registered';
+                            break;
+                        }
+                    }
+                    if ($sipStatus === '') $sipStatus = 'unregistered';
+                } elseif (isset($dev['sipStatus'])) {
+                    $sipStatus = (int)$dev['sipStatus'] === 1 ? 'registered' : 'unregistered';
+                }
+                PluginGdmsintegrationUtils::debug("GDMS device/detail {$mac}: sip_status={$sipStatus} raw:" . substr(json_encode($dev), 0, 200));
+            } else {
+                PluginGdmsintegrationUtils::debug("GDMS device/detail {$mac}: error or empty response");
+            }
+            $results[strtolower($mac)] = $sipStatus;
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+        curl_multi_close($mh);
+        return $results;
+    }
+
+    /**
      * Get firmware versions for all devices in a network.
      * POST /oapi/v1.0.0/upgrade/version {networkId}
      * Returns: [{mac, type, currentVersion, lastVersion}]
      */
+    /**
+     * Get switch port status via /switch/portInfo.
+     * Returns normalised port array (role=0, link, speed, type, customName, desc, txBytes, rxBytes, vlan).
+     * Only meaningful for GWN78xx / GSS switches — routers/APs return empty.
+     */
+    public static function gwnGetSwitchPortInfo(array $config, string $mac, int $networkId): array {
+        $token  = self::gwnGetToken($config);
+        if (!$token) return [];
+        $appId  = $config['gwn_client_id']     ?? '';
+        $secret = $config['gwn_client_secret'] ?? '';
+
+        $body = json_encode(['mac' => $mac, 'networkId' => $networkId]);
+        $ts   = (int)(microtime(true) * 1000);
+        $sig  = self::gwnBuildSignature($token, $appId, $secret, $ts, $body);
+        $url  = self::GWN_BASE . '/oapi/' . self::VERSION . '/switch/portInfo'
+                . '?access_token=' . urlencode($token)
+                . '&appID='        . urlencode($appId)
+                . "&timestamp={$ts}&signature={$sig}";
+
+        $data = self::curl($url, ['Content-Type: application/json'], $body);
+        if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
+            PluginGdmsintegrationUtils::log("GWN switch/portInfo error for {$mac}: " . ($data['msg'] ?? json_encode($data)));
+            return [];
+        }
+        $raw = $data['data']['result'] ?? [];
+        PluginGdmsintegrationUtils::debug("GWN switch/portInfo {$mac}: " . json_encode($raw));
+        return is_array($raw) ? $raw : [];
+    }
+
     /**
      * Get router port info including WAN status via device/info.
      * Returns portInfo[] and ipv4Info[] for the given router MAC.
@@ -555,7 +801,6 @@ class PluginGdmsintegrationAPI {
         $secret = $config['gwn_client_secret'] ?? '';
 
         $body = json_encode(['mac' => $mac, 'networkId' => $networkId]);
-        $sig  = self::gwnBuildSignature($token, $appId, $secret, (int)(microtime(true) * 1000), $body);
         $ts   = (int)(microtime(true) * 1000);
         $sig  = self::gwnBuildSignature($token, $appId, $secret, $ts, $body);
         $url  = self::GWN_BASE . '/oapi/v1.0.0/device/info'
