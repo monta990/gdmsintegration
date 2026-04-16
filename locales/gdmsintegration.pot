@@ -5,111 +5,36 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gdmsintegration 1.3.1\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-11\n"
-"PO-Revision-Date: 2026-04-07\n"
+"POT-Creation-Date: 2026-04-12\n"
+"PO-Revision-Date: 2026-04-12\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: front/config.form.php:38
-msgid "GWN Networking: connection successful."
+#: front/history_export.php:79
+msgid "%% Online %d days"
 msgstr ""
 
-#: front/config.form.php:42
-msgid "GWN Networking:"
+#: front/dashboard.php:707
+msgid "%s — since first seen in cloud (%s, ~%d days)"
 msgstr ""
 
-#: front/config.form.php:48
-msgid "GDMS Unified Communications: connection successful."
+#: front/config.form.php:245
+msgid "A webhook lets GDMS notify GLPI immediately when a device goes offline, instead of waiting for the next scheduled sync. If you configure it in GDMS, paste the URL below into GDMS → System → Alerts → Webhook."
 msgstr ""
 
-#: front/config.form.php:52
-msgid "GDMS Unified Communications:"
-msgstr ""
-
-#: front/config.form.php:58
-msgid "Configuration saved. No credentials to test yet."
-msgstr ""
-
-#: front/config.form.php:62
-msgid "Configuration saved."
-msgstr ""
-
-#: front/config.form.php:91 inc/config.class.php:14 inc/menu.class.php:25
-msgid "GDMS Configuration"
-msgstr ""
-
-#: front/config.form.php:100
-msgid "Saved — leave empty to keep"
-msgstr ""
-
-#: front/config.form.php:117 front/dashboard.php:393
-msgid "Connected"
-msgstr ""
-
-#: front/config.form.php:121
-msgid "Not configured"
-msgstr ""
-
-#: front/config.form.php:131
-msgid "Entity"
-msgstr ""
-
-#: front/config.form.php:133
-msgid "GLPI entity this configuration applies to."
-msgstr ""
-
-#: front/config.form.php:141
-msgid "GDMS Account"
-msgstr ""
-
-#: front/config.form.php:145
-msgid ""
-"Your gdms.cloud login credentials. Used to authenticate against the GDMS API."
-msgstr ""
-
-#: front/config.form.php:149
-msgid "GDMS Username"
-msgstr ""
-
-#: front/config.form.php:153
-msgid "Your gdms.cloud username"
-msgstr ""
-
-#: front/config.form.php:154
-msgid "Username (not email) to sign in to gdms.cloud."
-msgstr ""
-
-#: front/config.form.php:157
-msgid "GDMS Password"
-msgstr ""
-
-#: front/config.form.php:158
-msgid "Your gdms.cloud password"
-msgstr ""
-
-#: front/config.form.php:159
-msgid "Your gdms.cloud login password. Stored encrypted."
-msgstr ""
-
-#: front/config.form.php:170
-msgid "GDMS Networking — APs, Switches & Routers"
-msgstr ""
-
-#: front/config.form.php:178
-msgid ""
-"Syncs GWN APs, switches and routers. No username or password required — only "
-"API credentials."
-msgstr ""
-
-#: front/config.form.php:179 front/config.form.php:215
-msgid "Credentials from"
+#: front/dashboard.php:844
+msgid "AP"
 msgstr ""
 
 #: front/config.form.php:185 front/config.form.php:221
 msgid "API ID"
+msgstr ""
+
+#: front/config.form.php:225
+msgid "API ID from GDMS developer page"
 msgstr ""
 
 #: front/config.form.php:189
@@ -120,71 +45,108 @@ msgstr ""
 msgid "API ID from gdms.cloud → GDMS Networking → API Developer."
 msgstr ""
 
-#: front/config.form.php:193 front/config.form.php:229
-msgid "API Secret Key"
-msgstr ""
-
-#: front/config.form.php:194
-msgid "Secret Key from GWN developer page"
-msgstr ""
-
-#: front/config.form.php:195
-msgid ""
-"API Secret Key from gdms.cloud → GDMS Networking → API Developer. Stored "
-"encrypted."
-msgstr ""
-
-#: front/config.form.php:206
-msgid "GDMS Unified Communications — Phones & PBX"
-msgstr ""
-
-#: front/config.form.php:214
-msgid "Syncs GRP, GXP, GXV, WP phones and UCM PBX appliances."
-msgstr ""
-
-#: front/config.form.php:225
-msgid "API ID from GDMS developer page"
-msgstr ""
-
 #: front/config.form.php:226
 msgid "API ID shown in GDMS → System → API Development."
 msgstr ""
 
-#: front/config.form.php:230
-msgid "Secret Key from GDMS developer page"
+#: front/config.form.php:193 front/config.form.php:229
+msgid "API Secret Key"
 msgstr ""
 
 #: front/config.form.php:231
 msgid "API Secret Key from GDMS → System → API Development. Stored encrypted."
 msgstr ""
 
-#: front/config.form.php:241
-msgid "Webhook (optional)"
+#: front/config.form.php:195
+msgid "API Secret Key from gdms.cloud → GDMS Networking → API Developer. Stored encrypted."
 msgstr ""
 
-#: front/config.form.php:245
-msgid ""
-"A webhook lets GDMS notify GLPI immediately when a device goes offline, "
-"instead of waiting for the next scheduled sync. If you configure it in GDMS, "
-"paste the URL below into GDMS → System → Alerts → Webhook."
+#: front/dashboard.php:853
+msgid "Alert"
 msgstr ""
 
-#: front/config.form.php:249
-msgid "Webhook Secret"
+#: front/dashboard.php:798 front/dashboard.php:980
+msgid "Apply now (ASAP)"
 msgstr ""
 
-#: front/config.form.php:253
-msgid "Optional — leave empty to skip validation"
+#: front/dashboard.php:518
+msgid "Avail. %"
 msgstr ""
 
-#: front/config.form.php:254
-msgid ""
-"If set, GDMS must sign each request with this secret. Recommended for "
-"security."
+#: front/history_export.php:139
+msgid "Availability %"
 msgstr ""
 
-#: front/config.form.php:257
-msgid "Your Webhook URL"
+#: front/config.form.php:307
+msgid "Availability chart — days to display"
+msgstr ""
+
+#: front/dashboard.php:856
+msgid "Band"
+msgstr ""
+
+#: front/dashboard.php:829
+msgid "Beta firmware"
+msgstr ""
+
+#: front/history_export.php:159 inc/sync.class.php:1176
+msgid "Bronze"
+msgstr ""
+
+#: front/dashboard.php:863
+msgid "Category"
+msgstr ""
+
+#: front/dashboard.php:960
+msgid "Checking firmware…"
+msgstr ""
+
+#: front/dashboard.php:574
+msgid "Click for network details"
+msgstr ""
+
+#: front/dashboard.php:608
+msgid "Click to check firmware"
+msgstr ""
+
+#: front/dashboard.php:732
+msgid "Click to see connected clients"
+msgstr ""
+
+#: front/dashboard.php:404 front/dashboard.php:517 front/dashboard.php:846
+msgid "Clients"
+msgstr ""
+
+#: front/dashboard.php:986 front/dashboard.php:1253 front/dashboard.php:1455 front/dashboard.php:1555
+msgid "Close"
+msgstr ""
+
+#: front/dashboard.php:440
+msgid "Cloud Alerts"
+msgstr ""
+
+#: front/config.form.php:62
+msgid "Configuration saved."
+msgstr ""
+
+#: front/config.form.php:58
+msgid "Configuration saved. No credentials to test yet."
+msgstr ""
+
+#: front/config.form.php:117 front/dashboard.php:405
+msgid "Connected"
+msgstr ""
+
+#: front/dashboard.php:1547
+msgid "Connected Clients"
+msgstr ""
+
+#: front/dashboard.php:819
+msgid "Connected for"
+msgstr ""
+
+#: front/dashboard.php:816
+msgid "Connection"
 msgstr ""
 
 #: front/config.form.php:262
@@ -195,659 +157,572 @@ msgstr ""
 msgid "Copy this URL and paste it in the GDMS webhook settings."
 msgstr ""
 
-#: front/config.form.php:274
-msgid "Dashboard auto-refresh (seconds)"
+#: front/dashboard.php:849
+msgid "Could not load alerts"
 msgstr ""
 
-#: front/config.form.php:278
-msgid ""
-"How often the dashboard syncs from the cloud. Minimum 30s, default 300s (5 "
-"min)."
+#: front/config.form.php:179 front/config.form.php:215
+msgid "Credentials from"
 msgstr ""
 
-#: front/config.form.php:281
-msgid "Debug logging"
+#: front/dashboard.php:470 front/history_export.php:159 inc/sync.class.php:1177
+msgid "Critical"
 msgstr ""
 
-#: front/config.form.php:286
-msgid "Verbose logging (debug mode)"
+#: front/dashboard.php:477
+msgid "Critical SLA — devices offline"
 msgstr ""
 
-#: front/config.form.php:290
-msgid ""
-"Enable verbose API and sync logging. Recommended only for troubleshooting — "
-"generates large log entries."
+#: front/dashboard.php:516
+msgid "Cumulative upload / download since device first registered in cloud. Hover a cell for the exact period."
 msgstr ""
 
-#: front/config.form.php:292
-msgid "When disabled, only errors and key sync results are logged."
+#: front/dashboard.php:833
+msgid "Current firmware"
+msgstr ""
+
+#: front/dashboard.php:860
+msgid "DNS"
+msgstr ""
+
+#: front/dashboard.php:17 front/dashboard.php:341
+msgid "Dashboard"
 msgstr ""
 
 #: front/config.form.php:302
 msgid "Dashboard & Tickets"
 msgstr ""
 
-#: front/config.form.php:307
-msgid "Availability chart — days to display"
-msgstr ""
-
-#: front/config.form.php:310
-msgid ""
-"Recommended: 60 days. Values above 90 days may slow down the dashboard due "
-"to larger history queries."
-msgstr ""
-
-#: front/config.form.php:313
-msgid "Ticket requester (user)"
-msgstr ""
-
-#: front/config.form.php:317
-msgid "System / cron user (default)"
-msgstr ""
-
-#: front/config.form.php:326
-msgid ""
-"This user will be set as the requester on automatically generated incident "
-"tickets."
-msgstr ""
-
-#: front/config.form.php:329
-msgid "Network topology card"
-msgstr ""
-
-#: front/config.form.php:334
-msgid "Show topology card on dashboard"
-msgstr ""
-
-#: front/config.form.php:337
-msgid ""
-"When disabled, the topology graph is hidden and its data processing is "
-"skipped entirely."
-msgstr ""
-
-#: front/config.form.php:345
-msgid "Save"
-msgstr ""
-
-#: front/config.form.php:349
-msgid "Go to Dashboard"
-msgstr ""
-
-#: front/dashboard.php:432
-msgid "Cloud Alerts"
-msgstr ""
-
-#: front/dashboard.php:440
-msgid "Loading alerts…"
-msgstr ""
-
-#: front/dashboard.php:828
-msgid "No recent alerts"
-msgstr ""
-
-#: front/dashboard.php:829
-msgid "Could not load alerts"
-msgstr ""
-
-#: front/dashboard.php:830
-msgid "Time"
-msgstr ""
-
-#: front/dashboard.php:831
-msgid "Severity"
-msgstr ""
-
-#: front/dashboard.php:833
-msgid "Alert"
-msgstr ""
-
-#: front/dashboard.php:834
-msgid "Dismiss"
-msgstr ""
-
-#: front/dashboard.php:17 front/dashboard.php:329
-msgid "Dashboard"
-msgstr ""
-
-#: front/dashboard.php:37
-msgid "Last sync: just now"
-msgstr ""
-
-#: front/dashboard.php:38
-#, php-format
-msgid "Last sync: %d min ago"
-msgstr ""
-
-#: front/dashboard.php:39
-#, php-format
-msgid "Last sync: %dh ago"
-msgstr ""
-
-#: front/dashboard.php:40
-#, php-format
-msgid "Last sync: %dd ago"
-msgstr ""
-
-#: front/dashboard.php:60
-msgid "GDMS not configured yet"
-msgstr ""
-
-#: front/dashboard.php:61
-msgid ""
-"To start syncing your Grandstream devices, you need to connect your GDMS "
-"Cloud account. It only takes a moment."
-msgstr ""
-
-#: front/dashboard.php:63
-msgid "Set up GDMS"
-msgstr ""
-
-#: front/dashboard.php:330
-msgid "Live view of your Grandstream cloud devices"
-msgstr ""
-
-#: front/dashboard.php:339
-msgid "Sync now"
-msgstr ""
-
-#: front/dashboard.php:342
-msgid "Settings"
-msgstr ""
-
-#: front/dashboard.php:355
-msgid "Networks"
-msgstr ""
-
-#: front/dashboard.php:356 front/dashboard.php:771
-msgid "Total"
-msgstr ""
-
-#: front/dashboard.php:360 front/dashboard.php:772
-msgid "Router"
-msgstr ""
-
-#: front/dashboard.php:362 front/dashboard.php:370 front/dashboard.php:378
-#: front/dashboard.php:386 front/dashboard.php:617 front/dashboard.php:733
-msgid "Online"
-msgstr ""
-
-#: front/dashboard.php:363 front/dashboard.php:371 front/dashboard.php:379
-#: front/dashboard.php:387 front/dashboard.php:617
-msgid "Offline"
-msgstr ""
-
-#: front/dashboard.php:368 front/dashboard.php:773
-msgid "Switch"
-msgstr ""
-
-#: front/dashboard.php:384 front/dashboard.php:775
-msgid "Phones & PBX"
-msgstr ""
-
-#: front/dashboard.php:392 front/dashboard.php:482 front/dashboard.php:776
-msgid "Clients"
-msgstr ""
-
-#: front/dashboard.php:423
-msgid "Overall availability"
-msgstr ""
-
-#: front/dashboard.php:423
-msgid "all devices"
-msgstr ""
-
-#: front/dashboard.php:429 front/dashboard.php:769
-msgid "online"
-msgstr ""
-
-#: front/dashboard.php:435 front/history_export.php:159 inc/sync.class.php:1034
-msgid "Critical"
-msgstr ""
-
-#: front/dashboard.php:442
-msgid "Critical SLA — devices offline"
-msgstr ""
-
-#: front/dashboard.php:452
-msgid "uptime"
-msgstr ""
-
-#: front/dashboard.php:464
-msgid "Devices"
-msgstr ""
-
-#: front/dashboard.php:470
-msgid "Device Name"
-msgstr ""
-
-#: front/dashboard.php:471 front/dashboard.php:748
-msgid "Type"
-msgstr ""
-
-#: front/dashboard.php:472
-msgid "Model"
-msgstr ""
-
-#: front/dashboard.php:473 front/dashboard.php:512
-msgid "Network"
-msgstr ""
-
-#: front/dashboard.php:474
-msgid "IP"
-msgstr ""
-
-#: front/dashboard.php:475
-msgid "MAC Address"
-msgstr ""
-
-#: front/dashboard.php:476
-msgid "Serial"
-msgstr ""
-
-#: front/dashboard.php:477
-msgid "Firmware"
-msgstr ""
-
-#: front/dashboard.php:478
-msgid "Ports"
-msgstr ""
-
-#: front/dashboard.php:479
-msgid "Uptime"
-msgstr ""
-
-#: front/dashboard.php:480 front/dashboard.php:750
-msgid "Status"
-msgstr ""
-
-#: front/dashboard.php:481
-msgid ""
-"Cumulative upload / download since device first registered in cloud. Hover a "
-"cell for the exact period."
-msgstr ""
-
-#: front/dashboard.php:481
-msgid "Traffic ↑↓"
-msgstr ""
-
-#: front/dashboard.php:483
-msgid "Avail. %"
-msgstr ""
-
-#: front/dashboard.php:484
-msgid "SLA"
-msgstr ""
-
-#: front/dashboard.php:510
-msgid "Phone"
-msgstr ""
-
-#: front/dashboard.php:539
-msgid "Click for network details"
-msgstr ""
-
-#: front/dashboard.php:563
-msgid "Firmware update available"
-msgstr ""
-
-#: front/dashboard.php:595 front/dashboard.php:736
-msgid "Network usage"
-msgstr ""
-
-#: front/dashboard.php:596 front/dashboard.php:738
-msgid "Upload"
-msgstr ""
-
-#: front/dashboard.php:596 front/dashboard.php:739
-msgid "Download"
-msgstr ""
-
-#: front/dashboard.php:604 front/dashboard.php:740
-msgid "First seen"
-msgstr ""
-
-#: front/dashboard.php:605 front/dashboard.php:741
-msgid "Last seen"
-msgstr ""
-
-#: front/dashboard.php:634
-msgid "WAN port aggregate (sum of all WAN ports since last router reboot)"
-msgstr ""
-
-#: front/dashboard.php:635
-msgid "Device-reported traffic (wireless client usage)"
-msgstr ""
-
-#: front/dashboard.php:644
-#, php-format
-msgid "%s — since first seen in cloud (%s, ~%d days)"
-msgstr ""
-
-#: front/dashboard.php:673
-msgid "No GDMS devices found. Run a sync first."
-msgstr ""
-
-#: front/dashboard.php:686
-#, php-format
-msgid "Online %% — last %d days"
-msgstr ""
-
-#: front/dashboard.php:689
-msgid "Export to Excel"
-msgstr ""
-
-#: front/dashboard.php:690
-msgid "Export"
-msgstr ""
-
-#: front/dashboard.php:703
-msgid "Network Topology"
-msgstr ""
-
-#: front/dashboard.php:724
-msgid "Syncing…"
-msgstr ""
-
-#: front/dashboard.php:725
-msgid ""
-"The device will reboot during the update. Schedule during a maintenance "
-"window."
-msgstr ""
-
-#: front/dashboard.php:726
-msgid "Request failed. Check connection."
-msgstr ""
-
-#: front/dashboard.php:727
-msgid "Update scheduled successfully. The device will update shortly."
-msgstr ""
-
-#: front/dashboard.php:728 front/dashboard.php:891
-msgid "Apply now (ASAP)"
-msgstr ""
-
-#: front/dashboard.php:729 front/dashboard.php:894
-msgid "Schedule update"
-msgstr ""
-
-#: front/dashboard.php:730
-msgid "Scheduling…"
-msgstr ""
-
-#: front/dashboard.php:731
-msgid "Link down"
-msgstr ""
-
-#: front/dashboard.php:732
-msgid "Link up"
-msgstr ""
-
-#: front/dashboard.php:734
-msgid "No internet"
-msgstr ""
-
-#: front/dashboard.php:735
-msgid "No ports found"
-msgstr ""
-
-#: front/dashboard.php:737
-msgid "Network traffic"
-msgstr ""
-
-#: front/dashboard.php:742
-msgid "WAN online"
-msgstr ""
-
-#: front/dashboard.php:743
-msgid "WAN up, no internet"
-msgstr ""
-
-#: front/dashboard.php:744
-msgid "WAN up, unknown"
-msgstr ""
-
-#: front/dashboard.php:745
-msgid "LAN up"
-msgstr ""
-
-#: front/dashboard.php:746
-msgid "Connection"
-msgstr ""
-
-#: front/dashboard.php:747
-msgid "IP Address"
-msgstr ""
-
-#: front/dashboard.php:749
-msgid "Connected for"
-msgstr ""
-
-#: front/dashboard.php:751
-msgid "Link speed"
-msgstr ""
-
-#: front/dashboard.php:752
-msgid "Port type"
-msgstr ""
-
-#: front/dashboard.php:753
-msgid "Negotiated speed"
-msgstr ""
-
-#: front/dashboard.php:754
-msgid "Port label"
-msgstr ""
-
-#: front/dashboard.php:755
-msgid "Description"
-msgstr ""
-
-#: front/dashboard.php:756
-msgid "Unknown"
-msgstr ""
-
-#: front/dashboard.php:757
-msgid "Official"
-msgstr ""
-
-#: front/dashboard.php:758
-msgid "Official firmware"
-msgstr ""
-
-#: front/dashboard.php:759
-msgid "Beta firmware"
-msgstr ""
-
-#: front/dashboard.php:760
-msgid "GDMS managed"
-msgstr ""
-
-#: front/dashboard.php:761
-msgid ""
-"GDMS applies the latest firmware available in its repository. The selected "
-"version is informational only."
-msgstr ""
-
-#: front/dashboard.php:762
-msgid "Select version"
-msgstr ""
-
-#: front/dashboard.php:763
-msgid "Current firmware"
-msgstr ""
-
-#: front/dashboard.php:764
-msgid "Latest stable firmware"
-msgstr ""
-
-#: front/dashboard.php:765
-msgid "Device MAC"
-msgstr ""
-
-#: front/dashboard.php:766
-msgid "HDX"
-msgstr ""
-
-#: front/dashboard.php:767
-msgid "FDX"
-msgstr ""
-
-#: front/dashboard.php:768
-msgid "Disconnected"
-msgstr ""
-
-#: front/dashboard.php:770
-msgid "offline"
-msgstr ""
-
-#: front/dashboard.php:774
-msgid "AP"
-msgstr ""
-
-#: front/dashboard.php:864
-msgid "Firmware Update Available"
-msgstr ""
-
-#: front/dashboard.php:871
-msgid "Checking firmware…"
-msgstr ""
-
-#: front/dashboard.php:877
-msgid "Schedule for"
-msgstr ""
-
-#: front/dashboard.php:882
-msgid "Show date picker"
-msgstr ""
-
-#: front/dashboard.php:887
-msgid "Leave empty to apply as soon as possible"
-msgstr ""
-
-#: front/dashboard.php:897 front/dashboard.php:1164 front/dashboard.php:1342
-msgid "Close"
-msgstr ""
-
-#: front/dashboard.php:1155
-msgid "Port Status"
-msgstr ""
-
-#: front/history_export.php:74
-msgid "Device Availability"
-msgstr ""
-
-#: front/history_export.php:75
-#, php-format
-msgid "Last %d days — generated by GDMS Integration plugin"
-msgstr ""
-
-#: front/history_export.php:79
-#, php-format
-msgid "%% Online %d days"
+#: front/config.form.php:274
+msgid "Dashboard auto-refresh (seconds)"
 msgstr ""
 
 #: front/history_export.php:82
 msgid "Date"
 msgstr ""
 
-#: front/history_export.php:136
-msgid "Summary"
-msgstr ""
-
-#: front/history_export.php:137
-msgid "Device"
-msgstr ""
-
-#: front/history_export.php:139
-msgid "Availability %"
-msgstr ""
-
 #: front/history_export.php:140
 msgid "Days online"
 msgstr ""
 
-#: front/history_export.php:141
-msgid "Total days"
+#: front/config.form.php:281
+msgid "Debug logging"
 msgstr ""
 
-#: front/history_export.php:159 inc/sync.class.php:1031
-msgid "Gold"
+#: front/dashboard.php:825
+msgid "Description"
 msgstr ""
 
-#: front/history_export.php:159 inc/sync.class.php:1032
-msgid "Silver"
+#: front/dashboard.php:852 front/dashboard.php:864 front/history_export.php:137
+msgid "Device"
 msgstr ""
 
-#: front/history_export.php:159 inc/sync.class.php:1033
-msgid "Bronze"
+#: front/history_export.php:74
+msgid "Device Availability"
 msgstr ""
 
-#: inc/menu.class.php:10 inc/menu.class.php:17 inc/menu.class.php:38
-msgid "GDMS Integration"
+#: front/dashboard.php:835
+msgid "Device MAC"
+msgstr ""
+
+#: front/dashboard.php:505
+msgid "Device Name"
+msgstr ""
+
+#: inc/sync.class.php:954
+msgid "Device Offline"
+msgstr ""
+
+#: front/dashboard.php:698
+msgid "Device-reported traffic (wireless client usage)"
+msgstr ""
+
+#: front/dashboard.php:499
+msgid "Devices"
+msgstr ""
+
+#: front/dashboard.php:838
+msgid "Disconnected"
+msgstr ""
+
+#: front/dashboard.php:854
+msgid "Dismiss"
+msgstr ""
+
+#: front/dashboard.php:648 front/dashboard.php:809
+msgid "Download"
+msgstr ""
+
+#: front/config.form.php:290
+msgid "Enable verbose API and sync logging. Recommended only for troubleshooting — generates large log entries."
+msgstr ""
+
+#: front/config.form.php:131
+msgid "Entity"
+msgstr ""
+
+#: front/dashboard.php:760
+msgid "Export"
+msgstr ""
+
+#: front/dashboard.php:759
+msgid "Export to Excel"
+msgstr ""
+
+#: front/dashboard.php:837
+msgid "FDX"
+msgstr ""
+
+#: inc/sync.class.php:938
+msgid "Field"
+msgstr ""
+
+#: front/dashboard.php:512
+msgid "Firmware"
+msgstr ""
+
+#: front/dashboard.php:953
+msgid "Firmware Update Available"
+msgstr ""
+
+#: front/dashboard.php:613
+msgid "Firmware update available"
+msgstr ""
+
+#: front/dashboard.php:657 front/dashboard.php:810
+msgid "First seen"
+msgstr ""
+
+#: front/config.form.php:141
+msgid "GDMS Account"
+msgstr ""
+
+#: front/config.form.php:91 inc/config.class.php:14 inc/menu.class.php:25
+msgid "GDMS Configuration"
 msgstr ""
 
 #: inc/menu.class.php:21
 msgid "GDMS Dashboard"
 msgstr ""
 
+#: inc/menu.class.php:10 inc/menu.class.php:17 inc/menu.class.php:38
+msgid "GDMS Integration"
+msgstr ""
+
+#: front/config.form.php:170
+msgid "GDMS Networking — APs, Switches & Routers"
+msgstr ""
+
+#: front/config.form.php:157
+msgid "GDMS Password"
+msgstr ""
+
+#: front/config.form.php:206
+msgid "GDMS Unified Communications — Phones & PBX"
+msgstr ""
+
+#: front/config.form.php:52
+msgid "GDMS Unified Communications:"
+msgstr ""
+
+#: front/config.form.php:48
+msgid "GDMS Unified Communications: connection successful."
+msgstr ""
+
+#: front/config.form.php:149
+msgid "GDMS Username"
+msgstr ""
+
+#: front/dashboard.php:831
+msgid "GDMS applies the latest firmware available in its repository. The selected version is informational only."
+msgstr ""
+
+#: front/dashboard.php:830
+msgid "GDMS managed"
+msgstr ""
+
+#: front/dashboard.php:60
+msgid "GDMS not configured yet"
+msgstr ""
+
+#: front/config.form.php:133
+msgid "GLPI entity this configuration applies to."
+msgstr ""
+
+#: front/config.form.php:42
+msgid "GWN Networking:"
+msgstr ""
+
+#: front/config.form.php:38
+msgid "GWN Networking: connection successful."
+msgstr ""
+
+#: front/dashboard.php:859
+msgid "Gateway"
+msgstr ""
+
+#: front/config.form.php:349
+msgid "Go to Dashboard"
+msgstr ""
+
+#: front/history_export.php:159 inc/sync.class.php:1174
+msgid "Gold"
+msgstr ""
+
+#: front/dashboard.php:836
+msgid "HDX"
+msgstr ""
+
+#: front/dashboard.php:855
+msgid "Hostname"
+msgstr ""
+
+#: front/config.form.php:278
+msgid "How often the dashboard syncs from the cloud. Minimum 30s, default 300s (5 min)."
+msgstr ""
+
+#: front/dashboard.php:509
+msgid "IP"
+msgstr ""
+
+#: front/dashboard.php:817
+msgid "IP Address"
+msgstr ""
+
+#: front/config.form.php:254
+msgid "If set, GDMS must sign each request with this secret. Recommended for security."
+msgstr ""
+
+#: front/dashboard.php:815
+msgid "LAN up"
+msgstr ""
+
+#: front/history_export.php:75
+msgid "Last %d days — generated by GDMS Integration plugin"
+msgstr ""
+
+#: front/dashboard.php:658 front/dashboard.php:811
+msgid "Last seen"
+msgstr ""
+
+#: front/dashboard.php:38
+msgid "Last sync: %d min ago"
+msgstr ""
+
+#: front/dashboard.php:40
+msgid "Last sync: %dd ago"
+msgstr ""
+
+#: front/dashboard.php:39
+msgid "Last sync: %dh ago"
+msgstr ""
+
+#: front/dashboard.php:37
+msgid "Last sync: just now"
+msgstr ""
+
+#: front/dashboard.php:834
+msgid "Latest stable firmware"
+msgstr ""
+
+#: front/dashboard.php:976
+msgid "Leave empty to apply as soon as possible"
+msgstr ""
+
+#: inc/sync.class.php:773
+msgid "Link Down"
+msgstr ""
+
+#: front/dashboard.php:801
+msgid "Link down"
+msgstr ""
+
+#: front/dashboard.php:821
+msgid "Link speed"
+msgstr ""
+
+#: front/dashboard.php:802
+msgid "Link up"
+msgstr ""
+
+#: front/dashboard.php:342
+msgid "Live view of your Grandstream cloud devices"
+msgstr ""
+
+#: front/dashboard.php:448
+msgid "Loading alerts…"
+msgstr ""
+
+#: front/dashboard.php:656
+msgid "Location"
+msgstr ""
+
+#: front/dashboard.php:510
+msgid "MAC Address"
+msgstr ""
+
+#: front/dashboard.php:507
+msgid "Model"
+msgstr ""
+
+#: inc/sync.class.php:923 inc/sync.class.php:941 inc/sync.class.php:942 inc/sync.class.php:943 inc/sync.class.php:944
+msgid "N/A"
+msgstr ""
+
+#: front/dashboard.php:823
+msgid "Negotiated speed"
+msgstr ""
+
+#: front/dashboard.php:508 front/dashboard.php:547
+msgid "Network"
+msgstr ""
+
+#: front/dashboard.php:773
+msgid "Network Topology"
+msgstr ""
+
+#: front/config.form.php:329
+msgid "Network topology card"
+msgstr ""
+
+#: front/dashboard.php:807
+msgid "Network traffic"
+msgstr ""
+
+#: front/dashboard.php:647 front/dashboard.php:806
+msgid "Network usage"
+msgstr ""
+
+#: front/dashboard.php:367
+msgid "Networks"
+msgstr ""
+
+#: front/dashboard.php:743
+msgid "No GDMS devices found. Run a sync first."
+msgstr ""
+
+#: inc/sync.class.php:773
+msgid "No Internet"
+msgstr ""
+
+#: front/dashboard.php:847
+msgid "No clients connected"
+msgstr ""
+
+#: front/dashboard.php:804
+msgid "No internet"
+msgstr ""
+
+#: front/dashboard.php:805
+msgid "No ports found"
+msgstr ""
+
+#: front/dashboard.php:848
+msgid "No recent alerts"
+msgstr ""
+
+#: front/config.form.php:121
+msgid "Not configured"
+msgstr ""
+
+#: front/dashboard.php:827
+msgid "Official"
+msgstr ""
+
+#: front/dashboard.php:828
+msgid "Official firmware"
+msgstr ""
+
+#: front/dashboard.php:375 front/dashboard.php:383 front/dashboard.php:391 front/dashboard.php:399 front/dashboard.php:670
+msgid "Offline"
+msgstr ""
+
+#: front/dashboard.php:374 front/dashboard.php:382 front/dashboard.php:390 front/dashboard.php:398 front/dashboard.php:670 front/dashboard.php:803
+msgid "Online"
+msgstr ""
+
+#: front/dashboard.php:756
+msgid "Online %% — last %d days"
+msgstr ""
+
+#: front/config.form.php:253
+msgid "Optional — leave empty to skip validation"
+msgstr ""
+
+#: front/dashboard.php:458
+msgid "Overall availability"
+msgstr ""
+
+#: front/dashboard.php:862
+msgid "Packets ↑↓"
+msgstr ""
+
+#: front/dashboard.php:545
+msgid "Phone"
+msgstr ""
+
+#: front/dashboard.php:396 front/dashboard.php:845
+msgid "Phones & PBX"
+msgstr ""
+
+#: front/dashboard.php:1244
+msgid "Port Status"
+msgstr ""
+
+#: front/dashboard.php:824
+msgid "Port label"
+msgstr ""
+
+#: front/dashboard.php:822
+msgid "Port type"
+msgstr ""
+
+#: front/dashboard.php:513
+msgid "Ports"
+msgstr ""
+
+#: front/dashboard.php:589
+msgid "Private IP"
+msgstr ""
+
+#: front/dashboard.php:865
+msgid "Reason"
+msgstr ""
+
+#: front/config.form.php:310
+msgid "Recommended: 60 days. Values above 90 days may slow down the dashboard due to larger history queries."
+msgstr ""
+
+#: front/dashboard.php:796
+msgid "Request failed. Check connection."
+msgstr ""
+
+#: front/dashboard.php:372 front/dashboard.php:842
+msgid "Router"
+msgstr ""
+
+#: front/dashboard.php:678
+msgid "SIP Extension"
+msgstr ""
+
+#: front/dashboard.php:674
+msgid "SIP Reg"
+msgstr ""
+
+#: front/dashboard.php:674
+msgid "SIP Unreg"
+msgstr ""
+
+#: front/dashboard.php:519
+msgid "SLA"
+msgstr ""
+
+#: front/config.form.php:345
+msgid "Save"
+msgstr ""
+
+#: front/config.form.php:100
+msgid "Saved — leave empty to keep"
+msgstr ""
+
+#: front/dashboard.php:966
+msgid "Schedule for"
+msgstr ""
+
+#: front/dashboard.php:799 front/dashboard.php:983
+msgid "Schedule update"
+msgstr ""
+
+#: front/dashboard.php:800
+msgid "Scheduling…"
+msgstr ""
+
+#: front/config.form.php:230
+msgid "Secret Key from GDMS developer page"
+msgstr ""
+
+#: front/config.form.php:194
+msgid "Secret Key from GWN developer page"
+msgstr ""
+
+#: front/dashboard.php:832
+msgid "Select version"
+msgstr ""
+
+#: front/dashboard.php:511
+msgid "Serial"
+msgstr ""
+
+#: front/dashboard.php:63
+msgid "Set up GDMS"
+msgstr ""
+
+#: front/dashboard.php:354
+msgid "Settings"
+msgstr ""
+
+#: front/dashboard.php:851
+msgid "Severity"
+msgstr ""
+
+#: front/dashboard.php:971
+msgid "Show date picker"
+msgstr ""
+
+#: front/config.form.php:334
+msgid "Show topology card on dashboard"
+msgstr ""
+
+#: front/dashboard.php:857
+msgid "Signal"
+msgstr ""
+
+#: front/history_export.php:159 inc/sync.class.php:1175
+msgid "Silver"
+msgstr ""
+
+#: front/dashboard.php:515 front/dashboard.php:820
+msgid "Status"
+msgstr ""
+
+#: front/history_export.php:136
+msgid "Summary"
+msgstr ""
+
+#: front/dashboard.php:380 front/dashboard.php:843
+msgid "Switch"
+msgstr ""
+
+#: front/dashboard.php:351
+msgid "Sync now"
+msgstr ""
+
 #: inc/sync.class.php:45
 msgid "Synchronize GDMS cloud devices with GLPI"
 msgstr ""
 
-#: inc/sync.class.php:620
-msgid ""
-"WAN link is up but internet connectivity was lost (ISP / PPPoE failure)."
+#: front/dashboard.php:794
+msgid "Syncing…"
 msgstr ""
 
-#: inc/sync.class.php:621
-msgid "WAN port physical link went down."
+#: front/config.form.php:214
+msgid "Syncs GRP, GXP, GXV, WP phones and UCM PBX appliances."
 msgstr ""
 
-#: inc/sync.class.php:645
-msgid "No Internet"
+#: front/config.form.php:178
+msgid "Syncs GWN APs, switches and routers. No username or password required — only API credentials."
 msgstr ""
 
-#: inc/sync.class.php:645
-msgid "Link Down"
+#: front/config.form.php:317
+msgid "System / cron user (default)"
 msgstr ""
 
-#: inc/sync.class.php:706
-#, php-format
-msgid ""
-"✅ WAN port **%s** on **%s** has recovered — link up and internet "
-"connectivity confirmed as of %s. Ticket auto-resolved by GDMS Integration."
+#: front/dashboard.php:858
+msgid "TX / RX"
 msgstr ""
 
-#: inc/sync.class.php:788 inc/sync.class.php:806 inc/sync.class.php:807
-#: inc/sync.class.php:808 inc/sync.class.php:809
-msgid "N/A"
-msgstr ""
-
-#: inc/sync.class.php:802
-msgid "went offline and is no longer reachable."
-msgstr ""
-
-#: inc/sync.class.php:803
-msgid "Field"
-msgstr ""
-
-#: inc/sync.class.php:804
-msgid "Value"
-msgstr ""
-
-#: inc/sync.class.php:812
-msgid "This ticket was automatically generated by the GDMS Integration plugin."
-msgstr ""
-
-#: inc/sync.class.php:819
-msgid "Device Offline"
-msgstr ""
-
-#: inc/sync.class.php:885
-#, php-format
-msgid ""
-"✅ Device **%s** is back online as of %s. Ticket auto-resolved by GDMS "
-"Integration."
+#: front/dashboard.php:795
+msgid "The device will reboot during the update. Schedule during a maintenance window."
 msgstr ""
 
 #: setup.php:40
@@ -858,38 +733,159 @@ msgstr ""
 msgid "This plugin requires the PHP cURL extension."
 msgstr ""
 
-#: front/dashboard.php
-msgid "Location"
+#: inc/sync.class.php:947
+msgid "This ticket was automatically generated by the GDMS Integration plugin."
 msgstr ""
 
-#: front/dashboard.php
-msgid "Private IP"
+#: front/config.form.php:326
+msgid "This user will be set as the requester on automatically generated incident tickets."
 msgstr ""
 
-#: front/dashboard.php
-msgid "SIP Extension"
+#: front/config.form.php:313
+msgid "Ticket requester (user)"
 msgstr ""
 
-#: front/dashboard.php
-msgid "Gateway"
+#: front/dashboard.php:850
+msgid "Time"
 msgstr ""
 
-#: front/dashboard.php
-msgid "DNS"
+#: front/dashboard.php:61
+msgid "To start syncing your Grandstream devices, you need to connect your GDMS Cloud account. It only takes a moment."
 msgstr ""
 
-#: front/dashboard.php
+#: front/dashboard.php:368 front/dashboard.php:841
+msgid "Total"
+msgstr ""
+
+#: front/history_export.php:141
+msgid "Total days"
+msgstr ""
+
+#: front/dashboard.php:516
+msgid "Traffic ↑↓"
+msgstr ""
+
+#: front/dashboard.php:506 front/dashboard.php:818
+msgid "Type"
+msgstr ""
+
+#: front/dashboard.php:826
+msgid "Unknown"
+msgstr ""
+
+#: front/dashboard.php:797
+msgid "Update scheduled successfully. The device will update shortly."
+msgstr ""
+
+#: front/dashboard.php:648 front/dashboard.php:808
+msgid "Upload"
+msgstr ""
+
+#: front/dashboard.php:514
+msgid "Uptime"
+msgstr ""
+
+#: front/config.form.php:154
+msgid "Username (not email) to sign in to gdms.cloud."
+msgstr ""
+
+#: inc/sync.class.php:939
+msgid "Value"
+msgstr ""
+
+#: front/config.form.php:286
+msgid "Verbose logging (debug mode)"
+msgstr ""
+
+#: front/dashboard.php:861
 msgid "WAN MAC"
 msgstr ""
 
-#: front/dashboard.php
-msgid "Packets ↑↓"
+#: inc/sync.class.php:748
+msgid "WAN link is up but internet connectivity was lost (ISP / PPPoE failure)."
 msgstr ""
 
-#: front/dashboard.php
-msgid "Category"
+#: front/dashboard.php:812
+msgid "WAN online"
 msgstr ""
 
-#: front/dashboard.php
-msgid "Reason"
+#: front/dashboard.php:697
+msgid "WAN port aggregate (sum of all WAN ports since last router reboot)"
 msgstr ""
+
+#: inc/sync.class.php:749
+msgid "WAN port physical link went down."
+msgstr ""
+
+#: front/dashboard.php:813
+msgid "WAN up, no internet"
+msgstr ""
+
+#: front/dashboard.php:814
+msgid "WAN up, unknown"
+msgstr ""
+
+#: front/config.form.php:241
+msgid "Webhook (optional)"
+msgstr ""
+
+#: front/config.form.php:249
+msgid "Webhook Secret"
+msgstr ""
+
+#: front/config.form.php:292
+msgid "When disabled, only errors and key sync results are logged."
+msgstr ""
+
+#: front/config.form.php:337
+msgid "When disabled, the topology graph is hidden and its data processing is skipped entirely."
+msgstr ""
+
+#: front/config.form.php:257
+msgid "Your Webhook URL"
+msgstr ""
+
+#: front/config.form.php:145
+msgid "Your gdms.cloud login credentials. Used to authenticate against the GDMS API."
+msgstr ""
+
+#: front/config.form.php:159
+msgid "Your gdms.cloud login password. Stored encrypted."
+msgstr ""
+
+#: front/config.form.php:158
+msgid "Your gdms.cloud password"
+msgstr ""
+
+#: front/config.form.php:153
+msgid "Your gdms.cloud username"
+msgstr ""
+
+#: front/dashboard.php:458
+msgid "all devices"
+msgstr ""
+
+#: front/dashboard.php:840
+msgid "offline"
+msgstr ""
+
+#: front/dashboard.php:464 front/dashboard.php:839
+msgid "online"
+msgstr ""
+
+#: front/dashboard.php:487
+msgid "uptime"
+msgstr ""
+
+#: inc/sync.class.php:937
+msgid "went offline and is no longer reachable."
+msgstr ""
+
+#: inc/sync.class.php:1021
+msgid "✅ Device **%s** is back online as of %s. Ticket auto-resolved by GDMS Integration."
+msgstr ""
+
+#: inc/sync.class.php:840
+msgid "✅ WAN port **%s** on **%s** has recovered — link up and internet connectivity confirmed as of %s. Ticket auto-resolved by GDMS Integration."
+msgstr ""
+

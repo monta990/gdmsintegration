@@ -615,7 +615,8 @@ class PluginGdmsintegrationAPI {
             PluginGdmsintegrationUtils::debug("GWN alert sample (network {$networkId}): " . json_encode($raw[0]));
         }
         // Normalize field names — actual GWN API uses: id, time, level, content, detailMap
-        $sevMap = [1 => 'critical', 2 => 'warning', 3 => 'medium', 4 => 'low', 5 => 'info'];
+        // GWN Cloud: higher level = more severe (5=Emergency, 4=Alert, 3=Warning, 2=Notice, 1=Info)
+        $sevMap = [5 => 'critical', 4 => 'warning', 3 => 'medium', 2 => 'low', 1 => 'info'];
         foreach ($raw as &$a) {
             // id (may be int)
             $a['id'] = (string)($a['id'] ?? $a['alertId'] ?? $a['alert_id'] ?? '');
@@ -685,95 +686,6 @@ class PluginGdmsintegrationAPI {
             return false;
         }
         return true;
-    }
-
-    /**
-     * Batch fetch GDMS UC device detail for SIP registration status.
-     * Uses curl_multi — all requests fire simultaneously.
-     * Returns: [mac => sip_status_string] where status is 'registered'|'unregistered'|''
-     * @param array $macs  list of MACs in colon-lowercase format
-     */
-    public static function gdmsGetSipStatusBatch(array $config, array $macs): array {
-        if (empty($macs)) return [];
-        $token    = $config['access_token'] ?? '';
-        $clientId = $config['client_id']     ?? '';
-        $secret   = $config['client_secret'] ?? '';
-        if (!$token) return [];
-
-        $baseUrl = self::GDMS_BASE . '/' . self::VERSION . '/device/detail';
-        $mh      = curl_multi_init();
-        $handles = [];
-
-        foreach ($macs as $mac) {
-            $body = json_encode(['mac' => strtoupper($mac)]);
-            $ts   = (int)(microtime(true) * 1000);
-            // URL params for signing
-            $urlParams = ['access_token' => $token];
-            $sig  = self::gdmsBuildSignature($urlParams, $config, $ts, $body);
-            $url  = $baseUrl . '?' . http_build_query([
-                'access_token' => $token,
-                'timestamp'    => $ts,
-                'signature'    => $sig,
-            ]);
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST           => true,
-                CURLOPT_POSTFIELDS     => $body,
-                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-                CURLOPT_TIMEOUT        => 8,
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_SSL_VERIFYHOST => 2,
-            ]);
-            curl_multi_add_handle($mh, $ch);
-            $handles[$mac] = $ch;
-        }
-
-        $running = null;
-        do {
-            curl_multi_exec($mh, $running);
-            if ($running) curl_multi_select($mh, 0.5);
-        } while ($running > 0);
-
-        $results = [];
-        foreach ($handles as $mac => $ch) {
-            $raw  = curl_multi_getcontent($ch);
-            $data = $raw ? json_decode($raw, true) : null;
-            $sipStatus    = '';
-            $sipExtension = '';
-            if (is_array($data) && (int)($data['retCode'] ?? -1) === 0) {
-                $dev = $data['data'] ?? [];
-                // Look for registration status in multiple possible field names
-                if (isset($dev['registrationStatus'])) {
-                    $sipStatus = (int)$dev['registrationStatus'] === 1 ? 'registered' : 'unregistered';
-                } elseif (isset($dev['lineInfo']) && is_array($dev['lineInfo'])) {
-                    foreach ($dev['lineInfo'] as $line) {
-                        if (!empty($line['registered']) || (int)($line['status'] ?? 0) === 1) {
-                            $sipStatus = 'registered';
-                        }
-                        // Extract extension number from first line with one set
-                        if ($sipExtension === '') {
-                            $ext = (string)($line['extension'] ?? $line['lineNumber'] ?? $line['number'] ?? '');
-                            if ($ext !== '' && $ext !== '0') {
-                                $sipExtension = $ext;
-                            }
-                        }
-                        if ($sipStatus !== '') break; // stop after first registered line
-                    }
-                    if ($sipStatus === '') $sipStatus = 'unregistered';
-                } elseif (isset($dev['sipStatus'])) {
-                    $sipStatus = (int)$dev['sipStatus'] === 1 ? 'registered' : 'unregistered';
-                }
-                PluginGdmsintegrationUtils::debug("GDMS device/detail {$mac}: sip_status={$sipStatus} extension={$sipExtension} raw:" . substr(json_encode($dev), 0, 200));
-            } else {
-                PluginGdmsintegrationUtils::debug("GDMS device/detail {$mac}: error or empty response");
-            }
-            $results[strtolower($mac)] = ['status' => $sipStatus, 'extension' => $sipExtension];
-            curl_multi_remove_handle($mh, $ch);
-            curl_close($ch);
-        }
-        curl_multi_close($mh);
-        return $results;
     }
 
     /**

@@ -75,7 +75,7 @@ A horizontal availability bar below the cards shows the overall online percentag
 
 #### Device table
 
-Each row shows: device name (link to GLPI asset), type badge, model, network/site, public IP (WHOIS link), MAC, serial, firmware + upgrade icon, ports dots, uptime, status badge, availability %, SLA tier.
+Each row shows: device name (link to GLPI asset), type badge, model, network/site, public IP (WHOIS link) + private IP + IPv6 (when available), MAC, serial, firmware + upgrade icon, ports dots, uptime, status badge, availability %, SLA tier.
 
 #### Uptime cell — quick-access tooltip
 
@@ -85,6 +85,7 @@ Hovering over the uptime value shows a multi-line tooltip with traffic and timin
 - **WiFi channels** — active 2.4 GHz and/or 5 GHz channel numbers (only shown for wireless devices that report them).
 - **First seen** — date and time the device first connected to the cloud.
 - **Last seen** — most recent heartbeat timestamp.
+- **Location** — physical location/site from the cloud API (when available).
 
 > This tooltip is purely informational and requires no click.
 
@@ -124,9 +125,9 @@ Every online GWN router shows one colour-coded dot per physical port in the Port
 
 2. **Port legend** — colour key for the dot colour scheme.
 
-3. **Port cards** — one card per port with: silk-screen label, port name, WAN connection name, IP address, WAN type (DHCP / Static / PPPoE), link speed (e.g. `1G FDX`), time connected. GE and SFP port types are distinguished.
+3. **Port cards** — one card per WAN port with: silk-screen label, port name, WAN connection name, IP address, WAN type (DHCP / Static / PPPoE / PPTP / L2TP), gateway IP + reachability, primary and secondary DNS, WAN MAC, IPv6 address (when available), link speed (e.g. `1G FDX`), TX/RX packet counters, time connected. GE, SFP, and combo ports are distinguished. LAN port cards show link speed, label, description, VLAN, and per-port TX/RX byte counters.
 
-> Ports only appear for GWN routers (GWN7001, GWN7002, etc.). Switches, APs, phones and PBX devices do not report port data.
+> WAN port detail is available for GWN routers (GWN7001, GWN7002, etc.). LAN port detail is available for GWN switches (GWN78xx / GSS). APs, phones, and PBX devices do not report port data.
 
 ---
 
@@ -279,7 +280,7 @@ After saving, the plugin tests both API connections and shows green/red status b
 | Table | Purpose |
 |-------|---------|
 | `glpi_plugin_gdmsintegration_configs` | Credentials and settings per entity |
-| `glpi_plugin_gdmsintegration_devices` | Live device state: MAC, status, network_id, network_name, IP, firmware, uptime_sec, sn_cloud, wan_ports_json, model, cloud_name, clients, upload_bytes, download_bytes, usage_bytes, channel_2g, channel_5g, first_seen, last_seen, mgmt_ip |
+| `glpi_plugin_gdmsintegration_devices` | Live device state: MAC, status, network_id, network_name, IP, firmware, uptime_sec, sn_cloud, wan_ports_json, model, cloud_name, clients, upload_bytes, download_bytes, usage_bytes, channel_2g, channel_5g, first_seen, last_seen, mgmt_ip, firmware_latest, ipv6, private_ip, location |
 | `glpi_plugin_gdmsintegration_history` | Per-device status snapshots (retention based on `chart_days` config) |
 | `glpi_plugin_gdmsintegration_links` | Network topology edges |
 

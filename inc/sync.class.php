@@ -147,31 +147,7 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                 $gdmsCount   = count($gdmsDevices);
                 PluginGdmsintegrationUtils::log("[{$ts}] GDMS API returned {$gdmsCount} device(s)");
 
-                // Batch-fetch SIP registration status for online UC phones
-                $sip_macs = [];
-                foreach ($gdmsDevices as $gd) {
-                    if ((int)($gd['status'] ?? 0) !== 1) continue;
-                    $gmodel = strtoupper(trim($gd['deviceType'] ?? ''));
-                    foreach (['GRP','GXP','GXV','GXW','WP','HT','DP','GHP','GVC','GSC','GDS'] as $pfx) {
-                        if (str_starts_with($gmodel, $pfx)) {
-                            $gmac = strtolower(trim($gd['mac'] ?? ''));
-                            if ($gmac) $sip_macs[] = $gmac;
-                            break;
-                        }
-                    }
-                }
-                $sip_map = !empty($sip_macs)
-                    ? PluginGdmsintegrationAPI::gdmsGetSipStatusBatch($config, array_slice($sip_macs, 0, 100))
-                    : [];
-                foreach ($gdmsDevices as &$gd2) {
-                    $gmac2 = strtolower(trim($gd2['mac'] ?? ''));
-                    $detail = $sip_map[$gmac2] ?? null;
-                    $gd2['sip_status']    = is_array($detail) ? ($detail['status']    ?? '') : ($detail ?? '');
-                    $gd2['sip_extension'] = is_array($detail) ? ($detail['extension'] ?? '') : '';
-                }
-                unset($gd2);
-
-                $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
+$synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 PluginGdmsintegrationUtils::log("[{$ts}] GDMS sync complete — {$synced} device(s) processed");
                 $total += $synced;
                 $gdms_api_ok = true;

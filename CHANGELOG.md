@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.2] — 2026-04-15
+
+### Fixed
+- **GLPI version constraint** — `plugin_version_gdmsintegration_check()` returned incompatible for GLPI 11.x installs that resolved to a minor version outside the previously declared range. Bumped version to 1.3.2 to clear the constraint conflict.
+
+---
+
 ## [1.3.1] — 2026-04-12
 
 ### Added
@@ -14,7 +21,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 **API extraction**
 - **gwnGetDevices** extracts ipv6/ipv6Address and location/site from ap/list response
-- **gdmsGetSipStatusBatch** now returns ['status' => ..., 'extension' => ...] — extension extracted from lineInfo[].extension/lineNumber
 - **gwnGetAlerts** normalizes basicDataKey → category, detailMap.reason, detailMap.port_id, detailMap.deviceType
 
 **WAN port summary** 9 new fields per port — wanType, gateway, gatewayStatus, firstDns, secondDns, wamMac, portIpv6, isCombo, txPackets/rxPackets
