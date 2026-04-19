@@ -736,12 +736,14 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
         );
         $ticket  = new Ticket();
         // Resolve tech and use asset's own entity for the ticket location
-        $tech_id = 0;
+        $tech_id      = 0;
+        $locations_id = 0;
         if ($glpi_id > 0) {
             $assetObj = new $itemtype();
             if ($assetObj->getFromDB($glpi_id)) {
-                $tech_id     = (int)($assetObj->fields['users_id_tech'] ?? 0);
-                $entities_id = (int)($assetObj->fields['entities_id']   ?? $entities_id);
+                $tech_id      = (int)($assetObj->fields['users_id_tech'] ?? 0);
+                $entities_id  = (int)($assetObj->fields['entities_id']   ?? $entities_id);
+                $locations_id = (int)($assetObj->fields['locations_id']  ?? 0);
             }
         }
         $cfg_req      = PluginGdmsintegrationConfig::getConfigByEntity($entities_id);
@@ -758,6 +760,9 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             'type'        => Ticket::INCIDENT_TYPE,
             'status'      => ($tech_id > 0) ? Ticket::ASSIGNED : Ticket::INCOMING,
         ];
+        if ($locations_id > 0) {
+            $ticket_data['locations_id'] = $locations_id;
+        }
         if ($tech_id > 0) {
             $ticket_data['_actors']['assign'] = [
                 ['itemtype' => 'User', 'items_id' => $tech_id, 'use_notification' => 1],
@@ -800,13 +805,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             if (!$t->getFromDB($link['tickets_id'])) continue;
             $open = [Ticket::INCOMING, Ticket::ASSIGNED, Ticket::PLANNED, Ticket::WAITING];
             if (!in_array((int)$t->fields['status'], $open)) continue;
-            // Match new-style tickets (marker embedded in name since 1.2.8)
-            // OR legacy tickets created before 1.2.8 that have the port number but no marker.
-            $isMarkerMatch = str_contains($t->fields['name'], $marker);
-            $isLegacyMatch = !$isMarkerMatch
-                          && str_contains($t->fields['name'], '[GDMS]')
-                          && str_contains($t->fields['name'], '— WAN ' . $portSilk);
-            if (!$isMarkerMatch && !$isLegacyMatch) continue;
+            if (!str_contains($t->fields['name'], $marker)) continue;
 
             $followup = new ITILFollowup();
             $followup->add([
@@ -878,17 +877,27 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             }
 
             // Use the asset's own entity so the ticket lands in the correct location.
-            $tech_id = 0;
+            $tech_id      = 0;
+            $locations_id = 0;
             if ($glpi_id > 0) {
                 $assetObj = new $itemtype();
                 if ($assetObj->getFromDB($glpi_id)) {
-                    $tech_id     = (int)($assetObj->fields['users_id_tech'] ?? 0);
-                    $entities_id = (int)($assetObj->fields['entities_id']   ?? $entities_id);
+                    $tech_id      = (int)($assetObj->fields['users_id_tech'] ?? 0);
+                    $entities_id  = (int)($assetObj->fields['entities_id']   ?? $entities_id);
+                    $locations_id = (int)($assetObj->fields['locations_id']  ?? 0);
                 }
             }
 
-            // Urgency/Impact: routers = high (4), switches/phones = medium (3)
-            $isRouter = ($itemtype === 'NetworkEquipment');
+            // Urgency/Impact: routers = high (4), switches / APs / phones = medium (3)
+            $isRouter = false;
+            if (!empty($mac)) {
+                $devState = new PluginGdmsintegrationDevice();
+                $stRows   = $devState->find(['mac' => $mac], [], 1);
+                if (!empty($stRows)) {
+                    $m = strtoupper(reset($stRows)['model'] ?? '');
+                    $isRouter = (bool) preg_match('/^GWN700[123]/', $m);
+                }
+            }
             $urgency  = $isRouter ? 4 : 3;
             $impact   = $isRouter ? 4 : 3;
             $priority = $isRouter ? 4 : 3;
@@ -902,24 +911,24 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 "**%s** %s\n\n" .
                 "| %s | %s |\n|---|---|\n" .
                 "| **MAC** | %s |\n" .
-                "| **Serie** | %s |\n" .
-                "| **IP** | %s |\n" .
-                "| **Red** | %s |\n" .
-                "| **Firmware** | %s |\n" .
-                "| **Último tiempo activo** | %s |\n" .
-                "| **Detectado** | %s |\n\n" .
+                "| **%s** | %s |\n" .
+                "| **%s** | %s |\n" .
+                "| **%s** | %s |\n" .
+                "| **%s** | %s |\n" .
+                "| **%s** | %s |\n" .
+                "| **%s** | %s |\n\n" .
                 "*%s*",
                 $name,
                 __('went offline and is no longer reachable.', 'gdmsintegration'),
                 __('Field', 'gdmsintegration'),
                 __('Value', 'gdmsintegration'),
                 strtoupper($mac),
-                strtoupper($serial) ?: __('N/A', 'gdmsintegration'),
-                $ip       ?: __('N/A', 'gdmsintegration'),
-                $network  ?: __('N/A', 'gdmsintegration'),
-                $firmware ?: __('N/A', 'gdmsintegration'),
-                $uptimeStr,
-                $now,
+                __('Serial', 'gdmsintegration'),      strtoupper($serial) ?: __('N/A', 'gdmsintegration'),
+                __('IP', 'gdmsintegration'),          $ip       ?: __('N/A', 'gdmsintegration'),
+                __('Network', 'gdmsintegration'),     $network  ?: __('N/A', 'gdmsintegration'),
+                __('Firmware', 'gdmsintegration'),    $firmware ?: __('N/A', 'gdmsintegration'),
+                __('Last uptime', 'gdmsintegration'), $uptimeStr,
+                __('Detected', 'gdmsintegration'),    $now,
                 __('This ticket was automatically generated by the GDMS Integration plugin.', 'gdmsintegration')
             );
 
@@ -936,6 +945,9 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 'type'        => Ticket::INCIDENT_TYPE,
                 'status'      => ($tech_id > 0) ? Ticket::ASSIGNED : Ticket::INCOMING,
             ];
+            if ($locations_id > 0) {
+                $ticket_data['locations_id'] = $locations_id;
+            }
             if ($tech_id > 0) {
                 $ticket_data['_actors']['assign'] = [
                     ['itemtype' => 'User', 'items_id' => $tech_id, 'use_notification' => 1],
@@ -1129,6 +1141,29 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
     // -----------------------------------------------------------------------
     // Uptime / SLA helpers — used by dashboard
     // -----------------------------------------------------------------------
+
+    /**
+     * Batch version — single DB query for all MACs. Returns [mac => float].
+     */
+    public static function calculateUptimeBatch(array $macs): array {
+        if (empty($macs)) return [];
+        $history = new PluginGdmsintegrationHistory();
+        $rows    = $history->find(['mac' => $macs]);
+        $total   = [];
+        $online  = [];
+        foreach ($rows as $r) {
+            $m = $r['mac'];
+            $total[$m]  = ($total[$m]  ?? 0) + 1;
+            if ($r['status'] === 'online') $online[$m] = ($online[$m] ?? 0) + 1;
+        }
+        $result = [];
+        foreach ($macs as $mac) {
+            $t = $total[$mac] ?? 0;
+            $result[$mac] = $t > 0 ? round(($online[$mac] ?? 0) / $t * 100, 2) : 0.0;
+        }
+        return $result;
+    }
+
     public static function calculateUptime(string $mac): float {
         $history = new PluginGdmsintegrationHistory();
         $rows    = $history->find(['mac' => $mac]);
@@ -1145,11 +1180,14 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
         return round(($online / $total) * 100, 2);
     }
 
-    public static function calculateSLA(string $mac): string {
-        $uptime = self::calculateUptime($mac);
+    public static function slaLabel(float $uptime): string {
         if ($uptime >= 99.9) return __('Gold',     'gdmsintegration');
         if ($uptime >= 99.0) return __('Silver',   'gdmsintegration');
         if ($uptime >= 95.0) return __('Bronze',   'gdmsintegration');
         return __('Critical', 'gdmsintegration');
+    }
+
+    public static function calculateSLA(string $mac): string {
+        return self::slaLabel(self::calculateUptime($mac));
     }
 }

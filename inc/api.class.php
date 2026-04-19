@@ -204,6 +204,12 @@ class PluginGdmsintegrationAPI {
             $all  = array_merge($all, $batch);
             $page++;
         } while (!empty($batch) && $page <= self::MAX_PAGES);
+        if (!empty($batch)) {
+            PluginGdmsintegrationUtils::log(
+                'GDMS WARNING: device list truncated at page ' . self::MAX_PAGES
+                . ' (~' . (self::MAX_PAGES * 100) . ' devices max). Some devices may be missing from sync.'
+            );
+        }
         return $all;
     }
 

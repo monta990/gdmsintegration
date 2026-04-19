@@ -3,6 +3,37 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.3] — 2026-04-18
+
+### Added
+- **Ticket location** — auto-created offline and WAN tickets inherit `locations_id` from the linked GLPI asset when set.
+- **Sortable dashboard table** — Device Name, Type, Model, Network, Status, Clients, Avail. %, and SLA headers are clickable (↑/↓). Click again to reverse direction.
+- **Default table order** — network devices (routers, switches, APs) listed before phones; within each group sorted by name.
+- **Sort persistence** — active sort column/direction stored in URL query string (`?sort=col&dir=asc`); survives reload and is shareable.
+- **Reset sort button** — "Reset sort" button appears in Devices card header when a column sort is active; restores default order.
+- **`slaLabel(float $uptime)`** — new static helper on `PluginGdmsintegrationSync`; dashboard now calls `calculateUptime()` only once per device instead of twice.
+
+### Fixed
+- Ticket body field labels ("Serial", "Network", "Last uptime", "Detected") were hardcoded in Spanish — now use `__()` and are translated in all locales.
+- Empty-row fallback in device table had wrong `colspan="13"` — corrected to 15.
+
+### Changed
+- WAN ticket legacy-match code (pre-1.2.8 fallback) removed — only marker-based matching used.
+- Ticket urgency now checks device model prefix — only GWN7001/7002/7003 routers get High(4); switches, APs, and phones get Medium(3) as intended.
+- Locales updated: 8 new strings — "Last uptime", "Detected", "Reset sort", "DHCP", "Static" (→ localized), "PPPoE", "PPTP", "L2TP". 228 strings total.
+
+### Performance
+- Dashboard uptime calculation reduced from N queries (one per device) to 1 batch query via new `calculateUptimeBatch()` method.
+
+### Fixed
+- Ticket body "IP" row label was hardcoded — now uses `__('IP', 'gdmsintegration')`.
+- WAN type labels in port modal ("DHCP", "Static", "PPPoE", "PPTP", "L2TP") were hardcoded JS strings — now injected from PHP via `__()`.
+- "No history" devices (new, never synced) assigned `sla_rank=3` (Critical) — now get rank 4 (N/A) when device is online with zero history, keeping them out of the Critical tier in sort.
+- `history_export.php` entity access check — validates `entities_id` against user's accessible entities, not just global config read right.
+- `gdmsGetDevices()` now logs a warning when the 50-page / ~5000-device ceiling is hit so the operator knows the list was truncated.
+
+---
+
 ## [1.3.2] — 2026-04-15
 
 ### Fixed

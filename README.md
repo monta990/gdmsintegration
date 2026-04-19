@@ -1,7 +1,7 @@
 <p align="center"><img src="logo.png" alt="GDMS Integration"></p>
 <h1 align="center">GDMS Integration</h1>
 <p align="center">
-  <strong>GLPI plugin — Grandstream GWN Cloud &amp; GDMS Unified Communications integration (Grandstream Device Management System (GDMS))</strong>
+  <strong>GLPI plugin — Grandstream GWN Cloud &amp; GDMS Unified Communications integration</strong>
 </p>
 <p align="center">
   <a href="https://github.com/glpi-project/glpi" target="_blank"><img src="https://img.shields.io/badge/GLPI-11.0%2B-blue" alt="GLPI compatibility"></a>
@@ -14,7 +14,7 @@
 
 ## Overview
 
-Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS (Grandstream Device Management System) Cloud into GLPI. Raises incident tickets when devices go offline and auto-resolves them on recovery. Assigned technicians are notified automatically. Provides a real-time NOC dashboard with per-network device stats, traffic metrics, interactive port status, configurable availability history, network topology, Excel export, and firmware update scheduling for all Grandstream device families (GWN, UCM, GRP, GXV, WP, HT).
+Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS Cloud into GLPI. Raises incident tickets when devices go offline and auto-resolves them on recovery. Assigned technicians are notified automatically. Provides a real-time NOC dashboard with per-network device stats, traffic metrics, interactive port status, configurable availability history, network topology, Excel export, and firmware update scheduling for all Grandstream device families (GWN, UCM, GRP, GXV, WP, HT).
 
 ---
 
@@ -76,6 +76,8 @@ A horizontal availability bar below the cards shows the overall online percentag
 #### Device table
 
 Each row shows: device name (link to GLPI asset), type badge, model, network/site, public IP (WHOIS link) + private IP + IPv6 (when available), MAC, serial, firmware + upgrade icon, ports dots, uptime, status badge, availability %, SLA tier.
+
+Default order is network devices (routers → switches → APs) first, then phones and PBX, each group sorted by name. Click any of the column headers **Device Name, Type, Model, Network, Status, Clients, Avail. %,** or **SLA** to sort ascending; click again to reverse. A **Reset sort** button appears in the card header to restore the default order. The active sort is persisted in the URL query string so it survives page reload.
 
 #### Uptime cell — quick-access tooltip
 
@@ -192,6 +194,7 @@ An amber **⬆** icon appears next to the firmware version when an update is ava
 - **Tech assignment** — if the GLPI asset has a technician set (`users_id_tech`), the ticket is automatically assigned to that user and opens with status "Assigned".
 - **Configurable requester** — a GLPI user can be set as ticket requester in the plugin config (defaults to system/cron user).
 - **Rich body** — table with MAC, serial, IP, network/site, firmware, last uptime, detection timestamp.
+- **Location** — if the GLPI asset has a location set, the ticket inherits that `locations_id`.
 - **Asset element** — asset linked as `Item_Ticket` affected item.
 - **Duplicate guard** — skips creation if an open `[GDMS]` ticket already exists for that asset or port.
 - **Auto-resolve** — on recovery: adds followup note and sets ticket to Solved.

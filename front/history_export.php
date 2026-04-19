@@ -14,6 +14,9 @@ use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 Session::checkRight('config', READ);
 
 $entities_id = (int) ($_GET['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);
+if (!Session::haveAccessToEntity($entities_id)) {
+    Html::displayRightError();
+}
 
 // Respect chart_days config
 $cfg_obj   = new PluginGdmsintegrationConfig();

@@ -889,3 +889,39 @@ msgstr ""
 msgid "✅ WAN port **%s** on **%s** has recovered — link up and internet connectivity confirmed as of %s. Ticket auto-resolved by GDMS Integration."
 msgstr ""
 
+
+#: front/dashboard.php
+msgid "Click to sort"
+msgstr ""
+
+#: inc/sync.class.php
+msgid "Last uptime"
+msgstr ""
+
+#: inc/sync.class.php
+msgid "Detected"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Reset sort"
+msgstr ""
+
+#: front/dashboard.php
+msgid "DHCP"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Static"
+msgstr ""
+
+#: front/dashboard.php
+msgid "PPPoE"
+msgstr ""
+
+#: front/dashboard.php
+msgid "PPTP"
+msgstr ""
+
+#: front/dashboard.php
+msgid "L2TP"
+msgstr ""

@@ -82,6 +82,10 @@ PluginGdmsintegrationUtils::ensureSchema();
 
 $all_states = $state_obj->find(); // every MAC the plugin currently manages in the cloud
 
+// Batch-load uptime for all MACs in one query instead of one query per device
+$_all_macs    = array_filter(array_column($all_states, 'mac'));
+$_uptime_map  = PluginGdmsintegrationSync::calculateUptimeBatch($_all_macs);
+
 // Build MAC → GLPI asset map across ALL entities (entity 0 vs active entity mismatch)
 $mac_to_asset = [];
 foreach (['NetworkEquipment', 'Phone'] as $itemtype) {
@@ -99,8 +103,8 @@ foreach ($all_states as $state) {
     if (empty($mac)) continue;
 
     $isOnline    = ($state['status'] ?? '') === 'online';
-    $uptime      = PluginGdmsintegrationSync::calculateUptime($mac);
-    $sla         = PluginGdmsintegrationSync::calculateSLA($mac);
+    $uptime      = $_uptime_map[$mac] ?? 0.0;
+    $sla         = PluginGdmsintegrationSync::slaLabel($uptime);
     $net_name    = htmlspecialchars($state['network_name'] ?? '', ENT_QUOTES, 'UTF-8');
     $ip          = htmlspecialchars($state['ip']           ?? '', ENT_QUOTES, 'UTF-8');
     $firmware         = htmlspecialchars($state['firmware']          ?? '', ENT_QUOTES, 'UTF-8');
@@ -191,8 +195,17 @@ foreach ($all_states as $state) {
         'ipv6'            => $ipv6,
         'private_ip'      => $private_ip,
         'location'        => $location,
+        'sla_rank'        => ($uptime === 0.0 && $isOnline ? 4 : ($uptime >= 99.9 ? 0 : ($uptime >= 99.0 ? 1 : ($uptime >= 95.0 ? 2 : 3)))),
     ];
 }
+
+// Default order: network devices first, then phones; within each group sort by name
+usort($rows, function(array $a, array $b): int {
+    $ta = ($a['type'] === 'Phone') ? 1 : 0;
+    $tb = ($b['type'] === 'Phone') ? 1 : 0;
+    if ($ta !== $tb) return $ta - $tb;
+    return strnatcasecmp($a['name'], $b['name']);
+});
 
 // Build per-network device stats for tooltip (router/switch/AP/clients counts)
 // Device classification: GWN7001/7002/7003 prefix → router; GWN7800/GSS → switch; GWN76xx → AP; UCM/GCC/GRP/GXP etc → phone/pbx
@@ -496,31 +509,35 @@ foreach ($net_stats as $ns) {
    <div class="card mb-4">
       <div class="card-header d-flex align-items-center gap-2">
          <i class="ti ti-list"></i>
-         <h5 class="mb-0"><?= __('Devices', 'gdmsintegration') ?></h5>
+         <h5 class="mb-0 me-auto"><?= __('Devices', 'gdmsintegration') ?></h5>
+         <button type="button" id="gdms-sort-reset" class="btn btn-sm btn-outline-secondary" style="display:none;"
+                 title="<?= htmlspecialchars(__('Reset sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>">
+            <i class="ti ti-arrows-sort"></i> <?= __('Reset sort', 'gdmsintegration') ?>
+         </button>
       </div>
       <div class="table-responsive">
-         <table class="table table-hover table-sm mb-0">
+         <table id="gdms-device-table" class="table table-hover table-sm mb-0">
             <thead>
                <tr>
-                  <th class="ps-3"><?= __('Device Name', 'gdmsintegration') ?></th>
-                  <th><?= __('Type', 'gdmsintegration') ?></th>
-                  <th><?= __('Model', 'gdmsintegration') ?></th>
-                  <th><?= __('Network', 'gdmsintegration') ?></th>
+                  <th class="ps-3 gdms-sortable" data-col="name" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Device Name', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="type" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Type', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="model" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Model', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="network" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Network', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
                   <th><?= __('IP', 'gdmsintegration') ?></th>
                   <th><?= __('MAC Address', 'gdmsintegration') ?></th>
                   <th><?= __('Serial', 'gdmsintegration') ?></th>
                   <th><?= __('Firmware', 'gdmsintegration') ?></th>
                   <th><?= __('Ports', 'gdmsintegration') ?></th>
                   <th><?= __('Uptime', 'gdmsintegration') ?></th>
-                  <th><?= __('Status', 'gdmsintegration') ?></th>
+                  <th class="gdms-sortable" data-col="status" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Status', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
                   <th title="<?= htmlspecialchars(__('Cumulative upload / download since device first registered in cloud. Hover a cell for the exact period.', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>" style="cursor:default;"><?= __('Traffic ↑↓', 'gdmsintegration') ?> <i class="ti ti-info-circle opacity-50" style="font-size:.75em;"></i></th>
-                  <th><?= __('Clients', 'gdmsintegration') ?></th>
-                  <th><?= __('Avail. %', 'gdmsintegration') ?></th>
-                  <th><?= __('SLA', 'gdmsintegration') ?></th>
+                  <th class="gdms-sortable" data-col="clients" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Clients', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="avail" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Avail. %', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="sla" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('SLA', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
                </tr>
             </thead>
             <tbody>
-               <?php foreach ($rows as $r): ?>
+               <?php $row_idx = 0; foreach ($rows as $r): $row_idx++; ?>
                <?php
                // Convert uptime seconds → d h m
                $us = (int)($r['uptime_sec'] ?? 0);
@@ -529,7 +546,15 @@ foreach ($net_stats as $ns) {
                $um = intdiv($us % 3600, 60);
                $uptime_str = $ud > 0 ? "{$ud}d {$uh}h {$um}m" : ($uh > 0 ? "{$uh}h {$um}m" : "{$um}m");
                ?>
-               <tr>
+               <tr data-original-index="<?= $row_idx ?>"
+                   data-name="<?= htmlspecialchars(strtolower($r['name']), ENT_QUOTES, 'UTF-8') ?>"
+                   data-type="<?= $r['type'] === 'Phone' ? 1 : 0 ?>"
+                   data-model="<?= htmlspecialchars(strtolower($r['model'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                   data-network="<?= htmlspecialchars(strtolower($r['network_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                   data-status="<?= $r['online'] ? 0 : 1 ?>"
+                   data-clients="<?= (int)($r['clients'] ?? 0) ?>"
+                   data-avail="<?= (float)($r['uptime'] ?? 0) ?>"
+                   data-sla="<?= (int)($r['sla_rank'] ?? 3) ?>">
                   <td class="ps-3">
                      <?php if (!empty($r['asset_url'])): ?>
                      <a href="<?= $r['asset_url'] ?>" class="fw-semibold text-decoration-none">
@@ -739,7 +764,7 @@ foreach ($net_stats as $ns) {
                </tr>
                <?php endforeach; ?>
                <?php if (empty($rows)): ?>
-               <tr><td colspan="13" class="text-center text-muted py-3">
+               <tr><td colspan="15" class="text-center text-muted py-3">
                   <?= __('No GDMS devices found. Run a sync first.', 'gdmsintegration') ?>
                </td></tr>
                <?php endif; ?>
@@ -863,6 +888,11 @@ foreach ($net_stats as $ns) {
         alertCategory: <?= json_encode(__('Category',                                                                     'gdmsintegration')) ?>,
         alertDevice:   <?= json_encode(__('Device',                                                                       'gdmsintegration')) ?>,
         alertReason:   <?= json_encode(__('Reason',                                                                       'gdmsintegration')) ?>,
+        wanDhcp:       <?= json_encode(__('DHCP',                                                                         'gdmsintegration')) ?>,
+        wanStatic:     <?= json_encode(__('Static',                                                                       'gdmsintegration')) ?>,
+        wanPppoe:      <?= json_encode(__('PPPoE',                                                                        'gdmsintegration')) ?>,
+        wanPptp:       <?= json_encode(__('PPTP',                                                                         'gdmsintegration')) ?>,
+        wanL2tp:       <?= json_encode(__('L2TP',                                                                         'gdmsintegration')) ?>,
     };
 
 
@@ -1218,7 +1248,7 @@ foreach ($net_stats as $ns) {
     // 4=100M FDX, 5=1G FDX, 6=2.5G FDX, 7=10G FDX.
     // If the API returns an unexpected value, enable verbose debug logging to see raw portInfo.
     var portSpeeds = {0:'—', 1:'10M '+STR.hdx, 2:'10M '+STR.fdx, 3:'100M '+STR.hdx, 4:'100M '+STR.fdx, 5:'1G '+STR.fdx, 6:'1G '+STR.fdx, 7:'10G '+STR.fdx};
-    var wanTypeNames = {0:'DHCP', 1:'Static', 2:'PPPoE', 3:'PPTP', 4:'L2TP'};
+    var wanTypeNames = {0:STR.wanDhcp, 1:STR.wanStatic, 2:STR.wanPppoe, 3:STR.wanPptp, 4:STR.wanL2tp};
     var connectNames = {0:STR.disconnected, 1:STR.online};
 
     function fmtDuration(secs) {
@@ -1748,5 +1778,72 @@ foreach ($net_stats as $ns) {
 })();
 </script>
 <?php endif; ?>
+
+<script>
+(function () {
+    var tbl = document.getElementById('gdms-device-table');
+    if (!tbl) return;
+    var tbody   = tbl.querySelector('tbody');
+    var resetBtn = document.getElementById('gdms-sort-reset');
+    var sortCol = null;
+    var sortAsc = true;
+    var numCols = ['type', 'status', 'clients', 'avail', 'sla'];
+
+    function applySort(col, asc) {
+        sortCol = col; sortAsc = asc;
+        tbl.querySelectorAll('th.gdms-sortable .gdms-sort-icon').forEach(function (ic) {
+            ic.textContent = '⇅'; ic.className = 'gdms-sort-icon opacity-40';
+        });
+        var activeTh = tbl.querySelector('th[data-col="' + col + '"]');
+        if (activeTh) {
+            var icon = activeTh.querySelector('.gdms-sort-icon');
+            if (icon) { icon.textContent = asc ? '↑' : '↓'; icon.className = 'gdms-sort-icon'; }
+        }
+        var rows = Array.from(tbody.querySelectorAll('tr[data-original-index]'));
+        rows.sort(function (a, b) {
+            var av = a.dataset[col] || '', bv = b.dataset[col] || '', cmp;
+            cmp = numCols.indexOf(col) !== -1 ? parseFloat(av) - parseFloat(bv) : av.localeCompare(bv);
+            return asc ? cmp : -cmp;
+        });
+        rows.forEach(function (r) { tbody.appendChild(r); });
+        if (resetBtn) resetBtn.style.display = '';
+    }
+
+    // Restore sort from URL on load
+    (function () {
+        var p = new URLSearchParams(location.search);
+        var c = p.get('sort'), d = p.get('dir');
+        if (c && tbl.querySelector('th[data-col="' + c + '"]')) applySort(c, d !== 'desc');
+    })();
+
+    tbl.querySelectorAll('th.gdms-sortable').forEach(function (th) {
+        th.addEventListener('click', function () {
+            var col = th.dataset.col;
+            var asc = sortCol === col ? !sortAsc : true;
+            applySort(col, asc);
+            var url = new URL(location.href);
+            url.searchParams.set('sort', col);
+            url.searchParams.set('dir', asc ? 'asc' : 'desc');
+            history.replaceState(null, '', url);
+        });
+    });
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function () {
+            sortCol = null;
+            tbl.querySelectorAll('th.gdms-sortable .gdms-sort-icon').forEach(function (ic) {
+                ic.textContent = '⇅'; ic.className = 'gdms-sort-icon opacity-40';
+            });
+            var rows = Array.from(tbody.querySelectorAll('tr[data-original-index]'));
+            rows.sort(function (a, b) { return +a.dataset.originalIndex - +b.dataset.originalIndex; });
+            rows.forEach(function (r) { tbody.appendChild(r); });
+            resetBtn.style.display = 'none';
+            var url = new URL(location.href);
+            url.searchParams.delete('sort'); url.searchParams.delete('dir');
+            history.replaceState(null, '', url);
+        });
+    }
+})();
+</script>
 
 <?php Html::footer(); ?>
