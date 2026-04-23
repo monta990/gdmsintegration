@@ -67,6 +67,7 @@ class PluginGdmsintegrationConfig extends CommonDBTM {
         $input['chart_days']     = min((int)$input['chart_days'], 365);
         $input['show_topology']  = isset($input['show_topology']) ? (int)(bool)$input['show_topology'] : 1;
         $input['ticket_requester_id'] = (int)($input['ticket_requester_id'] ?? 0);
+        $input['wan_debounce_seconds'] = max(0, min(3600, (int)($input['wan_debounce_seconds'] ?? 300)));
 
         $input['date_mod'] = date('Y-m-d H:i:s');
 

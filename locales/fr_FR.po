@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.3.1\n"
+"Project-Id-Version: gdmsintegration 1.3.4\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-12\n"
-"PO-Revision-Date: 2026-04-12\n"
+"POT-Creation-Date: 2026-04-22\n"
+"PO-Revision-Date: 2026-04-22\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language-Team: fr_FR\n"
 "Language: fr_FR\n"
@@ -922,6 +922,14 @@ msgstr "PPPoE"
 #: front/dashboard.php
 msgid "PPTP"
 msgstr "PPTP"
+
+#: front/config.form.php
+msgid "WAN no-internet debounce (seconds)"
+msgstr "Délai anti-rebond WAN sans internet (secondes)"
+
+#: front/config.form.php
+msgid "Seconds to wait before opening a \"no internet\" WAN ticket. Prevents false alerts from transient high-latency events. 0 = open immediately. Default: 300."
+msgstr "Secondes d'attente avant d'ouvrir un ticket « sans internet » WAN. Prévient les fausses alertes dues à des événements transitoires de latence élevée. 0 = ouvrir immédiatement. Défaut : 300."
 
 #: front/dashboard.php
 msgid "L2TP"

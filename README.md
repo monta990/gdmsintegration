@@ -187,8 +187,8 @@ An amber **⬆** icon appears next to the firmware version when an update is ava
 
 - **Auto-open** — `[GDMS]` incident ticket created on:
   - Device `online → offline` transition (device unreachable).
-  - WAN port physical link-down (`linkStatus` 1 → 0).
-  - WAN port internet loss while link stays up (`linkStatus=1`, `connectStatus` 1 → 0) — title suffix "No Internet".
+  - WAN port physical link-down (`linkStatus` 1 → 0) — opens immediately.
+  - WAN port internet loss while link stays up (`linkStatus=1`, `connectStatus` 1 → 0) — title suffix "No Internet". Subject to the configurable debounce delay (default 300 s) to filter transient high-latency false positives.
 - **Failover detection** — when a WAN port goes down and another WAN port on the same router has verified internet, the ticket body includes a "Failover → \<ISP name\>" row.
 - **Urgency routing** — High (4) for routers; Medium (3) for switches and phones.
 - **Tech assignment** — if the GLPI asset has a technician set (`users_id_tech`), the ticket is automatically assigned to that user and opens with status "Assigned".
@@ -271,8 +271,9 @@ Logs written to `files/_log/gdmsintegration.log`.
 | Refresh interval | Dashboard auto-refresh in seconds (default 300) |
 | Debug logging | Toggle verbose logging |
 | Availability chart days | Days of history shown in chart and Excel export (7–365, default 60). Values > 90 may slow the dashboard. |
-| Ticket requester | GLPI user set as requester on auto-generated incident tickets |
+| Ticket requester | GLPI user set as requester on auto-generated incident tickets. Asset's assigned user (`users_id`) takes priority when set. |
 | Show topology card | Toggle the vis-network topology graph. Disabling skips all topology data processing. |
+| WAN no-internet debounce (seconds) | Seconds to wait before opening a "no internet" WAN ticket. Filters false alerts from transient high-latency events. 0 = open immediately. Default: 300. |
 
 After saving, the plugin tests both API connections and shows green/red status badges.
 

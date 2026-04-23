@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.3.1\n"
+"Project-Id-Version: gdmsintegration 1.3.4\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-12\n"
-"PO-Revision-Date: 2026-04-12\n"
+"POT-Creation-Date: 2026-04-22\n"
+"PO-Revision-Date: 2026-04-22\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"

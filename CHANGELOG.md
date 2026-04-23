@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.4] — 2026-04-22
+
+### Fixed
+- **False WAN tickets on all ports** — WAN port ticket loop iterated every port in `wan_ports_json` including LAN ports (role=0). LAN link-down events now correctly skipped via `role != 1` guard at the top of the loop.
+- **Non-router devices treated as routers** — `$is_gwn_router` used `!$is_gwn_switch` as the only exclusion, so APs (GWN76xx) and any NetworkEquipment with a `networkId` could enter the router WAN port code path. Now uses explicit `preg_match('/^GWN700[123]/i', $gdms_model)` — only GWN7001/7002/7003 trigger WAN port monitoring.
+
+### Added
+- **Asset user as ticket requester** — when a GLPI asset has a user assigned (`users_id`), that user is set as requester on auto-generated offline and WAN-down tickets. Takes priority over the entity-level default requester configured in plugin settings.
+- **WAN no-internet debounce** — new config option `wan_debounce_seconds` (default 300 s, range 0–3600). When `connectStatus` drops to 0 (internet lost) the plugin waits the configured number of seconds before opening a ticket. Prevents false alerts caused by transient high-latency events that momentarily fail the router's internet reachability test. Physical link-down events (Case A) are never debounced. Timer is stored inside `wan_ports_json` and survives across sync cycles. Setting to 0 restores the previous immediate-open behaviour. Translated in es_MX, fr_FR, de_DE.
+
+---
+
 ## [1.3.3] — 2026-04-18
 
 ### Added

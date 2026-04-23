@@ -25,7 +25,8 @@ if (isset($_POST['save'])) {
         'debug_logging'       => isset($_POST['debug_logging']) ? 1 : 0,
         'chart_days'          => max(7, min(365, (int)($_POST['chart_days'] ?? 60))),
         'show_topology'       => isset($_POST['show_topology']) ? 1 : 0,
-        'ticket_requester_id' => (int)($_POST['ticket_requester_id'] ?? 0),
+        'ticket_requester_id'  => (int)($_POST['ticket_requester_id'] ?? 0),
+        'wan_debounce_seconds' => max(0, min(3600, (int)($_POST['wan_debounce_seconds'] ?? 300))),
     ]);
 
     // Real connection test after saving
@@ -79,6 +80,7 @@ $has_gwn  = !empty($cur['gwn_client_id']) && !empty($cur['gwn_client_secret']);
 $chart_days           = max(7, min(365, (int)($cur['chart_days'] ?? 60)));
 $show_topology        = (int)($cur['show_topology'] ?? 1);
 $ticket_requester_id  = (int)($cur['ticket_requester_id'] ?? 0);
+$wan_debounce_seconds = max(0, min(3600, (int)($cur['wan_debounce_seconds'] ?? 300)));
 
 // Full absolute webhook URL using the GLPI base URL
 $webhook_url = htmlspecialchars(
@@ -335,6 +337,16 @@ function gdms_badge(bool $ok): string {
                   </label>
                </div>
                <small class="text-muted d-block mt-1"><?= __('When disabled, the topology graph is hidden and its data processing is skipped entirely.', 'gdmsintegration') ?></small>
+            </div>
+         </div>
+         <div class="row g-3 mt-1">
+            <div class="col-md-4">
+               <label class="form-label fw-semibold"><?= __('WAN no-internet debounce (seconds)', 'gdmsintegration') ?></label>
+               <input type="number" class="form-control" name="wan_debounce_seconds"
+                  min="0" max="3600" value="<?= $wan_debounce_seconds ?>">
+               <small class="text-muted d-block mt-1">
+                  <?= __('Seconds to wait before opening a "no internet" WAN ticket. Prevents false alerts from transient high-latency events. 0 = open immediately. Default: 300.', 'gdmsintegration') ?>
+               </small>
             </div>
          </div>
       </div>
