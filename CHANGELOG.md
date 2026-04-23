@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.5] — 2026-04-23
+
+### Added
+- **Disable WAN port tickets** — new config toggle `wan_tickets_enabled` (enabled by default). When turned off, the plugin stops opening incident tickets for WAN link-down and no-internet events entirely. Debounce timers and port state tracking continue normally so the feature can be re-enabled at any time without side-effects. Resolved tickets are still closed automatically. Active regardless of sync method (cron or manual). Translated in es_MX, fr_FR, de_DE.
+
+---
+
 ## [1.3.4] — 2026-04-22
 
 ### Fixed

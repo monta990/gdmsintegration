@@ -923,6 +923,10 @@ msgstr "PPPoE"
 msgid "PPTP"
 msgstr "PPTP"
 
+#: front/dashboard.php
+msgid "L2TP"
+msgstr "L2TP"
+
 #: front/config.form.php
 msgid "WAN no-internet debounce (seconds)"
 msgstr "WAN-Kein-Internet-Entprellzeit (Sekunden)"
@@ -931,6 +935,14 @@ msgstr "WAN-Kein-Internet-Entprellzeit (Sekunden)"
 msgid "Seconds to wait before opening a \"no internet\" WAN ticket. Prevents false alerts from transient high-latency events. 0 = open immediately. Default: 300."
 msgstr "Sekunden, die vor dem Öffnen eines \"Kein Internet\"-WAN-Tickets gewartet wird. Verhindert Fehlalarme bei vorübergehender hoher Latenz. 0 = sofort öffnen. Standard: 300."
 
-#: front/dashboard.php
-msgid "L2TP"
-msgstr "L2TP"
+#: front/config.form.php
+msgid "Create WAN port tickets"
+msgstr "WAN-Port-Tickets erstellen"
+
+#: front/config.form.php
+msgid "Open tickets on WAN port failures"
+msgstr "Tickets bei WAN-Port-Ausfällen öffnen"
+
+#: front/config.form.php
+msgid "When enabled, the plugin automatically opens incident tickets when a WAN port reports link-down or internet loss. Disable to suppress all WAN port alert tickets."
+msgstr "Wenn aktiviert, öffnet das Plugin automatisch Incident-Tickets, wenn ein WAN-Port einen Linkausfall oder Internetverlust meldet. Deaktivieren, um alle WAN-Port-Warntickets zu unterdrücken."

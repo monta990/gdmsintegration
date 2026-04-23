@@ -412,7 +412,8 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                     if ($glpi_id > 0) {
                         $prev_ports = !empty($prev_ports_json) ? (json_decode($prev_ports_json, true) ?? []) : [];
                         $prev_map   = array_column($prev_ports, null, 'id');
-                        $debounce_secs = max(0, (int)($config_data['wan_debounce_seconds'] ?? 300));
+                        $debounce_secs       = max(0, (int)($config_data['wan_debounce_seconds'] ?? 300));
+                        $wan_tickets_enabled = (int)($config_data['wan_tickets_enabled'] ?? 1) === 1;
                         foreach ($wan_summary as &$wp) {
                             // Only process WAN ports (role=1). LAN ports (role=0) never get tickets.
                             if (($wp['role'] ?? 0) != 1) continue;
@@ -425,20 +426,24 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                             if (!$prev_wp) {
                                 if ($wp['link'] == 0) {
                                     // Physical link-down: no debounce — open immediately
+                                    if ($wan_tickets_enabled) {
                                     self::createWanDownTicket(
                                         $name, $mac, $serial, $entities_id,
                                         $matched_type, $glpi_id,
                                         $portLabel, $wp['wanName'] ?? '', $networkName,
                                         'link_down', ''
                                     );
+                                    }
                                 } elseif ($wp['link'] == 1 && ($wp['connectStatus'] ?? -1) == 0) {
                                     if ($debounce_secs === 0) {
+                                        if ($wan_tickets_enabled) {
                                         self::createWanDownTicket(
                                             $name, $mac, $serial, $entities_id,
                                             $matched_type, $glpi_id,
                                             $portLabel, $wp['wanName'] ?? '', $networkName,
                                             'no_internet', ''
                                         );
+                                        }
                                     } else {
                                         $wp['no_inet_since'] = time();
                                         PluginGdmsintegrationUtils::log("GDMS: WAN no-internet debounce started — {$name} port {$portLabel} (first seen, waiting " . ($debounce_secs / 60) . " min)");
@@ -459,12 +464,14 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                                         break;
                                     }
                                 }
+                                if ($wan_tickets_enabled) {
                                 self::createWanDownTicket(
                                     $name, $mac, $serial, $entities_id,
                                     $matched_type, $glpi_id,
                                     $portLabel, $wp['wanName'] ?? '', $networkName,
                                     'link_down', $failoverNote
                                 );
+                                }
                             }
 
                             // Case B: internet lost (link up but connectStatus flipped to 0) — start debounce
@@ -481,12 +488,14 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                                             break;
                                         }
                                     }
+                                    if ($wan_tickets_enabled) {
                                     self::createWanDownTicket(
                                         $name, $mac, $serial, $entities_id,
                                         $matched_type, $glpi_id,
                                         $portLabel, $wp['wanName'] ?? '', $networkName,
                                         'no_internet', $failoverNote
                                     );
+                                    }
                                 } else {
                                     $wp['no_inet_since'] = time();
                                     PluginGdmsintegrationUtils::log("GDMS: WAN no-internet debounce started — {$name} port {$portLabel} (waiting {$debounce_secs}s)");
@@ -509,12 +518,14 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                                             break;
                                         }
                                     }
+                                    if ($wan_tickets_enabled) {
                                     self::createWanDownTicket(
                                         $name, $mac, $serial, $entities_id,
                                         $matched_type, $glpi_id,
                                         $portLabel, $wp['wanName'] ?? '', $networkName,
                                         'no_internet', $failoverNote
                                     );
+                                    }
                                 } else {
                                     // Still within debounce window — carry forward the timer
                                     $wp['no_inet_since'] = $prev_wp['no_inet_since'];

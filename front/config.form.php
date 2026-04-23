@@ -27,6 +27,7 @@ if (isset($_POST['save'])) {
         'show_topology'       => isset($_POST['show_topology']) ? 1 : 0,
         'ticket_requester_id'  => (int)($_POST['ticket_requester_id'] ?? 0),
         'wan_debounce_seconds' => max(0, min(3600, (int)($_POST['wan_debounce_seconds'] ?? 300))),
+        'wan_tickets_enabled'  => isset($_POST['wan_tickets_enabled']) ? 1 : 0,
     ]);
 
     // Real connection test after saving
@@ -81,6 +82,7 @@ $chart_days           = max(7, min(365, (int)($cur['chart_days'] ?? 60)));
 $show_topology        = (int)($cur['show_topology'] ?? 1);
 $ticket_requester_id  = (int)($cur['ticket_requester_id'] ?? 0);
 $wan_debounce_seconds = max(0, min(3600, (int)($cur['wan_debounce_seconds'] ?? 300)));
+$wan_tickets_enabled  = (int)($cur['wan_tickets_enabled'] ?? 1);
 
 // Full absolute webhook URL using the GLPI base URL
 $webhook_url = htmlspecialchars(
@@ -346,6 +348,19 @@ function gdms_badge(bool $ok): string {
                   min="0" max="3600" value="<?= $wan_debounce_seconds ?>">
                <small class="text-muted d-block mt-1">
                   <?= __('Seconds to wait before opening a "no internet" WAN ticket. Prevents false alerts from transient high-latency events. 0 = open immediately. Default: 300.', 'gdmsintegration') ?>
+               </small>
+            </div>
+            <div class="col-md-4">
+               <label class="form-label fw-semibold d-block"><?= __('Create WAN port tickets', 'gdmsintegration') ?></label>
+               <div class="form-check form-switch mt-2">
+                  <input class="form-check-input" type="checkbox" name="wan_tickets_enabled" id="gdms_wan_tickets_enabled" value="1"
+                         <?= ($wan_tickets_enabled === 1) ? 'checked' : '' ?>>
+                  <label class="form-check-label" for="gdms_wan_tickets_enabled">
+                     <?= __('Open tickets on WAN port failures', 'gdmsintegration') ?>
+                  </label>
+               </div>
+               <small class="text-muted d-block mt-1">
+                  <?= __('When enabled, the plugin automatically opens incident tickets when a WAN port reports link-down or internet loss. Disable to suppress all WAN port alert tickets.', 'gdmsintegration') ?>
                </small>
             </div>
          </div>

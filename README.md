@@ -274,6 +274,7 @@ Logs written to `files/_log/gdmsintegration.log`.
 | Ticket requester | GLPI user set as requester on auto-generated incident tickets. Asset's assigned user (`users_id`) takes priority when set. |
 | Show topology card | Toggle the vis-network topology graph. Disabling skips all topology data processing. |
 | WAN no-internet debounce (seconds) | Seconds to wait before opening a "no internet" WAN ticket. Filters false alerts from transient high-latency events. 0 = open immediately. Default: 300. |
+| Create WAN port tickets | Toggle (on by default). When disabled, the plugin suppresses all WAN link-down and no-internet incident tickets. Port state tracking and debounce timers continue running so re-enabling takes effect immediately. Resolved tickets are still closed automatically. |
 
 After saving, the plugin tests both API connections and shows green/red status badges.
 

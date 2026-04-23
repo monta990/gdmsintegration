@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.3.4\n"
+"Project-Id-Version: gdmsintegration 1.3.5\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-22\n"
-"PO-Revision-Date: 2026-04-22\n"
+"POT-Creation-Date: 2026-04-23\n"
+"PO-Revision-Date: 2026-04-23\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -925,3 +925,23 @@ msgstr ""
 #: front/dashboard.php
 msgid "L2TP"
 msgstr ""
+
+#: front/config.form.php
+msgid "WAN no-internet debounce (seconds)"
+msgstr "Debounce de no-internet WAN (segundos)"
+
+#: front/config.form.php
+msgid "Seconds to wait before opening a \"no internet\" WAN ticket. Prevents false alerts from transient high-latency events. 0 = open immediately. Default: 300."
+msgstr "Segundos a esperar antes de abrir un ticket de \"sin internet\" en puertos WAN. Previene alertas falsas por eventos transitorios de alta latencia. 0 = abrir inmediatamente. Predeterminado: 300."
+
+#: front/config.form.php
+msgid "Create WAN port tickets"
+msgstr "Crear tickets de puertos WAN"
+
+#: front/config.form.php
+msgid "Open tickets on WAN port failures"
+msgstr "Abrir tickets cuando fallen los puertos WAN"
+
+#: front/config.form.php
+msgid "When enabled, the plugin automatically opens incident tickets when a WAN port reports link-down or internet loss. Disable to suppress all WAN port alert tickets."
+msgstr "Cuando está habilitado, el plugin abre automáticamente tickets de incidencia cuando un puerto WAN reporta pérdida de enlace o de internet. Deshabilite para suprimir todos los tickets de alerta de puertos WAN."
