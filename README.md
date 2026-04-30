@@ -75,7 +75,7 @@ A horizontal availability bar below the cards shows the overall online percentag
 
 #### Device table
 
-Each row shows: device name (link to GLPI asset), type badge, model, network/site, public IP (WHOIS link) + private IP + IPv6 (when available), MAC, serial, firmware + upgrade icon, ports dots, uptime, status badge, availability %, SLA tier.
+Each row shows: device name (opens GLPI asset in a new tab), type badge, model (click to copy), network/site, public IP (WHOIS link, new tab) + private IP (clickable, opens device admin page in a new tab) + IPv6 (when available), MAC (click to copy), serial (click to copy), firmware + upgrade icon, ports dots, uptime, status badge, availability %, SLA tier.
 
 Default order is network devices (routers → switches → APs) first, then phones and PBX, each group sorted by name. Click any of the column headers **Device Name, Type, Model, Network, Status, Clients, Avail. %,** or **SLA** to sort ascending; click again to reverse. A **Reset sort** button appears in the card header to restore the default order. The active sort is persisted in the URL query string so it survives page reload.
 
@@ -272,9 +272,22 @@ Logs written to `files/_log/gdmsintegration.log`.
 | Debug logging | Toggle verbose logging |
 | Availability chart days | Days of history shown in chart and Excel export (7–365, default 60). Values > 90 may slow the dashboard. |
 | Ticket requester | GLPI user set as requester on auto-generated incident tickets. Asset's assigned user (`users_id`) takes priority when set. |
+| Ticket device name | Auto-generated tickets use the GLPI asset name when the device is already registered in GLPI; falls back to the GDMS cloud name for unregistered devices. |
 | Show topology card | Toggle the vis-network topology graph. Disabling skips all topology data processing. |
 | WAN no-internet debounce (seconds) | Seconds to wait before opening a "no internet" WAN ticket. Filters false alerts from transient high-latency events. 0 = open immediately. Default: 300. |
 | Create WAN port tickets | Toggle (on by default). When disabled, the plugin suppresses all WAN link-down and no-internet incident tickets. Port state tracking and debounce timers continue running so re-enabling takes effect immediately. Resolved tickets are still closed automatically. |
+
+**Ticket creation by device type** — five independent toggles (all on by default):
+
+| Option | Description |
+|--------|-------------|
+| IP Phones (GRP, GXP, GXV, WP) | Open offline tickets when IP phones go offline. |
+| Routers (GWN7001/7002/7003) | Open offline tickets when routers go offline. |
+| Switches (GWN7800, GSS) | Open offline tickets when managed switches go offline. |
+| Access Points (GWN76xx) | Open offline tickets when wireless APs go offline. |
+| IP PBX / UCM (UCM, GCC) | Open offline tickets when UCM/GCC PBX appliances go offline. |
+
+Disabling a type suppresses ticket creation for that category only. Ticket auto-resolution is never suppressed — open tickets still close when a device comes back online.
 
 After saving, the plugin tests both API connections and shows green/red status badges.
 

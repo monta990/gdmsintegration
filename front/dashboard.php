@@ -493,7 +493,7 @@ foreach ($net_stats as $ns) {
             <span class="me-3">
                <i class="ti ti-circle-x text-danger me-1"></i>
                <?php if (!empty($cr['asset_url'])): ?>
-               <a href="<?= $cr['asset_url'] ?>" class="text-danger fw-semibold text-decoration-none"><?= $cr['name'] ?></a>
+               <a href="<?= $cr['asset_url'] ?>" target="_blank" rel="noopener" class="text-danger fw-semibold text-decoration-none"><?= $cr['name'] ?></a>
                <?php else: ?>
                <span class="fw-semibold"><?= $cr['name'] ?></span>
                <?php endif; ?>
@@ -557,7 +557,7 @@ foreach ($net_stats as $ns) {
                    data-sla="<?= (int)($r['sla_rank'] ?? 3) ?>">
                   <td class="ps-3">
                      <?php if (!empty($r['asset_url'])): ?>
-                     <a href="<?= $r['asset_url'] ?>" class="fw-semibold text-decoration-none">
+                     <a href="<?= $r['asset_url'] ?>" target="_blank" rel="noopener" class="fw-semibold text-decoration-none">
                         <?= $r['name'] ?>
                         <i class="ti ti-external-link ms-1 small opacity-50"></i>
                      </a>
@@ -572,7 +572,7 @@ foreach ($net_stats as $ns) {
                      <span class="badge border border-secondary" style="color:inherit"><?= __('Network', 'gdmsintegration') ?></span>
                      <?php endif; ?>
                   </td>
-                  <td><small class="text-muted font-monospace"><?= htmlspecialchars($r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?: '—' ?></small></td>
+                  <td><small class="text-muted font-monospace gdms-copy" style="cursor:pointer;" data-copy="<?= htmlspecialchars($r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(__('Copy model', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?: '—' ?></small></td>
                   <td>
                   <?php
                   $rnet  = $r['network_name'] ?: '';
@@ -606,19 +606,19 @@ foreach ($net_stats as $ns) {
                   </td>
                   <td><small class="font-monospace">
                      <?php if (!empty($r['ip'])): ?>
-                     <a href="https://www.whois.com/whois/<?= urlencode($r['ip']) ?>" target="_blank" rel="noopener" class="text-decoration-none">
+                     <a href="https://www.whois.com/whois/<?= urlencode($r['ip']) ?>" target="_blank" rel="noopener" class="text-decoration-none" title="<?= htmlspecialchars(__('Public IP', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>">
                         <?= $r['ip'] ?> <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i>
                      </a>
                      <?php else: ?>—<?php endif; ?>
                      <?php if (!empty($r['private_ip'])): ?>
-                     <br><span class="text-muted" style="font-size:.85em;" title="<?= htmlspecialchars(__('Private IP', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $r['private_ip'] ?></span>
+                     <br><a href="http://<?= urlencode($r['private_ip']) ?>" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.85em;" title="<?= htmlspecialchars(__('Private IP', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $r['private_ip'] ?> <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
                      <?php endif; ?>
                      <?php if (!empty($r['ipv6'])): ?>
                      <br><span class="text-muted" style="font-size:.75em;word-break:break-all;" title="IPv6"><?= $r['ipv6'] ?></span>
                      <?php endif; ?>
                   </small></td>
-                  <td><code class="small"><?= $r['mac'] ?></code></td>
-                  <td><small class="text-muted"><?= $r['serial'] ?: '—' ?></small></td>
+                  <td><code class="small gdms-copy" style="cursor:pointer;" data-copy="<?= htmlspecialchars($r['mac'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(__('Copy MAC', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $r['mac'] ?></code></td>
+                  <td><small class="text-muted gdms-copy" style="cursor:pointer;" data-copy="<?= htmlspecialchars($r['serial'] ?? '', ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(__('Copy serial', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $r['serial'] ?: '—' ?></small></td>
                   <td class="text-nowrap">
                      <?php if (!empty($r['firmware'])): ?>
                      <?php
@@ -1700,6 +1700,19 @@ foreach ($net_stats as $ns) {
                 });
         }, 4500);
     }
+
+    // Copy-to-clipboard for model, MAC, serial cells
+    document.addEventListener('click', function(e) {
+        var el = e.target.closest('.gdms-copy');
+        if (!el || !el.dataset.copy) return;
+        var val = el.dataset.copy;
+        if (!val) return;
+        navigator.clipboard.writeText(val).then(function() {
+            var prev = el.innerHTML;
+            el.innerHTML = '<span style="color:var(--bs-success,#198754)">✓</span>';
+            setTimeout(function() { el.innerHTML = prev; }, 900);
+        });
+    });
 
     // Chevron rotation for alerts collapse
     var alertsCollapse = document.getElementById('gdms-alerts-collapse');

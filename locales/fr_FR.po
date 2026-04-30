@@ -586,6 +586,18 @@ msgstr "Ports"
 msgid "Private IP"
 msgstr "IP privée"
 
+msgid "Public IP"
+msgstr "IP publique"
+
+msgid "Copy model"
+msgstr "Copier le modèle"
+
+msgid "Copy MAC"
+msgstr "Copier le MAC"
+
+msgid "Copy serial"
+msgstr "Copier le numéro de série"
+
 #: front/dashboard.php:865
 msgid "Reason"
 msgstr "Motif"
@@ -946,3 +958,31 @@ msgstr "Ouvrir des tickets en cas de panne de port WAN"
 #: front/config.form.php
 msgid "When enabled, the plugin automatically opens incident tickets when a WAN port reports link-down or internet loss. Disable to suppress all WAN port alert tickets."
 msgstr "Lorsque cette option est activée, le plugin ouvre automatiquement des tickets d'incident lorsqu'un port WAN signale une perte de lien ou de connectivité internet. Désactivez pour supprimer tous les tickets d'alerte de port WAN."
+
+#: front/config.form.php
+msgid "Ticket creation by device type"
+msgstr "Création de tickets par type d'équipement"
+
+#: front/config.form.php
+msgid "Controls which device types trigger offline incident tickets when they go offline. All types are enabled by default."
+msgstr "Contrôle les types d'équipements qui génèrent des tickets d'incident lors de leur déconnexion. Tous les types sont activés par défaut."
+
+#: front/config.form.php
+msgid "IP Phones (GRP, GXP, GXV, WP)"
+msgstr "Téléphones IP (GRP, GXP, GXV, WP)"
+
+#: front/config.form.php
+msgid "Routers (GWN7001/7002/7003)"
+msgstr "Routeurs (GWN7001/7002/7003)"
+
+#: front/config.form.php
+msgid "Switches (GWN7800, GSS)"
+msgstr "Commutateurs (GWN7800, GSS)"
+
+#: front/config.form.php
+msgid "Access Points (GWN76xx)"
+msgstr "Points d'accès (GWN76xx)"
+
+#: front/config.form.php
+msgid "IP PBX / UCM (UCM, GCC)"
+msgstr "IP PBX / UCM (UCM, GCC)"

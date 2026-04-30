@@ -28,6 +28,11 @@ if (isset($_POST['save'])) {
         'ticket_requester_id'  => (int)($_POST['ticket_requester_id'] ?? 0),
         'wan_debounce_seconds' => max(0, min(3600, (int)($_POST['wan_debounce_seconds'] ?? 300))),
         'wan_tickets_enabled'  => isset($_POST['wan_tickets_enabled']) ? 1 : 0,
+        'tickets_phone'        => isset($_POST['tickets_phone'])  ? 1 : 0,
+        'tickets_router'       => isset($_POST['tickets_router']) ? 1 : 0,
+        'tickets_switch'       => isset($_POST['tickets_switch']) ? 1 : 0,
+        'tickets_ap'           => isset($_POST['tickets_ap'])     ? 1 : 0,
+        'tickets_pbx'          => isset($_POST['tickets_pbx'])    ? 1 : 0,
     ]);
 
     // Real connection test after saving
@@ -83,6 +88,11 @@ $show_topology        = (int)($cur['show_topology'] ?? 1);
 $ticket_requester_id  = (int)($cur['ticket_requester_id'] ?? 0);
 $wan_debounce_seconds = max(0, min(3600, (int)($cur['wan_debounce_seconds'] ?? 300)));
 $wan_tickets_enabled  = (int)($cur['wan_tickets_enabled'] ?? 1);
+$tickets_phone  = (int)($cur['tickets_phone']  ?? 1);
+$tickets_router = (int)($cur['tickets_router'] ?? 1);
+$tickets_switch = (int)($cur['tickets_switch'] ?? 1);
+$tickets_ap     = (int)($cur['tickets_ap']     ?? 1);
+$tickets_pbx    = (int)($cur['tickets_pbx']    ?? 1);
 
 // Full absolute webhook URL using the GLPI base URL
 $webhook_url = htmlspecialchars(
@@ -362,6 +372,66 @@ function gdms_badge(bool $ok): string {
                <small class="text-muted d-block mt-1">
                   <?= __('When enabled, the plugin automatically opens incident tickets when a WAN port reports link-down or internet loss. Disable to suppress all WAN port alert tickets.', 'gdmsintegration') ?>
                </small>
+            </div>
+         </div>
+      </div>
+   </div>
+
+   <!-- ── Ticket creation by device type ──────────────────────────────────── -->
+   <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+         <i class="ti ti-ticket"></i>
+         <h5 class="mb-0"><?= __('Ticket creation by device type', 'gdmsintegration') ?></h5>
+      </div>
+      <div class="card-body">
+         <p class="text-muted mb-3">
+            <?= __('Controls which device types trigger offline incident tickets when they go offline. All types are enabled by default.', 'gdmsintegration') ?>
+         </p>
+         <div class="row g-3">
+            <div class="col-md-4 col-lg-2">
+               <div class="form-check form-switch mt-1">
+                  <input class="form-check-input" type="checkbox" name="tickets_phone" id="gdms_tickets_phone" value="1"
+                         <?= ($tickets_phone === 1) ? 'checked' : '' ?>>
+                  <label class="form-check-label fw-semibold" for="gdms_tickets_phone">
+                     <?= __('IP Phones (GRP, GXP, GXV, WP)', 'gdmsintegration') ?>
+                  </label>
+               </div>
+            </div>
+            <div class="col-md-4 col-lg-2">
+               <div class="form-check form-switch mt-1">
+                  <input class="form-check-input" type="checkbox" name="tickets_router" id="gdms_tickets_router" value="1"
+                         <?= ($tickets_router === 1) ? 'checked' : '' ?>>
+                  <label class="form-check-label fw-semibold" for="gdms_tickets_router">
+                     <?= __('Routers (GWN7001/7002/7003)', 'gdmsintegration') ?>
+                  </label>
+               </div>
+            </div>
+            <div class="col-md-4 col-lg-2">
+               <div class="form-check form-switch mt-1">
+                  <input class="form-check-input" type="checkbox" name="tickets_switch" id="gdms_tickets_switch" value="1"
+                         <?= ($tickets_switch === 1) ? 'checked' : '' ?>>
+                  <label class="form-check-label fw-semibold" for="gdms_tickets_switch">
+                     <?= __('Switches (GWN7800, GSS)', 'gdmsintegration') ?>
+                  </label>
+               </div>
+            </div>
+            <div class="col-md-4 col-lg-2">
+               <div class="form-check form-switch mt-1">
+                  <input class="form-check-input" type="checkbox" name="tickets_ap" id="gdms_tickets_ap" value="1"
+                         <?= ($tickets_ap === 1) ? 'checked' : '' ?>>
+                  <label class="form-check-label fw-semibold" for="gdms_tickets_ap">
+                     <?= __('Access Points (GWN76xx)', 'gdmsintegration') ?>
+                  </label>
+               </div>
+            </div>
+            <div class="col-md-4 col-lg-2">
+               <div class="form-check form-switch mt-1">
+                  <input class="form-check-input" type="checkbox" name="tickets_pbx" id="gdms_tickets_pbx" value="1"
+                         <?= ($tickets_pbx === 1) ? 'checked' : '' ?>>
+                  <label class="form-check-label fw-semibold" for="gdms_tickets_pbx">
+                     <?= __('IP PBX / UCM (UCM, GCC)', 'gdmsintegration') ?>
+                  </label>
+               </div>
             </div>
          </div>
       </div>

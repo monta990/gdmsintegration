@@ -8,7 +8,7 @@ use Glpi\Plugin\Hooks;
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.3.5');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.3.6');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI',  '11.0');
 define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '11.99');
 
@@ -27,7 +27,7 @@ function plugin_version_gdmsintegration(): array {
                 'min' => PLUGIN_GDMSINTEGRATION_MIN_GLPI,
                 'max' => PLUGIN_GDMSINTEGRATION_MAX_GLPI,
             ],
-            'php'  => ['min' => '8.1'],
+            'php'  => ['min' => '8.2'],
         ],
     ];
 }

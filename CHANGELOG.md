@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.6] — 2026-04-29
+
+### Added
+- **Ticket creation by device type** — new "Ticket creation by device type" config section with five independent toggles: IP Phones (GRP/GXP/GXV/WP), Routers (GWN7001/7002/7003), Switches (GWN7800/GSS), Access Points (GWN76xx), and IP PBX / UCM (UCM/GCC). All enabled by default for backward compatibility. Disabling a toggle suppresses offline incident tickets for that device category; ticket resolution remains unaffected so existing open tickets still auto-close. Translated in es_MX, fr_FR, de_DE.
+- **GLPI asset name on tickets** — offline and WAN-down ticket subjects now use the GLPI asset name when the device is already registered in GLPI. Falls back to the GDMS cloud name for unregistered devices.
+- **Private IP in offline tickets** — offline incident ticket body now includes the device's private/LAN IP alongside the public IP.
+- **Dashboard UX improvements** — device name and Critical SLA banner links now open in a new browser tab; private IP cell is clickable and opens the device's admin page (`http://<private_ip>`) in a new tab; model, MAC, and serial cells copy their value to the clipboard on click (brief ✓ flash confirms the copy).
+
+---
+
 ## [1.3.5] — 2026-04-23
 
 ### Added

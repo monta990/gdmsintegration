@@ -43,6 +43,24 @@ class PluginGdmsintegrationAPI {
         return null;
     }
 
+    /**
+     * Returns device category string for ticket-type gating:
+     * 'phone' | 'router' | 'switch' | 'ap' | 'pbx' | 'unknown'
+     */
+    public static function getDeviceCategory(string $model): string {
+        $upper = strtoupper(trim($model));
+        foreach (self::PHONE_PREFIXES as $p) {
+            if (str_starts_with($upper, $p)) return 'phone';
+        }
+        foreach (self::PBX_PREFIXES as $p) {
+            if (str_starts_with($upper, $p)) return 'pbx';
+        }
+        if (preg_match('/^GWN700[123]/i', $upper)) return 'router';
+        if (preg_match('/^GWN78|^GSS/i', $upper))  return 'switch';
+        if (str_starts_with($upper, 'GWN'))          return 'ap';
+        return 'unknown';
+    }
+
     // -----------------------------------------------------------------------
     // HTTP helper — returns decoded array or false
     // -----------------------------------------------------------------------

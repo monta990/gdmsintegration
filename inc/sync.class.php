@@ -283,6 +283,9 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 $matched_type = $classified ?? 'NetworkEquipment';
             }
 
+            // Prefer GLPI asset name for ticket subjects; fall back to GDMS name
+            $ticket_name = (!empty($matched_row['name'])) ? $matched_row['name'] : $name;
+
             // ---------------------------------------------------------------
             // Resolve model ID in the correct GLPI table
             // ---------------------------------------------------------------
@@ -428,7 +431,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                                     // Physical link-down: no debounce — open immediately
                                     if ($wan_tickets_enabled) {
                                     self::createWanDownTicket(
-                                        $name, $mac, $serial, $entities_id,
+                                        $ticket_name, $mac, $serial, $entities_id,
                                         $matched_type, $glpi_id,
                                         $portLabel, $wp['wanName'] ?? '', $networkName,
                                         'link_down', ''
@@ -438,7 +441,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                                     if ($debounce_secs === 0) {
                                         if ($wan_tickets_enabled) {
                                         self::createWanDownTicket(
-                                            $name, $mac, $serial, $entities_id,
+                                            $ticket_name, $mac, $serial, $entities_id,
                                             $matched_type, $glpi_id,
                                             $portLabel, $wp['wanName'] ?? '', $networkName,
                                             'no_internet', ''
@@ -466,7 +469,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                                 }
                                 if ($wan_tickets_enabled) {
                                 self::createWanDownTicket(
-                                    $name, $mac, $serial, $entities_id,
+                                    $ticket_name, $mac, $serial, $entities_id,
                                     $matched_type, $glpi_id,
                                     $portLabel, $wp['wanName'] ?? '', $networkName,
                                     'link_down', $failoverNote
@@ -490,7 +493,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                                     }
                                     if ($wan_tickets_enabled) {
                                     self::createWanDownTicket(
-                                        $name, $mac, $serial, $entities_id,
+                                        $ticket_name, $mac, $serial, $entities_id,
                                         $matched_type, $glpi_id,
                                         $portLabel, $wp['wanName'] ?? '', $networkName,
                                         'no_internet', $failoverNote
@@ -520,7 +523,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                                     }
                                     if ($wan_tickets_enabled) {
                                     self::createWanDownTicket(
-                                        $name, $mac, $serial, $entities_id,
+                                        $ticket_name, $mac, $serial, $entities_id,
                                         $matched_type, $glpi_id,
                                         $portLabel, $wp['wanName'] ?? '', $networkName,
                                         'no_internet', $failoverNote
@@ -613,20 +616,33 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             // do NOT generate new tickets — only a genuine state change does.
             if ($glpi_id > 0) {
                 if ($prevStatus === 'online' && $status === 'offline') {
+                    $dev_category   = PluginGdmsintegrationAPI::getDeviceCategory($gdms_model);
+                    $cat_flag_map   = [
+                        'phone'  => 'tickets_phone',
+                        'router' => 'tickets_router',
+                        'switch' => 'tickets_switch',
+                        'ap'     => 'tickets_ap',
+                        'pbx'    => 'tickets_pbx',
+                    ];
+                    $cat_flag       = $cat_flag_map[$dev_category] ?? null;
+                    $cat_enabled    = $cat_flag === null || (int)($config_data[$cat_flag] ?? 1) === 1;
+                    if ($cat_enabled) {
                     self::createOfflineTicket(
-                        $name,
+                        $ticket_name,
                         $mac,
                         $serial,
                         $entities_id,
                         $matched_type,
                         $glpi_id,
-                        $d['publicIp']        ?? $d['ip']    ?? $d['ipv4'] ?? '',
+                        $d['publicIp']        ?? $d['ip']       ?? $d['ipv4'] ?? '',
                         $d['networkName']     ?? $d['siteName'] ?? '',
                         $d['firmwareVersion'] ?? $d['versionFirmware'] ?? '',
-                        (int)($d['upTime'] ?? 0)
+                        (int)($d['upTime'] ?? 0),
+                        $d['privateIp']       ?? $d['privateip'] ?? ''
                     );
+                    }
                 } elseif ($prevStatus === 'offline' && $status === 'online') {
-                    self::resolveOfflineTicket($name, $matched_type, $glpi_id);
+                    self::resolveOfflineTicket($ticket_name, $matched_type, $glpi_id);
                 }
             }
             // Topology link (networking devices only)
@@ -712,9 +728,10 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
     public static function triggerOfflineTicket(
         string $name, string $mac, string $serial,
         int $entities_id, string $itemtype, int $glpi_id,
-        string $ip = '', string $network = '', string $firmware = '', int $uptime_sec = 0
+        string $ip = '', string $network = '', string $firmware = '', int $uptime_sec = 0,
+        string $private_ip = ''
     ): void {
-        self::createOfflineTicket($name, $mac, $serial, $entities_id, $itemtype, $glpi_id, $ip, $network, $firmware, $uptime_sec);
+        self::createOfflineTicket($name, $mac, $serial, $entities_id, $itemtype, $glpi_id, $ip, $network, $firmware, $uptime_sec, $private_ip);
     }
 
     public static function triggerResolveTicket(string $name, string $itemtype, int $glpi_id): void {
@@ -892,7 +909,8 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
         string $ip         = '',
         string $network    = '',
         string $firmware   = '',
-        int    $uptime_sec = 0
+        int    $uptime_sec = 0,
+        string $private_ip = ''
     ): void {
         global $DB;
 
@@ -975,6 +993,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 "| **%s** | %s |\n" .
                 "| **%s** | %s |\n" .
                 "| **%s** | %s |\n" .
+                "| **%s** | %s |\n" .
                 "| **%s** | %s |\n\n" .
                 "*%s*",
                 $name,
@@ -983,9 +1002,10 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 __('Value', 'gdmsintegration'),
                 strtoupper($mac),
                 __('Serial', 'gdmsintegration'),      strtoupper($serial) ?: __('N/A', 'gdmsintegration'),
-                __('IP', 'gdmsintegration'),          $ip       ?: __('N/A', 'gdmsintegration'),
-                __('Network', 'gdmsintegration'),     $network  ?: __('N/A', 'gdmsintegration'),
-                __('Firmware', 'gdmsintegration'),    $firmware ?: __('N/A', 'gdmsintegration'),
+                __('Public IP', 'gdmsintegration'),   $ip         ?: __('N/A', 'gdmsintegration'),
+                __('Private IP', 'gdmsintegration'),  $private_ip ?: __('N/A', 'gdmsintegration'),
+                __('Network', 'gdmsintegration'),     $network    ?: __('N/A', 'gdmsintegration'),
+                __('Firmware', 'gdmsintegration'),    $firmware   ?: __('N/A', 'gdmsintegration'),
                 __('Last uptime', 'gdmsintegration'), $uptimeStr,
                 __('Detected', 'gdmsintegration'),    $now,
                 __('This ticket was automatically generated by the GDMS Integration plugin.', 'gdmsintegration')

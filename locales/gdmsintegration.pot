@@ -585,6 +585,18 @@ msgstr ""
 msgid "Private IP"
 msgstr ""
 
+msgid "Public IP"
+msgstr ""
+
+msgid "Copy model"
+msgstr ""
+
+msgid "Copy MAC"
+msgstr ""
+
+msgid "Copy serial"
+msgstr ""
+
 #: front/dashboard.php:865
 msgid "Reason"
 msgstr ""

@@ -85,6 +85,11 @@ class PluginGdmsintegrationUtils {
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `ticket_requester_id` int unsigned NOT NULL DEFAULT 0",
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `wan_debounce_seconds` smallint unsigned NOT NULL DEFAULT 300",
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `wan_tickets_enabled` tinyint unsigned NOT NULL DEFAULT 1",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `tickets_phone`  tinyint unsigned NOT NULL DEFAULT 1",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `tickets_router` tinyint unsigned NOT NULL DEFAULT 1",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `tickets_switch` tinyint unsigned NOT NULL DEFAULT 1",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `tickets_ap`     tinyint unsigned NOT NULL DEFAULT 1",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `tickets_pbx`   tinyint unsigned NOT NULL DEFAULT 1",
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `last_sync_at` TIMESTAMP NULL DEFAULT NULL",
             // devices
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `entities_id` int unsigned NOT NULL DEFAULT 0",
