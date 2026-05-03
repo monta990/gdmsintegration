@@ -761,7 +761,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
         // attempt to open a WAN ticket for the same port at the same time.
         $lock_name = 'gdmsinteg_' . substr(md5("wan_{$reason}_{$itemtype}_{$glpi_id}_{$portSilk}"), 0, 24);
         $locked    = 0;
-        $lk_res = $DB->doQuery("SELECT GET_LOCK('{$lock_name}', 5) AS lk");
+        $lk_res = $DB->doQuery("SELECT GET_LOCK('" . $DB->escape($lock_name) . "', 5) AS lk");
         if ($lk_res) {
             $lk_row = $DB->fetchAssoc($lk_res);
             $locked = (int)($lk_row['lk'] ?? 0);
@@ -854,7 +854,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             PluginGdmsintegrationUtils::log("GDMS: WAN ticket #{$ticket_id} → {$deviceName} port {$portSilk} | entity={$entities_id}{$tech_info}");
         }
         } finally {
-            $DB->doQuery("SELECT RELEASE_LOCK('{$lock_name}')");
+            $DB->doQuery("SELECT RELEASE_LOCK('" . $DB->escape($lock_name) . "')");
         }
     }
 
@@ -919,7 +919,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
         //    same time) both pass the open-ticket check simultaneously. ──────
         $lock_name = 'gdmsinteg_' . substr(md5("offline_{$itemtype}_{$glpi_id}"), 0, 24);
         $locked    = 0;
-        $lk_res = $DB->doQuery("SELECT GET_LOCK('{$lock_name}', 5) AS lk");
+        $lk_res = $DB->doQuery("SELECT GET_LOCK('" . $DB->escape($lock_name) . "', 5) AS lk");
         if ($lk_res) {
             $lk_row = $DB->fetchAssoc($lk_res);
             $locked = (int)($lk_row['lk'] ?? 0);
@@ -1059,7 +1059,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             }
         } finally {
             // Always release the advisory lock, even if an exception was thrown
-            $DB->doQuery("SELECT RELEASE_LOCK('{$lock_name}')");
+            $DB->doQuery("SELECT RELEASE_LOCK('" . $DB->escape($lock_name) . "')");
         }
     }
 

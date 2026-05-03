@@ -290,9 +290,9 @@ class PluginGdmsintegrationAPI {
             'client_id'     => $config['gwn_client_id'],
             'client_secret' => $config['gwn_client_secret'],
         ]);
-        PluginGdmsintegrationUtils::debug("GWN token request URL: {$url}");
+        PluginGdmsintegrationUtils::debug("GWN token request — appID:{$config['gwn_client_id']} [credentials redacted]");
         $data = self::curl($url);
-        PluginGdmsintegrationUtils::debug("GWN token response: " . json_encode($data));
+        PluginGdmsintegrationUtils::debug("GWN token response — expires_in:" . ($data['expires_in'] ?? '?'));
         if ($data === false || empty($data['access_token'])) {
             PluginGdmsintegrationUtils::log("GWN token ERROR — appID:{$config['gwn_client_id']}");
             return false;

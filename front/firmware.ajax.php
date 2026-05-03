@@ -24,7 +24,7 @@ $_action_early = $_GET['action'] ?? 'check';
 if (in_array($_action_early, ['upgrade', 'upgrade_gdms'], true)) {
     Session::checkRight('config', UPDATE);
 } else {
-    Session::checkLoginUser();
+    Session::checkRight('config', READ);
 }
 header('Content-Type: application/json');
 

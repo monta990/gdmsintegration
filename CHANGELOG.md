@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.7] — 2026-05-03
+
+### Security
+- **Credential redaction in debug logs** — GWN OAuth token request URL and token response are no longer logged verbatim. Debug output now shows only `appID` and `expires_in`, preventing `client_secret` and `access_token` from appearing in `files/_log/gdmsintegration.log` even when verbose mode is enabled. (OWASP A02/A09)
+- **Advisory lock queries use escaped identifiers** — `GET_LOCK`/`RELEASE_LOCK` raw SQL queries in the sync engine now call `$DB->escape()` on the lock name, following defense-in-depth for all raw query parameters. (OWASP A03)
+- **Webhook signature mismatch returns 204** — failed HMAC verification no longer returns HTTP 403 (which confirmed the endpoint existed and the signature was checked). Now returns `204 No Content`, removing the oracle useful for probing or brute-forcing. (OWASP A07)
+- **Webhook GET handler removed** — the unauthenticated `GET` health-check response that disclosed plugin name and endpoint path has been removed. Non-POST requests now receive `405` with no body. (OWASP A05)
+- **Webhook payload logging scoped** — log line now records only `entity`, `mac`, and `status` rather than up to 500 chars of raw JSON payload. (OWASP A09)
+- **Firmware endpoint requires READ right** — `firmware.ajax.php` read actions (`check`, `check_all`) now require `Session::checkRight('config', READ)` instead of a plain session check, preventing any authenticated GLPI user from querying firmware status of all devices. (OWASP A01)
+
+---
+
 ## [1.3.6] — 2026-04-29
 
 ### Added
