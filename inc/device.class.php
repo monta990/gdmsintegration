@@ -3,14 +3,14 @@
  * GDMS Integration — PluginGdmsintegrationDevice
  * Tracks last-known status per MAC to detect state transitions.
  */
-class PluginGdmsintegrationDevice extends CommonDBTM {
+class PluginGdmsintegrationDevice extends PluginGdmsintegrationBaseTM {
 
     // Override to match exact table name created in setup.php
     public static function getTable($classname = null): string {
         return 'glpi_plugin_gdmsintegration_devices';
     }
 
-    static $rightname = 'config';
+
 
     public static function getTypeName($nb = 0): string {
         return 'GDMS Device State';

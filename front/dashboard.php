@@ -6,8 +6,7 @@ global $CFG_GLPI;
 
 Session::checkLoginUser();
 if (!Session::haveRight('config', READ) && !Session::haveRight('networking', READ)) {
-    Html::forbidden();
-    return;
+    throw new \Glpi\Exception\Http\AccessDeniedHttpException();
 }
 
 Html::requireJs('charts');    // ECharts 5 — lib/echarts.js

@@ -2,9 +2,8 @@
 /**
  * GDMS Integration — PluginGdmsintegrationMenu
  */
-class PluginGdmsintegrationMenu extends CommonGLPI {
+class PluginGdmsintegrationMenu extends PluginGdmsintegrationBaseGLPI {
 
-    static $rightname = 'config';
 
     public static function getTypeName($nb = 0): string {
         return __('GDMS Integration', 'gdmsintegration');

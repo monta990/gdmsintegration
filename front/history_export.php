@@ -15,7 +15,7 @@ Session::checkRight('config', READ);
 
 $entities_id = (int) ($_GET['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);
 if (!Session::haveAccessToEntity($entities_id)) {
-    Html::displayRightError();
+    throw new \Glpi\Exception\Http\AccessDeniedHttpException();
 }
 
 // Respect chart_days config

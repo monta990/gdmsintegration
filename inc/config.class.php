@@ -2,13 +2,12 @@
 /**
  * GDMS Integration — PluginGdmsintegrationConfig
  */
-class PluginGdmsintegrationConfig extends CommonDBTM {
+class PluginGdmsintegrationConfig extends PluginGdmsintegrationBaseTM {
 
     public static function getTable($classname = null): string {
         return 'glpi_plugin_gdmsintegration_configs';
     }
 
-    static $rightname = 'config';
 
     public static function getTypeName($nb = 0): string {
         return __('GDMS Configuration', 'gdmsintegration');

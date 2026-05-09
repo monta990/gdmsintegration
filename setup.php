@@ -8,9 +8,9 @@ use Glpi\Plugin\Hooks;
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.3.7');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.3.8');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI',  '11.0');
-define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '11.99');
+define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '12.99');
 
 // ---------------------------------------------------------------------------
 // Metadata
@@ -75,7 +75,9 @@ function plugin_gdmsintegration_boot(): void {
 function plugin_init_gdmsintegration(): void {
     global $PLUGIN_HOOKS;
 
-    $PLUGIN_HOOKS[Hooks::CSRF_COMPLIANT]['gdmsintegration'] = true;
+    if (defined('\Glpi\Plugin\Hooks::CSRF_COMPLIANT')) {
+        $PLUGIN_HOOKS[Hooks::CSRF_COMPLIANT]['gdmsintegration'] = true;
+    }
     $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['gdmsintegration']    = 'front/config.form.php';
 
     if (Session::getLoginUserID()) {
@@ -101,7 +103,7 @@ function plugin_gdmsintegration_install(): bool {
     $sign      = DBConnection::getDefaultPrimaryKeySignOption();
 
     if (!$DB->tableExists('glpi_plugin_gdmsintegration_configs')) {
-        $DB->doQueryOrDie(
+        $DB->doQuery(
             "CREATE TABLE `glpi_plugin_gdmsintegration_configs` (
                 `id`             int {$sign} NOT NULL AUTO_INCREMENT,
                 `entities_id`    int {$sign} NOT NULL DEFAULT '0',
@@ -123,7 +125,7 @@ function plugin_gdmsintegration_install(): bool {
     }
 
     if (!$DB->tableExists('glpi_plugin_gdmsintegration_history')) {
-        $DB->doQueryOrDie(
+        $DB->doQuery(
             "CREATE TABLE `glpi_plugin_gdmsintegration_history` (
                 `id`     int {$sign} NOT NULL AUTO_INCREMENT,
                 `mac`    varchar(50) NOT NULL DEFAULT '',
@@ -137,7 +139,7 @@ function plugin_gdmsintegration_install(): bool {
     }
 
     if (!$DB->tableExists('glpi_plugin_gdmsintegration_devices')) {
-        $DB->doQueryOrDie(
+        $DB->doQuery(
             "CREATE TABLE `glpi_plugin_gdmsintegration_devices` (
                 `id`     int {$sign} NOT NULL AUTO_INCREMENT,
                 `entities_id`  int unsigned NOT NULL DEFAULT 0,
@@ -159,7 +161,7 @@ function plugin_gdmsintegration_install(): bool {
     }
 
     if (!$DB->tableExists('glpi_plugin_gdmsintegration_links')) {
-        $DB->doQueryOrDie(
+        $DB->doQuery(
             "CREATE TABLE `glpi_plugin_gdmsintegration_links` (
                 `id`         int {$sign} NOT NULL AUTO_INCREMENT,
                 `source_mac` varchar(50) NOT NULL DEFAULT '',
@@ -218,7 +220,7 @@ function plugin_gdmsintegration_uninstall(): bool {
         'glpi_plugin_gdmsintegration_links',
     ] as $table) {
         if ($DB->tableExists($table)) {
-            $DB->doQueryOrDie("DROP TABLE `{$table}`");
+            $DB->doQuery("DROP TABLE `{$table}`");
         }
     }
 

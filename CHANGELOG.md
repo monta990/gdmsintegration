@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.8] — 2026-05-09
+
+### Fixed
+- **GLPI 11/12 compatibility** — replaced removed `Html::displayRightError()` with `throw new \Glpi\Exception\Http\AccessDeniedHttpException()` in `front/history_export.php`; compatible with both GLPI 11 and 12.
+- **GLPI 11/12 compatibility** — replaced non-existent `Html::forbidden()` with `throw new \Glpi\Exception\Http\AccessDeniedHttpException()` in `front/dashboard.php`; method never existed in either GLPI version.
+- **GLPI 12 compatibility** — `Hooks::CSRF_COMPLIANT` registration in `setup.php` now guarded with `defined()` check; constant was removed in GLPI 12 causing a PHP fatal error on plugin load.
+- **GLPI 12 compatibility** — replaced `$DB->doQueryOrDie()` with `$DB->doQuery()` in `setup.php` (install/uninstall); method was removed in GLPI 12. Both methods throw on error so behavior is identical across versions.
+- **GLPI 11/12 compatibility** — fixed `$rightname` PHP compile error; GLPI 12 added `string` type to `CommonGLPI::$rightname` while GLPI 11 leaves it untyped — PHP requires child type to match parent exactly. Introduced `PluginGdmsintegrationBaseGLPI` and `PluginGdmsintegrationBaseTM` abstract shim classes with conditional type declaration (`GLPI_VERSION >= 12`); all five plugin classes now extend the appropriate shim and inherit `$rightname` without redeclaring it.
+
+---
+
 ## [1.3.7] — 2026-05-03
 
 ### Security
