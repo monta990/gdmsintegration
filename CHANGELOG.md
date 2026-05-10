@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.0] — 2026-05-10
+
+### Added
+- **Phone SIP status dot** — phones show a colour-coded 9 px dot in the Ports column (green = SIP registered, red = unregistered; dimmed when offline). Clicking opens a SIP detail modal with: SIP status, extension, site, private IP (clickable), public IP (WHOIS link), last seen, PBX/UCM IP, Do Not Disturb, provisioning sync status + error, scheduled task.
+- **Phone SIP dot tooltip** — hovering the SIP dot shows a native tooltip: SIP state, extension (if any), Do Not Disturb flag.
+- **PBX / UCM in phone modal** — SIP modal shows the UCM/GCC device in the same network as a clickable private IP link with device name. Matched by `siteName`; no extra API call.
+- **ATA / HT devices show phone modal** — any device whose model prefix matches the phone list (HT, GRP, GXP, GXV, GXW, WP, DP, GHP, GVC, GSC, GDS) renders the SIP dot and modal regardless of GLPI itemtype (Phone or NetworkEquipment).
+- **GDMS provisioning fields synced** — four new fields from `device/list` persisted per device: `dnd`, `is_synchronized`, `sync_failure_msg`, `scheduled_task`.
+- **`accountStatus` → SIP status mapping** — `accountStatus` (1 = registered) now mapped to `sip_status`; was previously unpopulated.
+- **`lastTime` → last seen fallback** — GDMS `lastTime` string used as `last_seen` when GWN `lastSeen` epoch is absent.
+- **IPv4/IPv6 display preference** — new "Private IP display" config setting (IPv4 preferred by default); fallback to other version when preferred is absent; both shown as clickable links when both present.
+- **IPv6 addresses clickable** — IPv6 in the Private IP column rendered as `http://[addr]/` links (RFC 2732).
+- **Correct IPv4/IPv6 routing at sync** — `privateIp` values containing `:` stored in `ipv6` column instead of `private_ip`.
+
+---
+
 ## [1.3.8] — 2026-05-09
 
 ### Fixed

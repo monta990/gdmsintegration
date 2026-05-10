@@ -11,7 +11,7 @@
       </short>
       <long>
          <en>Integrates Grandstream GWN Cloud with GLPI. Automatically synchronizes GWN APs, switches and routers plus GDMS phones and PBX into GLPI assets. Features: real-time NOC dashboard with IPv6/private IP display, SIP extension badges, location field, enriched WAN port modal (gateway, DNS, IPv6, packet counters), Cloud Alerts panel with category/reason detail, per-network device stats tooltip, configurable availability history chart (7-365 days), optional network topology, firmware ASAP or scheduled update, tech assignment on auto-created incident tickets, configurable ticket requester, Excel export, HMAC-SHA256 webhook, and in-process token cache for faster syncs. Localized in es_MX, fr_FR, de_DE.</en>
-         <es>Integra Grandstream GWN Cloud con GLPI. Sincroniza automaticamente APs, switches y routers GWN asi como telefonos y PBX GDMS como activos GLPI. Incluye: dashboard NOC con IPv6/IP privada, badges de extension SIP, campo de ubicacion, modal de puertos WAN enriquecido (gateway, DNS, IPv6, contadores de paquetes), panel de alertas cloud con categoria/razon, tooltip de estadisticas por red, historial de disponibilidad configurable (7-365 dias), topologia de red opcional, actualizacion de firmware inmediata o programada, asignacion de tecnico en tickets automaticos, solicitante de ticket configurable, exportacion a Excel, webhook HMAC-SHA256 y cache de token en proceso para sincronizaciones mas rapidas. Localizado en es_MX, fr_FR, de_DE.</es>
+         <es>Integra Grandstream GWN Cloud con GLPI. Sincroniza automáticamente APs, switches y routers GWN así como teléfonos y PBX GDMS como activos GLPI. Incluye: dashboard NOC con IPv6/IP privada, badges de extensión SIP, campo de ubicación, modal de puertos WAN enriquecido (gateway, DNS, IPv6, contadores de paquetes), panel de alertas cloud con categoría/razón, tooltip de estadísticas por red, historial de disponibilidad configurable (7-365 días), topología de red opcional, actualización de firmware inmediata o programada, asignación de técnico en tickets automáticos, solicitante de ticket configurable, exportación a Excel, webhook HMAC-SHA256 y caché de token en proceso para sincronizaciones más rápidas. Localizado en es_MX, fr_FR, de_DE.</es>
       </long>
    </description>
    <homepage>https://github.com/monta990/gdmsintegration</homepage>
@@ -23,15 +23,13 @@
    </authors>
       <versions>
       <version>
-         <num>1.3.8</num>
+         <num>1.4.0</num>
          <compatibility>~12.0</compatibility>
          <compatibility>~11.0</compatibility>
-         <download_url>https://github.com/monta990/gdmsintegration/releases/download/v1.3.8/gdmsintegration-1.3.8.zip</download_url>
+         <download_url>https://github.com/monta990/gdmsintegration/releases/download/v1.4.0/gdmsintegration-1.4.0.zip</download_url>
       </version>
    </versions>
    <langs>
-      <lang>en_US</lang>
-      <lang>en_GB</lang>
       <lang>es_MX</lang>
       <lang>fr_FR</lang>
       <lang>de_DE</lang>

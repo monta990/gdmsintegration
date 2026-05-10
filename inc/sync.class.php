@@ -581,6 +581,12 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 }
             }
 
+            // Split IPv4 vs IPv6: privateIp may contain an IPv6 address on some devices
+            $_raw_priv = $d['privateIp'] ?? $d['privateip'] ?? '';
+            $_is_v6    = strpos($_raw_priv, ':') !== false;
+            $_priv4    = $_is_v6 ? '' : $_raw_priv;
+            $_priv6    = !empty($d['ipv6']) ? $d['ipv6'] : ($_is_v6 ? $_raw_priv : '');
+
             $state->saveStateWithNetwork(
                 $mac ?: $serial,
                 $status,
@@ -600,15 +606,22 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 (int)($d['channel']   ?? 0),
                 (int)($d['channel5g'] ?? 0),
                 isset($d['firstSeen']) ? gmdate('Y-m-d H:i:s', (int)($d['firstSeen']/1000)) : null,
-                isset($d['lastSeen'])  ? gmdate('Y-m-d H:i:s', (int)($d['lastSeen']/1000))  : null,
+                isset($d['lastSeen'])  ? gmdate('Y-m-d H:i:s', (int)($d['lastSeen']/1000))
+                    : (isset($d['lastTime']) ? date('Y-m-d H:i:s', strtotime($d['lastTime'])) : null),
                 $d['ipv4']            ?? '',
                 $d['firmware_latest'] ?? '',
-                $d['sip_status']      ?? '',
+                array_key_exists('accountStatus', $d)
+                    ? ((int)$d['accountStatus'] === 1 ? 'registered' : 'unregistered')
+                    : ($d['sip_status'] ?? ''),
                 $entities_id,
-                $d['ipv6']            ?? '',
-                $d['privateIp']       ?? $d['privateip'] ?? '',
+                $_priv6,
+                $_priv4,
                 $d['sip_extension']   ?? '',
-                $d['location']        ?? $d['site']      ?? ''
+                $d['location']        ?? $d['site']      ?? '',
+                (int)($d['dnd']            ?? 0),
+                (int)($d['isSynchronized'] ?? 0),
+                $d['syncFailureMsg']  ?? '',
+                (int)($d['scheduledTask']  ?? 0)
             );
 
             // Ticket transitions: ONLY on true online→offline transition.

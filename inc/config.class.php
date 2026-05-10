@@ -73,6 +73,7 @@ class PluginGdmsintegrationConfig extends PluginGdmsintegrationBaseTM {
         $input['tickets_switch'] = isset($input['tickets_switch']) ? (int)(bool)$input['tickets_switch'] : 1;
         $input['tickets_ap']     = isset($input['tickets_ap'])     ? (int)(bool)$input['tickets_ap']     : 1;
         $input['tickets_pbx']    = isset($input['tickets_pbx'])    ? (int)(bool)$input['tickets_pbx']    : 1;
+        $input['ip_version']     = in_array($input['ip_version'] ?? '', ['ipv4', 'ipv6'], true) ? $input['ip_version'] : 'ipv4';
 
         $input['date_mod'] = date('Y-m-d H:i:s');
 

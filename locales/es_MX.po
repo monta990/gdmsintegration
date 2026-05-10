@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.3.5\n"
+"Project-Id-Version: gdmsintegration 1.4.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-23\n"
-"PO-Revision-Date: 2026-04-23\n"
+"POT-Creation-Date: 2026-05-10\n"
+"PO-Revision-Date: 2026-05-10\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language-Team: es_MX\n"
 "Language: es_MX\n"
@@ -118,7 +118,8 @@ msgstr "Clic para ver clientes conectados"
 msgid "Clients"
 msgstr "Clientes"
 
-#: front/dashboard.php:986 front/dashboard.php:1253 front/dashboard.php:1455 front/dashboard.php:1555
+#: front/dashboard.php:986 front/dashboard.php:1253 front/dashboard.php:1455
+#: front/dashboard.php:1555
 msgid "Close"
 msgstr "Cerrar"
 
@@ -466,7 +467,8 @@ msgstr "Dirección MAC"
 msgid "Model"
 msgstr "Modelo"
 
-#: inc/sync.class.php:923 inc/sync.class.php:941 inc/sync.class.php:942 inc/sync.class.php:943 inc/sync.class.php:944
+#: inc/sync.class.php:923 inc/sync.class.php:941 inc/sync.class.php:942
+#: inc/sync.class.php:943 inc/sync.class.php:944
 msgid "N/A"
 msgstr "N/D"
 
@@ -534,11 +536,13 @@ msgstr "Oficial"
 msgid "Official firmware"
 msgstr "Firmware oficial"
 
-#: front/dashboard.php:375 front/dashboard.php:383 front/dashboard.php:391 front/dashboard.php:399 front/dashboard.php:670
+#: front/dashboard.php:375 front/dashboard.php:383 front/dashboard.php:391
+#: front/dashboard.php:399 front/dashboard.php:670
 msgid "Offline"
 msgstr "Fuera de línea"
 
-#: front/dashboard.php:374 front/dashboard.php:382 front/dashboard.php:390 front/dashboard.php:398 front/dashboard.php:670 front/dashboard.php:803
+#: front/dashboard.php:374 front/dashboard.php:382 front/dashboard.php:390
+#: front/dashboard.php:398 front/dashboard.php:670 front/dashboard.php:803
 msgid "Online"
 msgstr "En línea"
 
@@ -882,6 +886,78 @@ msgstr "todos los dispositivos"
 msgid "offline"
 msgstr "fuera de línea"
 
+#: front/dashboard.php
+msgid "SIP Status"
+msgstr "Estado SIP"
+
+#: front/dashboard.php
+msgid "Do Not Disturb"
+msgstr "No molestar"
+
+#: front/dashboard.php
+msgid "Registered"
+msgstr "Registrado"
+
+#: front/dashboard.php
+msgid "Unregistered"
+msgstr "No registrado"
+
+#: front/dashboard.php
+msgid "Synchronized"
+msgstr "Sincronizado"
+
+#: front/dashboard.php
+msgid "Sync Error"
+msgstr "Error de sincronización"
+
+#: front/dashboard.php
+msgid "Scheduled Task"
+msgstr "Tarea programada"
+
+#: front/dashboard.php
+msgid "Pending"
+msgstr "Pendiente"
+
+#: front/dashboard.php
+msgid "None"
+msgstr "Ninguna"
+
+#: front/dashboard.php
+msgid "Active"
+msgstr "Activo"
+
+#: front/dashboard.php
+msgid "Off"
+msgstr "Desactivado"
+
+#: front/dashboard.php
+msgid "Yes"
+msgstr "Sí"
+
+#: front/dashboard.php
+msgid "No"
+msgstr "No"
+
+#: front/dashboard.php
+msgid "Extension"
+msgstr "Extensión"
+
+#: front/config.form.php
+msgid "Private IP display"
+msgstr "Mostrar IP privada"
+
+#: front/config.form.php
+msgid "IPv4 (preferred, fallback to IPv6)"
+msgstr "IPv4 (preferida, usa IPv6 si no hay)"
+
+#: front/config.form.php
+msgid "IPv6 (preferred, fallback to IPv4)"
+msgstr "IPv6 (preferida, usa IPv4 si no hay)"
+
+#: front/config.form.php
+msgid "Which address to show in the Private IP column. If the preferred version is unavailable for a device, the other is shown as fallback."
+msgstr "Qué dirección mostrar en la columna IP privada. Si la versión preferida no está disponible para un dispositivo, se muestra la otra como alternativa."
+
 #: front/dashboard.php:464 front/dashboard.php:839
 msgid "online"
 msgstr "en línea"
@@ -901,7 +977,6 @@ msgstr "✅ El dispositivo **%s** volvió en línea el %s. Ticket resuelto autom
 #: inc/sync.class.php:840
 msgid "✅ WAN port **%s** on **%s** has recovered — link up and internet connectivity confirmed as of %s. Ticket auto-resolved by GDMS Integration."
 msgstr "✅ El puerto WAN **%s** en **%s** se recuperó — enlace activo y conectividad a internet confirmada el %s. Ticket resuelto automáticamente por GDMS Integration."
-
 
 #: front/dashboard.php
 msgid "Click to sort"
@@ -958,6 +1033,30 @@ msgstr "Abrir tickets cuando fallen los puertos WAN"
 #: front/config.form.php
 msgid "When enabled, the plugin automatically opens incident tickets when a WAN port reports link-down or internet loss. Disable to suppress all WAN port alert tickets."
 msgstr "Cuando está habilitado, el plugin abre automáticamente tickets de incidencia cuando un puerto WAN reporta pérdida de enlace o de internet. Deshabilite para suprimir todos los tickets de alerta de puertos WAN."
+
+#: front/dashboard.php
+msgid "Site"
+msgstr "Sitio"
+
+#: front/dashboard.php
+msgid "Last Seen"
+msgstr "Última vez visto"
+
+#: front/dashboard.php
+msgid "SIP Registered"
+msgstr "SIP Registrado"
+
+#: front/dashboard.php
+msgid "SIP Unregistered"
+msgstr "SIP No registrado"
+
+#: front/dashboard.php
+msgid "Ext"
+msgstr "Ext"
+
+#: front/dashboard.php
+msgid "PBX / UCM"
+msgstr "PBX / UCM"
 
 #: front/config.form.php
 msgid "Ticket creation by device type"

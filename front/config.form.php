@@ -22,6 +22,7 @@ if (isset($_POST['save'])) {
         'gwn_client_secret' => $_POST['gwn_client_secret'] ?? '',
         'webhook_secret'      => $_POST['webhook_secret']      ?? '',
         'refresh_interval'    => max(30, (int)($_POST['refresh_interval'] ?? 300)),
+        'ip_version'          => in_array($_POST['ip_version'] ?? '', ['ipv4', 'ipv6'], true) ? $_POST['ip_version'] : 'ipv4',
         'debug_logging'       => isset($_POST['debug_logging']) ? 1 : 0,
         'chart_days'          => max(7, min(365, (int)($_POST['chart_days'] ?? 60))),
         'show_topology'       => isset($_POST['show_topology']) ? 1 : 0,
@@ -85,6 +86,7 @@ $refresh_interval = (int)($cur['refresh_interval'] ?? 300);
 $has_gwn  = !empty($cur['gwn_client_id']) && !empty($cur['gwn_client_secret']);
 $chart_days           = max(7, min(365, (int)($cur['chart_days'] ?? 60)));
 $show_topology        = (int)($cur['show_topology'] ?? 1);
+$ip_version           = in_array($cur['ip_version'] ?? '', ['ipv4', 'ipv6'], true) ? $cur['ip_version'] : 'ipv4';
 $ticket_requester_id  = (int)($cur['ticket_requester_id'] ?? 0);
 $wan_debounce_seconds = max(0, min(3600, (int)($cur['wan_debounce_seconds'] ?? 300)));
 $wan_tickets_enabled  = (int)($cur['wan_tickets_enabled'] ?? 1);
@@ -349,6 +351,14 @@ function gdms_badge(bool $ok): string {
                   </label>
                </div>
                <small class="text-muted d-block mt-1"><?= __('When disabled, the topology graph is hidden and its data processing is skipped entirely.', 'gdmsintegration') ?></small>
+            </div>
+            <div class="col-md-4">
+               <label class="form-label fw-semibold" for="gdms_ip_version"><?= __('Private IP display', 'gdmsintegration') ?></label>
+               <select class="form-select mt-1" name="ip_version" id="gdms_ip_version">
+                  <option value="ipv4"<?= $ip_version === 'ipv4' ? ' selected' : '' ?>><?= __('IPv4 (preferred, fallback to IPv6)', 'gdmsintegration') ?></option>
+                  <option value="ipv6"<?= $ip_version === 'ipv6' ? ' selected' : '' ?>><?= __('IPv6 (preferred, fallback to IPv4)', 'gdmsintegration') ?></option>
+               </select>
+               <small class="text-muted d-block mt-1"><?= __('Which address to show in the Private IP column. If the preferred version is unavailable for a device, the other is shown as fallback.', 'gdmsintegration') ?></small>
             </div>
          </div>
          <div class="row g-3 mt-1">

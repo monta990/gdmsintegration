@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.3.5\n"
+"Project-Id-Version: gdmsintegration 1.4.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-23\n"
-"PO-Revision-Date: 2026-04-23\n"
+"POT-Creation-Date: 2026-05-10\n"
+"PO-Revision-Date: 2026-05-10\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -881,6 +881,78 @@ msgstr ""
 msgid "offline"
 msgstr ""
 
+#: front/dashboard.php
+msgid "SIP Status"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Do Not Disturb"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Registered"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Unregistered"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Synchronized"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Sync Error"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Scheduled Task"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Pending"
+msgstr ""
+
+#: front/dashboard.php
+msgid "None"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Active"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Off"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Yes"
+msgstr ""
+
+#: front/dashboard.php
+msgid "No"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Extension"
+msgstr ""
+
+#: front/config.form.php
+msgid "Private IP display"
+msgstr ""
+
+#: front/config.form.php
+msgid "IPv4 (preferred, fallback to IPv6)"
+msgstr ""
+
+#: front/config.form.php
+msgid "IPv6 (preferred, fallback to IPv4)"
+msgstr ""
+
+#: front/config.form.php
+msgid "Which address to show in the Private IP column. If the preferred version is unavailable for a device, the other is shown as fallback."
+msgstr ""
+
 #: front/dashboard.php:464 front/dashboard.php:839
 msgid "online"
 msgstr ""
@@ -940,20 +1012,72 @@ msgstr ""
 
 #: front/config.form.php
 msgid "WAN no-internet debounce (seconds)"
-msgstr "Debounce de no-internet WAN (segundos)"
+msgstr ""
 
 #: front/config.form.php
 msgid "Seconds to wait before opening a \"no internet\" WAN ticket. Prevents false alerts from transient high-latency events. 0 = open immediately. Default: 300."
-msgstr "Segundos a esperar antes de abrir un ticket de \"sin internet\" en puertos WAN. Previene alertas falsas por eventos transitorios de alta latencia. 0 = abrir inmediatamente. Predeterminado: 300."
+msgstr ""
 
 #: front/config.form.php
 msgid "Create WAN port tickets"
-msgstr "Crear tickets de puertos WAN"
+msgstr ""
 
 #: front/config.form.php
 msgid "Open tickets on WAN port failures"
-msgstr "Abrir tickets cuando fallen los puertos WAN"
+msgstr ""
 
 #: front/config.form.php
 msgid "When enabled, the plugin automatically opens incident tickets when a WAN port reports link-down or internet loss. Disable to suppress all WAN port alert tickets."
-msgstr "Cuando está habilitado, el plugin abre automáticamente tickets de incidencia cuando un puerto WAN reporta pérdida de enlace o de internet. Deshabilite para suprimir todos los tickets de alerta de puertos WAN."
+msgstr ""
+
+#: front/dashboard.php
+msgid "Site"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Last Seen"
+msgstr ""
+
+#: front/dashboard.php
+msgid "SIP Registered"
+msgstr ""
+
+#: front/dashboard.php
+msgid "SIP Unregistered"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Ext"
+msgstr ""
+
+#: front/dashboard.php
+msgid "PBX / UCM"
+msgstr ""
+
+#: front/config.form.php
+msgid "Ticket creation by device type"
+msgstr ""
+
+#: front/config.form.php
+msgid "Controls which device types trigger offline incident tickets when they go offline. All types are enabled by default."
+msgstr ""
+
+#: front/config.form.php
+msgid "IP Phones (GRP, GXP, GXV, WP)"
+msgstr ""
+
+#: front/config.form.php
+msgid "Routers (GWN7001/7002/7003)"
+msgstr ""
+
+#: front/config.form.php
+msgid "Switches (GWN7800, GSS)"
+msgstr ""
+
+#: front/config.form.php
+msgid "Access Points (GWN76xx)"
+msgstr ""
+
+#: front/config.form.php
+msgid "IP PBX / UCM (UCM, GCC)"
+msgstr ""

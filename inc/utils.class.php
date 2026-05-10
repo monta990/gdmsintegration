@@ -79,6 +79,7 @@ class PluginGdmsintegrationUtils {
         global $DB;
         $alters = [
             // configs
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `ip_version` varchar(4) NOT NULL DEFAULT 'ipv4'",
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `debug_logging` tinyint unsigned NOT NULL DEFAULT 0",
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `chart_days` smallint unsigned NOT NULL DEFAULT 60",
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `show_topology` tinyint unsigned NOT NULL DEFAULT 1",
@@ -114,6 +115,10 @@ class PluginGdmsintegrationUtils {
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `private_ip` varchar(45) NOT NULL DEFAULT ''",
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `sip_extension` varchar(50) NOT NULL DEFAULT ''",
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `location` varchar(255) NOT NULL DEFAULT ''",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `dnd` tinyint unsigned NOT NULL DEFAULT 0",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `is_synchronized` tinyint unsigned NOT NULL DEFAULT 0",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `sync_failure_msg` varchar(255) NOT NULL DEFAULT ''",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `scheduled_task` tinyint unsigned NOT NULL DEFAULT 0",
         ];
         foreach ($alters as $sql) {
             try { $DB->doQuery($sql); } catch (\Throwable $e) { /* already exists */ }

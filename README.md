@@ -76,7 +76,7 @@ A horizontal availability bar below the cards shows the overall online percentag
 
 #### Device table
 
-Each row shows: device name (opens GLPI asset in a new tab), type badge, model (click to copy), network/site, public IP (WHOIS link, new tab) + private IP (clickable, opens device admin page in a new tab) + IPv6 (when available), MAC (click to copy), serial (click to copy), firmware + upgrade icon, ports dots, uptime, status badge, availability %, SLA tier.
+Each row shows: device name (opens GLPI asset in a new tab), type badge, model (click to copy), network/site, public IP (WHOIS link, new tab) + private IP (clickable, opens device admin page in a new tab) + secondary IP (IPv6 or IPv4 depending on config), MAC (click to copy), serial (click to copy), firmware + upgrade icon, ports/SIP dot, uptime, status badge, availability %, SLA tier.
 
 Default order is network devices (routers → switches → APs) first, then phones and PBX, each group sorted by name. Click any of the column headers **Device Name, Type, Model, Network, Status, Clients, Avail. %,** or **SLA** to sort ascending; click again to reverse. A **Reset sort** button appears in the card header to restore the default order. The active sort is persisted in the URL query string so it survives page reload.
 
@@ -131,6 +131,44 @@ Every online GWN router shows one colour-coded dot per physical port in the Port
 3. **Port cards** — one card per WAN port with: silk-screen label, port name, WAN connection name, IP address, WAN type (DHCP / Static / PPPoE / PPTP / L2TP), gateway IP + reachability, primary and secondary DNS, WAN MAC, IPv6 address (when available), link speed (e.g. `1G FDX`), TX/RX packet counters, time connected. GE, SFP, and combo ports are distinguished. LAN port cards show link speed, label, description, VLAN, and per-port TX/RX byte counters.
 
 > WAN port detail is available for GWN routers (GWN7001, GWN7002, etc.). LAN port detail is available for GWN switches (GWN78xx / GSS). APs, phones, and PBX devices do not report port data.
+
+#### Phone SIP status dot
+
+Phones show a 9 px colour-coded dot in the Ports column instead of port dots:
+
+| Colour | Meaning |
+|--------|---------|
+| 🟢 Green | SIP account registered |
+| 🔴 Red | SIP account unregistered |
+| Dimmed | Device offline |
+
+**Hovering** the dot shows a tooltip with SIP state, extension, and DND flag. A **DND** label appears next to the dot when Do Not Disturb is active.
+
+This dot also appears for ATA devices (HT series) regardless of whether they are stored as Phone or NetworkEquipment in GLPI — classification is based on the model prefix.
+
+**Clicking the dot** opens a detail modal with:
+
+- SIP registration status
+- Extension number (when available)
+- Site / network
+- Private IP — clickable, opens device admin page
+- Public IP — clickable, opens WHOIS lookup
+- Last seen timestamp
+- PBX / UCM — private IP of the UCM/GCC appliance in the same network, clickable, with device name
+- Do Not Disturb badge
+- Provisioning sync status and last sync error (when present)
+- Scheduled task badge
+
+---
+
+#### Private IP display preference
+
+In the plugin configuration, the **Private IP display** setting controls which address family appears first in the IP column:
+
+- **IPv4 preferred** (default) — shows IPv4 as the primary link; IPv6 shown below as a secondary clickable link when available.
+- **IPv6 preferred** — shows IPv6 first; IPv4 shown below as fallback.
+
+Both addresses are always rendered as clickable links (IPv6 using RFC 2732 bracket notation: `http://[addr]/`). If only one address family is available for a device, it is shown regardless of preference.
 
 ---
 

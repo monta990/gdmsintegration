@@ -219,6 +219,10 @@ class PluginGdmsintegrationAPI {
             $batch = $data['data']['result'] ?? [];
             $batch = is_array($batch) ? $batch : [];
             PluginGdmsintegrationUtils::log("GDMS page {$page}: " . count($batch) . " device(s)");
+            if ($page === 1 && !empty($batch)) {
+                PluginGdmsintegrationUtils::debug("GDMS device/list fields (first device): " . json_encode(array_keys($batch[0])));
+                PluginGdmsintegrationUtils::debug("GDMS device/list sample: " . json_encode($batch[0]));
+            }
             $all  = array_merge($all, $batch);
             $page++;
         } while (!empty($batch) && $page <= self::MAX_PAGES);

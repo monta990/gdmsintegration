@@ -40,6 +40,7 @@ if ($last_sync_at) {
 }
 $chart_days       = max(7, min(365, (int)($config['chart_days'] ?? 60)));
 $show_topology    = (int)($config['show_topology'] ?? 1);
+$ip_version       = in_array($config['ip_version'] ?? '', ['ipv4', 'ipv6'], true) ? $config['ip_version'] : 'ipv4';
 
 // Flatpickr locale — extract language and region from GLPI session
 $_fp_lang   = 'en';
@@ -108,8 +109,12 @@ foreach ($all_states as $state) {
     $ip          = htmlspecialchars($state['ip']           ?? '', ENT_QUOTES, 'UTF-8');
     $firmware         = htmlspecialchars($state['firmware']          ?? '', ENT_QUOTES, 'UTF-8');
     $firmware_latest  = htmlspecialchars($state['firmware_latest']   ?? '', ENT_QUOTES, 'UTF-8');
-    $sip_status       = $state['sip_status']     ?? '';
-    $sip_extension    = $state['sip_extension'] ?? '';
+    $sip_status       = $state['sip_status']      ?? '';
+    $sip_extension    = $state['sip_extension']  ?? '';
+    $dnd              = (int)($state['dnd']            ?? 0);
+    $is_synchronized  = (int)($state['is_synchronized'] ?? 0);
+    $sync_failure_msg = $state['sync_failure_msg'] ?? '';
+    $scheduled_task   = (int)($state['scheduled_task']  ?? 0);
     $ipv6             = htmlspecialchars($state['ipv6']       ?? '', ENT_QUOTES, 'UTF-8');
     $private_ip       = htmlspecialchars($state['private_ip'] ?? '', ENT_QUOTES, 'UTF-8');
     $location         = htmlspecialchars($state['location']   ?? '', ENT_QUOTES, 'UTF-8');
@@ -189,12 +194,16 @@ foreach ($all_states as $state) {
         'first_seen'      => $state['first_seen'] ?? '',
         'mgmt_ip'         => htmlspecialchars($state['mgmt_ip'] ?? '', ENT_QUOTES, 'UTF-8'),
         'firmware_latest' => $firmware_latest,
-        'sip_status'      => $sip_status,
-        'sip_extension'   => $sip_extension,
-        'ipv6'            => $ipv6,
-        'private_ip'      => $private_ip,
-        'location'        => $location,
-        'sla_rank'        => ($uptime === 0.0 && $isOnline ? 4 : ($uptime >= 99.9 ? 0 : ($uptime >= 99.0 ? 1 : ($uptime >= 95.0 ? 2 : 3)))),
+        'sip_status'       => $sip_status,
+        'sip_extension'    => $sip_extension,
+        'dnd'              => $dnd,
+        'is_synchronized'  => $is_synchronized,
+        'sync_failure_msg' => $sync_failure_msg,
+        'scheduled_task'   => $scheduled_task,
+        'ipv6'             => $ipv6,
+        'private_ip'       => $private_ip,
+        'location'         => $location,
+        'sla_rank'         => ($uptime === 0.0 && $isOnline ? 4 : ($uptime >= 99.9 ? 0 : ($uptime >= 99.0 ? 1 : ($uptime >= 95.0 ? 2 : 3)))),
     ];
 }
 
@@ -205,6 +214,25 @@ usort($rows, function(array $a, array $b): int {
     if ($ta !== $tb) return $ta - $tb;
     return strnatcasecmp($a['name'], $b['name']);
 });
+
+// Helper: true if model prefix matches any phone/ATA prefix (same list as api.class.php)
+$isPhoneModel = static function(string $m): bool {
+    $u = strtoupper(trim($m));
+    foreach (['GRP','GXP','GXV','GXW','WP','HT','DP','GHP','GVC','GSC','GDS'] as $p) {
+        if (str_starts_with($u, $p)) return true;
+    }
+    return false;
+};
+
+// Build network → first UCM/GCC device map for phone modal PBX info
+$pbx_by_network = [];
+foreach ($rows as $_r) {
+    if (!preg_match('/^UCM|^GCC|^CLOUDUCM|^SOFTWAREUCM/i', $_r['raw_model'] ?? '')) continue;
+    $_net = strtolower($_r['network_name'] ?? '');
+    if ($_net !== '' && !isset($pbx_by_network[$_net])) {
+        $pbx_by_network[$_net] = ['name' => $_r['name'], 'ip' => $_r['private_ip'] ?: $_r['ip']];
+    }
+}
 
 // Build per-network device stats for tooltip (router/switch/AP/clients counts)
 // Device classification: GWN7001/7002/7003 prefix → router; GWN7800/GSS → switch; GWN76xx → AP; UCM/GCC/GRP/GXP etc → phone/pbx
@@ -217,7 +245,7 @@ foreach ($rows as $r) {
     }
     $m   = strtoupper($r['raw_model'] ?? '');
     $on  = $r['online'];
-    $isPhone  = ($r['type'] === 'Phone');
+    $isPhone  = ($r['type'] === 'Phone') || $isPhoneModel($r['raw_model'] ?? '');
     $isPbxDev = preg_match('/^UCM|^GCC|^CLOUDUCM|^SOFTWAREUCM/', $m);
     if (!$isPhone && !$isPbxDev) {
         if (preg_match('/^GWN700[0-9]/', $m)) {
@@ -609,11 +637,24 @@ foreach ($net_stats as $ns) {
                         <?= $r['ip'] ?> <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i>
                      </a>
                      <?php else: ?>—<?php endif; ?>
-                     <?php if (!empty($r['private_ip'])): ?>
-                     <br><a href="http://<?= urlencode($r['private_ip']) ?>" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.85em;" title="<?= htmlspecialchars(__('Private IP', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $r['private_ip'] ?> <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
+                     <?php
+                     // Pick preferred IP based on config, fallback to the other
+                     $_pref_ip = $ip_version === 'ipv6'
+                         ? (!empty($r['ipv6'])       ? $r['ipv6']       : $r['private_ip'])
+                         : (!empty($r['private_ip']) ? $r['private_ip'] : $r['ipv6']);
+                     $_sec_ip  = $ip_version === 'ipv6'
+                         ? (!empty($r['ipv6']) && !empty($r['private_ip']) ? $r['private_ip'] : '')
+                         : (!empty($r['private_ip']) && !empty($r['ipv6']) ? $r['ipv6'] : '');
+                     // Build href: IPv6 needs brackets
+                     $__ip_href = function(string $ip): string {
+                         return 'http://' . (strpos($ip, ':') !== false ? '[' . $ip . ']' : urlencode($ip));
+                     };
+                     ?>
+                     <?php if (!empty($_pref_ip)): ?>
+                     <br><a href="<?= $__ip_href($_pref_ip) ?>" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.85em;" title="<?= htmlspecialchars(__('Private IP', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $_pref_ip ?> <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
                      <?php endif; ?>
-                     <?php if (!empty($r['ipv6'])): ?>
-                     <br><span class="text-muted" style="font-size:.75em;word-break:break-all;" title="IPv6"><?= $r['ipv6'] ?></span>
+                     <?php if (!empty($_sec_ip)): ?>
+                     <br><a href="<?= $__ip_href($_sec_ip) ?>" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.75em;word-break:break-all;" title="<?= strpos($_sec_ip, ':') !== false ? 'IPv6' : htmlspecialchars(__('Private IP', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $_sec_ip ?> <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
                      <?php endif; ?>
                   </small></td>
                   <td><code class="small gdms-copy" style="cursor:pointer;" data-copy="<?= htmlspecialchars($r['mac'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(__('Copy MAC', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $r['mac'] ?></code></td>
@@ -642,7 +683,7 @@ foreach ($net_stats as $ns) {
                      <?php endif; ?>
                   </td>
                   <td>
-                     <?php if ($r['type'] !== 'Phone' && !empty($r['mac'])): ?>
+                     <?php if (!($r['type'] === 'Phone' || $isPhoneModel($r['raw_model'] ?? '')) && !empty($r['mac'])): ?>
                      <span class="gdms-wan-ports d-flex gap-1 align-items-center flex-nowrap"
                            data-mac="<?= htmlspecialchars(strtolower($r['mac']), ENT_QUOTES, 'UTF-8') ?>"
                            data-upload="<?= (int)($r['upload_bytes']   ?? 0) ?>"
@@ -650,6 +691,34 @@ foreach ($net_stats as $ns) {
                            data-first-seen="<?= htmlspecialchars($r['first_seen'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                            data-last-seen="<?= htmlspecialchars($r['last_seen']  ?? '', ENT_QUOTES, 'UTF-8') ?>">
                         <span class="text-muted small">—</span>
+                     </span>
+                     <?php elseif (($r['type'] === 'Phone' || $isPhoneModel($r['raw_model'] ?? '')) && !empty($r['sip_status'])): ?>
+                     <?php
+                     $_sip_tip = $r['sip_status'] === 'registered' ? __('SIP Registered', 'gdmsintegration') : __('SIP Unregistered', 'gdmsintegration');
+                     if (!empty($r['sip_extension'])) $_sip_tip .= ' · ' . __('Ext', 'gdmsintegration') . ': ' . $r['sip_extension'];
+                     if (!empty($r['dnd']))            $_sip_tip .= ' · ' . __('Do Not Disturb', 'gdmsintegration');
+                     $_pbx_net = strtolower($r['network_name'] ?? '');
+                     $_pbx     = $pbx_by_network[$_pbx_net] ?? null;
+                     ?>
+                     <span class="gdms-sip-dot" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;"
+                           title="<?= htmlspecialchars($_sip_tip, ENT_QUOTES, 'UTF-8') ?>"
+                           data-pbx-name="<?= htmlspecialchars($_pbx['name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                           data-pbx-ip="<?= htmlspecialchars($_pbx['ip'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                           data-sip="<?= htmlspecialchars($r['sip_status'], ENT_QUOTES, 'UTF-8') ?>"
+                           data-dnd="<?= (int)($r['dnd'] ?? 0) ?>"
+                           data-sync="<?= (int)($r['is_synchronized'] ?? 0) ?>"
+                           data-sync-msg="<?= htmlspecialchars($r['sync_failure_msg'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                           data-task="<?= (int)($r['scheduled_task'] ?? 0) ?>"
+                           data-extension="<?= htmlspecialchars($r['sip_extension'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                           data-last-seen="<?= htmlspecialchars($r['last_seen'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                           data-private-ip="<?= htmlspecialchars($r['private_ip'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                           data-public-ip="<?= htmlspecialchars($r['ip'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                           data-site="<?= htmlspecialchars($r['network_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                           data-name="<?= htmlspecialchars($r['name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:<?= $r['sip_status'] === 'registered' ? '#28a745' : '#dc3545' ?>;outline:1px solid rgba(128,128,128,.3);<?= !$r['online'] ? 'opacity:.4;' : '' ?>flex-shrink:0;"></span>
+                        <?php if (!empty($r['dnd'])): ?>
+                        <small class="text-danger" style="font-size:.65em;line-height:1;" title="<?= __('Do Not Disturb', 'gdmsintegration') ?>">DND</small>
+                        <?php endif; ?>
                      </span>
                      <?php endif; ?>
                   </td>
@@ -693,11 +762,6 @@ foreach ($net_stats as $ns) {
                      <span class="badge <?= $r['online'] ? 'bg-success' : 'bg-danger' ?> text-white">
                         <?= $r['online'] ? __('Online', 'gdmsintegration') : __('Offline', 'gdmsintegration') ?>
                      </span>
-                     <?php if ($r['type'] === 'Phone' && !empty($r['sip_status'])): ?>
-                     <br><span class="badge <?= $r['sip_status'] === 'registered' ? 'bg-primary' : 'bg-secondary' ?> mt-1" style="font-size:.68em;">
-                        <?= $r['sip_status'] === 'registered' ? __('SIP Reg', 'gdmsintegration') : __('SIP Unreg', 'gdmsintegration') ?>
-                     </span>
-                     <?php endif; ?>
                      <?php if (!empty($r['sip_extension'])): ?>
                      <br><span class="badge bg-light text-dark border mt-1" style="font-size:.68em;" title="<?= htmlspecialchars(__('SIP Extension', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>">
                         <?= htmlspecialchars($r['sip_extension'], ENT_QUOTES, 'UTF-8') ?>
@@ -1633,6 +1697,89 @@ foreach ($net_stats as $ns) {
             .catch(function() {
                 body.innerHTML = '<p class="text-danger text-center py-3">' + STR.reqFailed + '</p>';
             });
+    });
+
+    // ── SIP Phone detail modal ───────────────────────────────────────────────
+    var sipModal = document.createElement('div');
+    sipModal.className = 'modal fade';
+    sipModal.id = 'gdmsSipModal';
+    sipModal.setAttribute('tabindex', '-1');
+    sipModal.setAttribute('aria-hidden', 'true');
+    sipModal.innerHTML =
+      '<div class="modal-dialog modal-dialog-centered">' +
+      '<div class="modal-content">' +
+      '<div class="modal-header py-2">' +
+      '<h5 class="modal-title"><i class="ti ti-phone me-2 text-primary"></i>' +
+      '<span id="gdmsSipModalTitle"></span></h5>' +
+      '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
+      '</div>' +
+      '<div class="modal-body" id="gdmsSipModalBody"></div>' +
+      '<div class="modal-footer py-2"><button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">' +
+      <?= json_encode(__('Close', 'gdmsintegration')) ?> +
+      '</button></div></div></div>';
+    document.body.appendChild(sipModal);
+
+    document.addEventListener('click', function(e) {
+        var dot = e.target.closest('.gdms-sip-dot');
+        if (!dot) return;
+        var sip       = dot.getAttribute('data-sip')      || '';
+        var dnd       = parseInt(dot.getAttribute('data-dnd')   || '0', 10);
+        var sync      = parseInt(dot.getAttribute('data-sync')  || '0', 10);
+        var syncMsg   = dot.getAttribute('data-sync-msg') || '';
+        var task      = parseInt(dot.getAttribute('data-task')  || '0', 10);
+        var ext       = dot.getAttribute('data-extension')|| '';
+        var lastSeen  = dot.getAttribute('data-last-seen')|| '';
+        var privIp    = dot.getAttribute('data-private-ip')|| '';
+        var pubIp     = dot.getAttribute('data-public-ip') || '';
+        var site      = dot.getAttribute('data-site')     || '';
+        var devName   = dot.getAttribute('data-name')     || '';
+        var pbxName   = dot.getAttribute('data-pbx-name') || '';
+        var pbxIp     = dot.getAttribute('data-pbx-ip')   || '';
+
+        document.getElementById('gdmsSipModalTitle').textContent = devName;
+
+        var registered = sip === 'registered';
+        var sipColor   = registered ? '#28a745' : '#dc3545';
+        var sipLabel   = registered
+            ? <?= json_encode(__('Registered', 'gdmsintegration')) ?>
+            : <?= json_encode(__('Unregistered', 'gdmsintegration')) ?>;
+
+        var esc = function(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || '—'))); return d.innerHTML; };
+
+        var rows = [];
+        rows.push(['<i class="ti ti-phone-call me-1"></i>' + <?= json_encode(__('SIP Status', 'gdmsintegration')) ?>,
+            '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + sipColor + ';outline:1px solid rgba(128,128,128,.3);margin-right:5px;"></span><strong style="color:' + sipColor + '">' + esc(sipLabel) + '</strong>']);
+        if (ext)      rows.push(['<i class="ti ti-hash me-1"></i>' + <?= json_encode(__('Extension', 'gdmsintegration')) ?>, '<code>' + esc(ext) + '</code>']);
+        if (site)     rows.push(['<i class="ti ti-building me-1"></i>' + <?= json_encode(__('Site', 'gdmsintegration')) ?>, esc(site)]);
+        if (privIp)   rows.push(['<i class="ti ti-network me-1"></i>' + <?= json_encode(__('Private IP', 'gdmsintegration')) ?>,
+            '<a href="http://' + esc(privIp) + '" target="_blank" rel="noopener"><code>' + esc(privIp) + '</code></a>']);
+        if (pubIp)    rows.push(['<i class="ti ti-world me-1"></i>' + <?= json_encode(__('Public IP', 'gdmsintegration')) ?>,
+            '<a href="https://www.whois.com/whois/' + esc(pubIp) + '" target="_blank" rel="noopener"><code>' + esc(pubIp) + '</code></a>']);
+        if (lastSeen) rows.push(['<i class="ti ti-clock me-1"></i>' + <?= json_encode(__('Last Seen', 'gdmsintegration')) ?>, esc(lastSeen)]);
+        if (pbxIp)    rows.push(['<i class="ti ti-cpu me-1"></i>' + <?= json_encode(__('PBX / UCM', 'gdmsintegration')) ?>,
+            '<a href="http://' + esc(pbxIp) + '" target="_blank" rel="noopener"><code>' + esc(pbxIp) + '</code></a>'
+            + (pbxName ? ' <span class="text-muted small">(' + esc(pbxName) + ')</span>' : '')]);
+        rows.push(['<i class="ti ti-bell-off me-1"></i>' + <?= json_encode(__('Do Not Disturb', 'gdmsintegration')) ?>,
+            dnd ? '<span class="badge text-bg-danger">' + <?= json_encode(__('Active', 'gdmsintegration')) ?> + '</span>'
+                : '<span class="badge border" style="color:inherit;background:transparent">' + <?= json_encode(__('Off', 'gdmsintegration')) ?> + '</span>']);
+        rows.push(['<i class="ti ti-refresh me-1"></i>' + <?= json_encode(__('Synchronized', 'gdmsintegration')) ?>,
+            sync ? '<span class="badge text-bg-success">' + <?= json_encode(__('Yes', 'gdmsintegration')) ?> + '</span>'
+                 : '<span class="badge text-bg-warning">' + <?= json_encode(__('No', 'gdmsintegration')) ?> + '</span>']);
+        if (!sync && syncMsg) rows.push(['<i class="ti ti-alert-triangle me-1 text-warning"></i>' + <?= json_encode(__('Sync Error', 'gdmsintegration')) ?>, '<small class="text-danger">' + esc(syncMsg) + '</small>']);
+        rows.push(['<i class="ti ti-calendar me-1"></i>' + <?= json_encode(__('Scheduled Task', 'gdmsintegration')) ?>,
+            task ? '<span class="badge text-bg-primary">' + <?= json_encode(__('Pending', 'gdmsintegration')) ?> + '</span>'
+                 : '<span class="badge border" style="color:inherit;background:transparent">' + <?= json_encode(__('None', 'gdmsintegration')) ?> + '</span>']);
+
+        var html = '<dl class="row mb-0 small">';
+        rows.forEach(function(r) {
+            html += '<dt class="col-sm-5 text-muted fw-normal">' + r[0] + '</dt><dd class="col-sm-7 mb-1">' + r[1] + '</dd>';
+        });
+        html += '</dl>';
+        document.getElementById('gdmsSipModalBody').innerHTML = html;
+
+        var bsSip = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(sipModal) : null;
+        if (bsSip) bsSip.show();
+        else if (typeof $ !== 'undefined') $(sipModal).modal('show');
     });
 
     // ── Cloud Alerts panel ────────────────────────────────────────────────────
