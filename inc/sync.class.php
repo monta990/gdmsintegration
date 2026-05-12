@@ -102,12 +102,12 @@ PluginGdmsintegrationUtils::log("[{$ts}] syncEntity called — source={$caller} 
                     $gwn_api_ok = true; // API responded — even 0 devices is a valid (empty account) state
                     PluginGdmsintegrationUtils::log("[{$ts}] GWN API returned {$gwnCount} device(s)");
 
-                    // Inject firmware_latest from /upgrade/version — one call per unique networkId
+                    // Inject firmware_latest — all networks fetched in parallel via curl_multi.
                     if (!empty($gwnDevices)) {
-                        $net_ids = array_unique(array_filter(array_column($gwnDevices, 'networkId')));
+                        $net_ids   = array_unique(array_filter(array_column($gwnDevices, 'networkId')));
+                        $fw_by_net = PluginGdmsintegrationAPI::gwnGetFirmwareVersionsBatch($config, array_map('intval', $net_ids));
                         $fw_by_mac = [];
-                        foreach ($net_ids as $nid) {
-                            $fwList = PluginGdmsintegrationAPI::gwnGetFirmwareVersions($config, (int)$nid);
+                        foreach ($fw_by_net as $fwList) {
                             foreach ($fwList as $fw) {
                                 $fmac = strtolower(str_replace(':', '', $fw['mac'] ?? ''));
                                 if ($fmac && isset($fw['lastVersion'])) {

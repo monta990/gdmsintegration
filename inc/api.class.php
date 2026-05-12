@@ -428,6 +428,14 @@ class PluginGdmsintegrationAPI {
         }
         // Pre-fetch token once — reuse for all page requests and info batches
         $token = self::gwnGetToken($config) ?: '';
+
+        // Pre-load SN cache for all managed MACs — avoids one DB query per device below.
+        $_snCache = [];
+        foreach ((new PluginGdmsintegrationDevice())->find() as $_row) {
+            $_m = strtolower(trim($_row['mac'] ?? ''));
+            if ($_m && !empty($_row['sn_cloud'])) $_snCache[$_m] = $_row['sn_cloud'];
+        }
+
         $all = [];
         foreach ($networkMap as $networkId => $networkName) {
             $page = 1;
@@ -457,19 +465,14 @@ class PluginGdmsintegrationAPI {
                             'location'    => $d['location'] ?? $d['site'] ?? '',
                         ]);
                     }, $batch);
-                    // Enrich SN via device/info — parallel curl_multi for speed
-                    $deviceStateObj = new PluginGdmsintegrationDevice();
-
-                    // Separate devices that need info from those that don't
+                    // Enrich SN via device/info — use pre-loaded cache first, parallel curl_multi for misses.
                     $needsInfo = [];
                     foreach ($batch as $idx => $dev) {
                         $devMac = strtolower(trim($dev['mac'] ?? ''));
                         if (empty($dev['sn']) && !empty($devMac)) {
-                            $cached = $deviceStateObj->find(['mac' => $devMac]);
-                            $cachedSn = !empty($cached) ? (reset($cached)['sn_cloud'] ?? '') : '';
-                            if (!empty($cachedSn)) {
-                                $batch[$idx]['sn'] = $cachedSn;
-                                PluginGdmsintegrationUtils::debug("GWN SN cached for {$devMac}: {$cachedSn}");
+                            if (!empty($_snCache[$devMac])) {
+                                $batch[$idx]['sn'] = $_snCache[$devMac];
+                                PluginGdmsintegrationUtils::debug("GWN SN cached for {$devMac}: {$_snCache[$devMac]}");
                             } else {
                                 $needsInfo[$idx] = $dev;
                             }
@@ -797,27 +800,64 @@ class PluginGdmsintegrationAPI {
     }
 
         public static function gwnGetFirmwareVersions(array $config, int $networkId): array {
+        return self::gwnGetFirmwareVersionsBatch($config, [$networkId])[$networkId] ?? [];
+    }
+
+    /**
+     * Parallel firmware version fetch for multiple networks via curl_multi.
+     * Returns [networkId => [firmware rows]]
+     */
+    public static function gwnGetFirmwareVersionsBatch(array $config, array $networkIds): array {
         $token  = self::gwnGetToken($config);
-        if (!$token) return [];
+        if (!$token || empty($networkIds)) return [];
         $appId  = $config['gwn_client_id']     ?? '';
         $secret = $config['gwn_client_secret'] ?? '';
 
-        $body   = json_encode(['networkId' => $networkId]);
-        $ts  = (int)(microtime(true) * 1000);
-        $sig = self::gwnBuildSignature($token, $appId, $secret, $ts, $body);
-        $url = self::GWN_BASE . '/oapi/v1.0.0/upgrade/version'
-               . '?access_token=' . urlencode($token)
-               . '&appID='        . urlencode($appId)
-               . "&timestamp={$ts}&signature={$sig}";
-
-        $data = self::curl($url, ['Content-Type: application/json'], $body);
-        if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
-            PluginGdmsintegrationUtils::log("GWN upgrade/version error network {$networkId}: " . ($data['msg'] ?? json_encode($data)));
-            return [];
+        $mh      = curl_multi_init();
+        $handles = [];
+        foreach ($networkIds as $nid) {
+            $body = json_encode(['networkId' => $nid]);
+            $ts   = (int)(microtime(true) * 1000);
+            $sig  = self::gwnBuildSignature($token, $appId, $secret, $ts, $body);
+            $url  = self::GWN_BASE . '/oapi/v1.0.0/upgrade/version'
+                  . '?access_token=' . urlencode($token)
+                  . '&appID='        . urlencode($appId)
+                  . "&timestamp={$ts}&signature={$sig}";
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $body,
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+            curl_multi_add_handle($mh, $ch);
+            $handles[$nid] = $ch;
         }
-        $result = $data['data']['result'] ?? [];
-        PluginGdmsintegrationUtils::debug("GWN upgrade/version network {$networkId} raw: " . substr(json_encode($data['data'] ?? []), 0, 500));
-        return is_array($result) ? $result : [];
+
+        $running = null;
+        do {
+            curl_multi_exec($mh, $running);
+            if ($running) curl_multi_select($mh, 0.5);
+        } while ($running > 0);
+
+        $results = [];
+        foreach ($handles as $nid => $ch) {
+            $raw  = curl_multi_getcontent($ch);
+            $data = $raw ? json_decode($raw, true) : null;
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+            if (is_array($data) && (int)($data['retCode'] ?? -1) === 0) {
+                $r = $data['data']['result'] ?? [];
+                $results[$nid] = is_array($r) ? $r : [];
+            } else {
+                PluginGdmsintegrationUtils::log("GWN upgrade/version error network {$nid}: " . ($data['msg'] ?? ''));
+                $results[$nid] = [];
+            }
+        }
+        curl_multi_close($mh);
+        return $results;
     }
 
     /**
