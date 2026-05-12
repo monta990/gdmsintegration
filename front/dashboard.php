@@ -230,7 +230,7 @@ foreach ($rows as $_r) {
     if (!preg_match('/^UCM|^GCC|^CLOUDUCM|^SOFTWAREUCM/i', $_r['raw_model'] ?? '')) continue;
     $_net = strtolower($_r['network_name'] ?? '');
     if ($_net !== '' && !isset($pbx_by_network[$_net])) {
-        $pbx_by_network[$_net] = ['name' => $_r['name'], 'ip' => $_r['private_ip'] ?: $_r['ip']];
+        $pbx_by_network[$_net] = ['name' => $_r['name'], 'ip' => $_r['private_ip'] ?: $_r['ip'], 'url' => $_r['asset_url']];
     }
 }
 
@@ -734,6 +734,8 @@ foreach ($net_stats as $ns) {
                            title="<?= htmlspecialchars($_sip_tip, ENT_QUOTES, 'UTF-8') ?>"
                            data-pbx-name="<?= htmlspecialchars($_pbx['name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                            data-pbx-ip="<?= htmlspecialchars($_pbx['ip'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                           data-pbx-url="<?= htmlspecialchars($_pbx['url'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                           data-mac="<?= htmlspecialchars($r['mac'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                            data-sip="<?= htmlspecialchars($r['sip_status'], ENT_QUOTES, 'UTF-8') ?>"
                            data-dnd="<?= (int)($r['dnd'] ?? 0) ?>"
                            data-sync="<?= (int)($r['is_synchronized'] ?? 0) ?>"
@@ -1805,6 +1807,8 @@ foreach ($net_stats as $ns) {
         var devName   = dot.getAttribute('data-name')     || '';
         var pbxName   = dot.getAttribute('data-pbx-name') || '';
         var pbxIp     = dot.getAttribute('data-pbx-ip')   || '';
+        var pbxUrl    = dot.getAttribute('data-pbx-url')  || '';
+        var mac       = dot.getAttribute('data-mac')       || '';
 
         document.getElementById('gdmsSipModalTitle').textContent = devName;
 
@@ -1821,6 +1825,8 @@ foreach ($net_stats as $ns) {
             '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + sipColor + ';outline:1px solid rgba(128,128,128,.3);margin-right:5px;"></span><strong style="color:' + sipColor + '">' + esc(sipLabel) + '</strong>']);
         if (ext)      rows.push(['<i class="ti ti-hash me-1"></i>' + <?= json_encode(__('Extension', 'gdmsintegration')) ?>, '<code>' + esc(ext) + '</code>']);
         if (site)     rows.push(['<i class="ti ti-building me-1"></i>' + <?= json_encode(__('Site', 'gdmsintegration')) ?>, esc(site)]);
+        if (mac)      rows.push(['<i class="ti ti-fingerprint me-1"></i>' + <?= json_encode(__('MAC', 'gdmsintegration')) ?>,
+            '<code class="gdms-copy" style="cursor:pointer;" data-copy="' + esc(mac) + '" title="' + <?= json_encode(__('Copy MAC', 'gdmsintegration')) ?> + '">' + esc(mac) + '</code>']);
         if (privIp)   rows.push(['<i class="ti ti-network me-1"></i>' + <?= json_encode(__('Private IP', 'gdmsintegration')) ?>,
             '<a href="http://' + esc(privIp) + '" target="_blank" rel="noopener"><code>' + esc(privIp) + '</code></a>']);
         if (pubIp)    rows.push(['<i class="ti ti-world me-1"></i>' + <?= json_encode(__('Public IP', 'gdmsintegration')) ?>,
@@ -1828,7 +1834,7 @@ foreach ($net_stats as $ns) {
         if (lastSeen) rows.push(['<i class="ti ti-clock me-1"></i>' + <?= json_encode(__('Last Seen', 'gdmsintegration')) ?>, esc(lastSeen)]);
         if (pbxIp)    rows.push(['<i class="ti ti-cpu me-1"></i>' + <?= json_encode(__('PBX / UCM', 'gdmsintegration')) ?>,
             '<a href="http://' + esc(pbxIp) + '" target="_blank" rel="noopener"><code>' + esc(pbxIp) + '</code></a>'
-            + (pbxName ? ' <span class="text-muted small">(' + esc(pbxName) + ')</span>' : '')]);
+            + (pbxName ? ' ' + (pbxUrl ? '<a href="' + esc(pbxUrl) + '" target="_blank" rel="noopener" class="text-muted small text-decoration-none">(' + esc(pbxName) + ' <i class="ti ti-external-link opacity-50" style="font-size:.8em;"></i>)</a>' : '<span class="text-muted small">(' + esc(pbxName) + ')</span>') : '')]);
         rows.push(['<i class="ti ti-bell-off me-1"></i>' + <?= json_encode(__('Do Not Disturb', 'gdmsintegration')) ?>,
             dnd ? '<span class="badge text-bg-danger">' + <?= json_encode(__('Active', 'gdmsintegration')) ?> + '</span>'
                 : '<span class="badge border" style="color:inherit;background:transparent">' + <?= json_encode(__('Off', 'gdmsintegration')) ?> + '</span>']);

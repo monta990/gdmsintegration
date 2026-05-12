@@ -1081,3 +1081,15 @@ msgstr ""
 #: front/config.form.php
 msgid "IP PBX / UCM (UCM, GCC)"
 msgstr ""
+
+#: front/dashboard.php
+msgid "Copied!"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Firmware downloads"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Updating\xe2\x80\xa6"
+msgstr ""

@@ -1085,3 +1085,15 @@ msgstr "Puntos de acceso (GWN76xx)"
 #: front/config.form.php
 msgid "IP PBX / UCM (UCM, GCC)"
 msgstr "IP PBX / UCM (UCM, GCC)"
+
+#: front/dashboard.php
+msgid "Copied!"
+msgstr "¡Copiado!"
+
+#: front/dashboard.php
+msgid "Firmware downloads"
+msgstr "Descargas de firmware"
+
+#: front/dashboard.php
+msgid "Updating…"
+msgstr "Actualizando…"

@@ -151,10 +151,11 @@ This dot also appears for ATA devices (HT series) regardless of whether they are
 - SIP registration status
 - Extension number (when available)
 - Site / network
+- MAC address — click to copy
 - Private IP — clickable, opens device admin page
 - Public IP — clickable, opens WHOIS lookup
 - Last seen timestamp
-- PBX / UCM — private IP of the UCM/GCC appliance in the same network, clickable, with device name
+- PBX / UCM — private IP (clickable) + device name as a link to the GLPI asset (opens new tab)
 - Do Not Disturb badge
 - Provisioning sync status and last sync error (when present)
 - Scheduled task badge
@@ -169,6 +170,21 @@ In the plugin configuration, the **Private IP display** setting controls which a
 - **IPv6 preferred** — shows IPv6 first; IPv4 shown below as fallback.
 
 Both addresses are always rendered as clickable links (IPv6 using RFC 2732 bracket notation: `http://[addr]/`). If only one address family is available for a device, it is shown regardless of preference.
+
+---
+
+#### Network Topology card
+
+A vis-network graph rendered below the device table (toggle in settings). Nodes are colour-coded green/red by online status.
+
+**Edge types:**
+
+| Edge | How determined |
+|------|---------------|
+| GWN uplink (AP/switch → parent) | `uplink_mac` field from GWN Cloud sync |
+| Phone → PBX | Matched by shared `/24 subnet` of private IP; falls back to network name when private IP is unavailable |
+
+Because phones and their UCM share the same LAN segment, each PBX forms its own independent cluster with only its registered phones connected to it — multiple UCMs produce multiple distinct sub-graphs.
 
 ---
 
@@ -215,7 +231,7 @@ An amber **⬆** icon appears next to the firmware version when an update is ava
     - GWN devices: calls GWN Cloud `/upgrade/add`.
     - All other devices: creates a GDMS UC `task/add` task with `taskName=UPGRADE`.
   - **Schedule update** — a datetime picker lets you set a specific date and time; the value is sent as milliseconds epoch.
-- Success or error is shown inline in the modal without closing it.
+- Success or error is shown inline in the modal without closing it. The modal refreshes its CSRF token between requests, so scheduling multiple upgrades in one session works without page reload.
 
 > GWN devices do not expose beta firmware versions through the GWN Cloud API — only the official stable version is available for them.
 
@@ -355,7 +371,7 @@ The *Model* column in the NOC dashboard resolves first from the GLPI asset catal
 The GWN Cloud API requires the OAuth2 `client_credentials` grant as a `GET` request — this is Grandstream's mandated format. Credentials are encrypted at rest with `GLPIKey` and transmitted only over TLS.
 
 ### JavaScript libraries
-vis-network 10.0.2 is the only library bundled inside the plugin's `js/` directory and served via a PHP stateless route (`front/visnetwork.php`). Chart rendering uses **ECharts 5** and date picking uses **Flatpickr** — both are already bundled with GLPI and loaded on demand via `Html::requireJs('charts')` and `Html::requireJs('flatpickr')`. No external CDN requests are made.
+vis-network 10.0.3 is the only library bundled inside the plugin's `js/` directory and served via a PHP stateless route (`front/visnetwork.php`). Chart rendering uses **ECharts 5** and date picking uses **Flatpickr** — both are already bundled with GLPI and loaded on demand via `Html::requireJs('charts')` and `Html::requireJs('flatpickr')`. No external CDN requests are made.
 
 ### Webhook secret
 Configuring a webhook secret is strongly recommended for production deployments — a warning is shown in the configuration form when no secret is set.
