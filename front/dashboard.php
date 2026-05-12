@@ -338,12 +338,38 @@ if ($show_topology) {
             'label' => $r['name'],
             'color' => ['background' => $r['online'] ? '#28a745' : '#dc3545', 'border' => '#aaa'],
             'font'  => ['color' => '#ffffff'],
-            'title' => $r['name'] . ' — ' . ($r['online'] ? 'Online' : 'Offline'),
+            'title' => $r['name'] . ' — ' . ($r['online'] ? __('Online', 'gdmsintegration') : __('Offline', 'gdmsintegration')),
         ];
     }
     foreach ($links_raw as $l) {
         if (!empty($l['source_mac']) && !empty($l['target_mac'])) {
             $edges[] = ['from' => $l['source_mac'], 'to' => $l['target_mac']];
+        }
+    }
+    // Phone → PBX edges: match each registered phone to its UCM by /24 subnet of private_ip.
+    // Phones and their UCM share the same LAN segment, so subnet is a reliable heuristic
+    // even when multiple UCMs share the same GDMS network_name (e.g. one GDMS account).
+    // Fallback: network_name match (for phones without private_ip).
+    $_subnet = static function(string $ip): string {
+        $p = explode('.', $ip);
+        return count($p) === 4 ? $p[0] . '.' . $p[1] . '.' . $p[2] : '';
+    };
+    $_pbx_by_subnet  = []; // /24 → mac
+    $_pbx_by_netname = []; // network_name → mac  (fallback, first-UCM-wins)
+    foreach ($rows as $_r) {
+        if (!preg_match('/^UCM|^GCC|^CLOUDUCM/i', $_r['raw_model'] ?? '') || empty($_r['mac'])) continue;
+        $_sn = $_subnet($_r['private_ip'] ?: $_r['ip']);
+        if ($_sn !== '' && !isset($_pbx_by_subnet[$_sn]))  $_pbx_by_subnet[$_sn] = $_r['mac'];
+        $_nk = strtolower(html_entity_decode($_r['network_name']));
+        if ($_nk !== '' && !isset($_pbx_by_netname[$_nk])) $_pbx_by_netname[$_nk] = $_r['mac'];
+    }
+    foreach ($rows as $_r) {
+        if (empty($_r['sip_status']) || empty($_r['mac'])) continue;
+        $_phone_sn  = $_subnet($_r['private_ip'] ?: $_r['ip']);
+        $_pbx_mac   = ($_phone_sn !== '' ? ($_pbx_by_subnet[$_phone_sn] ?? null) : null)
+                   ?? ($_pbx_by_netname[strtolower(html_entity_decode($_r['network_name']))] ?? null);
+        if ($_pbx_mac && $_pbx_mac !== $_r['mac']) {
+            $edges[] = ['from' => $_r['mac'], 'to' => $_pbx_mac];
         }
     }
 } // end show_topology block
@@ -670,11 +696,15 @@ foreach ($net_stats as $ns) {
                             data-mac="<?= htmlspecialchars(strtolower($r['mac'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                             data-current="<?= htmlspecialchars($r['firmware'], ENT_QUOTES, 'UTF-8') ?>"
                             data-model="<?= htmlspecialchars($r['raw_model'] ?? $r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                            data-name="<?= htmlspecialchars(html_entity_decode($r['name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                            data-ip="<?= htmlspecialchars($r['private_ip'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                             title="<?= __('Click to check firmware', 'gdmsintegration') ?>"><?= $r['firmware'] ?></small>
                      <span class="gdms-fw-badge" style="<?= $fw_badge_shown ? '' : 'display:none; ' ?>cursor:pointer;"
                            data-mac="<?= htmlspecialchars(strtolower($r['mac'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                            data-current="<?= htmlspecialchars($r['firmware'], ENT_QUOTES, 'UTF-8') ?>"
                            data-model="<?= htmlspecialchars($r['raw_model'] ?? $r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                           data-name="<?= htmlspecialchars(html_entity_decode($r['name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                           data-ip="<?= htmlspecialchars($r['private_ip'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                            title="<?= __('Firmware update available', 'gdmsintegration') ?>">
                         <i class="ti ti-arrow-up-circle text-warning ms-1"></i>
                      </span>
@@ -956,6 +986,11 @@ foreach ($net_stats as $ns) {
         wanPppoe:      <?= json_encode(__('PPPoE',                                                                        'gdmsintegration')) ?>,
         wanPptp:       <?= json_encode(__('PPTP',                                                                         'gdmsintegration')) ?>,
         wanL2tp:       <?= json_encode(__('L2TP',                                                                         'gdmsintegration')) ?>,
+        upgrading:     <?= json_encode(__('Updating…',                                                                   'gdmsintegration')) ?>,
+        deviceName:    <?= json_encode(__('Device',                                                                      'gdmsintegration')) ?>,
+        fwPrivateIp:   <?= json_encode(__('Private IP',                                                                  'gdmsintegration')) ?>,
+        fwMacCopied:   <?= json_encode(__('Copied!',                                                                     'gdmsintegration')) ?>,
+        fwPageLbl:     <?= json_encode(__('Firmware downloads',                                                          'gdmsintegration')) ?>,
     };
 
 
@@ -1110,6 +1145,8 @@ foreach ($net_stats as $ns) {
         var mac     = badge.getAttribute('data-mac');
         var current = badge.getAttribute('data-current');
         var model   = badge.getAttribute('data-model') || '';
+        var devName = badge.getAttribute('data-name') || '';
+        var devIp   = badge.getAttribute('data-ip')   || '';
         var info    = fwData[mac] || {};
         var isGwn   = info.isGwn || /^GWN|^GSS/i.test(model);
         var official= info.official || null;
@@ -1146,13 +1183,13 @@ foreach ($net_stats as $ns) {
               + ' <span class="badge bg-warning text-dark ms-1">' + STR.betaFw + '</span>'
               + '</label></td></tr>';
         } else if (beta && beta !== official && !isGwn) {
-            // For GDMS devices: show beta info but note GDMS controls actual version
+            // For GDMS-managed devices: show beta as a selectable radio so version is clear
             versionRows += '<tr>'
-              + '<td class="pe-2 small" style="color:var(--bs-secondary-color,#6c757d);">'
-              + '<i class="ti ti-info-circle me-1"></i>'
-              + STR.betaFw + ': <code style="color:inherit;">' + esc(beta) + '</code>'
+              + '<td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
+              + '<input type="radio" name="gdmsFwVersion" value="' + esc(beta) + '" class="form-check-input mt-0" checked>'
+              + '<code class="text-warning">' + esc(beta) + '</code>'
               + ' <span class="badge ms-1" style="background:var(--bs-primary,#006eca);color:#fff;">' + STR.gdmsManaged + '</span>'
-              + '</td></tr>';
+              + '</label></td></tr>';
         }
         if (!official && !beta && latestFw) {
             // Legacy: GWN check action only returned latestVersion
@@ -1160,13 +1197,25 @@ foreach ($net_stats as $ns) {
               + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span></td></tr>';
         }
 
+        var macUpper  = mac.toUpperCase();
+        var macIpRow  = devName
+            ? '<tr><th class="text-muted fw-normal">' + STR.deviceName + '</th>'
+              + '<td>' + esc(devName) + '</td></tr>'
+            : '';
+        if (devIp) {
+            macIpRow += '<tr><th class="text-muted fw-normal">' + STR.fwPrivateIp + '</th>'
+              + '<td><a href="http://' + esc(devIp) + '/" target="_blank" rel="noopener" class="font-monospace">' + esc(devIp) + '</a></td></tr>';
+        }
+        var macCell = '<code id="gdmsFwMacCode" style="cursor:pointer;" title="' + STR.deviceMac + '">'
+                    + esc(macUpper) + '</code>';
         body.innerHTML = '<table class="table table-sm mb-0">'
+          + macIpRow
           + '<tr><th class="text-muted fw-normal w-50">' + STR.curFw + '</th>'
           + '<td><code>' + esc(current) + '</code></td></tr>'
           + '<tr><th class="text-muted fw-normal align-top pt-2">' + STR.selectVersion + '</th>'
           + '<td>' + (versionRows ? '<table class="mb-0">' + versionRows + '</table>' : '<span class="text-muted">—</span>') + '</td></tr>'
           + '<tr><th class="text-muted fw-normal">' + STR.deviceMac + '</th>'
-          + '<td><code>' + esc(mac.toUpperCase()) + '</code></td></tr>'
+          + '<td>' + macCell + ' <small class="text-muted ms-1" id="gdmsFwMacCopiedMsg" style="display:none;">' + STR.fwMacCopied + '</small></td></tr>'
           + '</table>'
           + '<div class="alert alert-warning mt-3 mb-0 py-2 small">'
           + '<i class="ti ti-alert-triangle me-1"></i>'
@@ -1175,7 +1224,19 @@ foreach ($net_stats as $ns) {
           + (!isGwn ? '<div class="alert alert-info mt-2 mb-0 py-2 small">'
             + '<i class="ti ti-info-circle me-1"></i>'
             + STR.gdmsVersionNote
+            + ' <a href="https://www.grandstream.com/support/firmware" target="_blank" rel="noopener" class="ms-1">'
+            + STR.fwPageLbl + ' <i class="ti ti-external-link" style="font-size:.8em;"></i></a>'
             + '</div>' : '');
+        // MAC copy-on-click
+        var _macEl = document.getElementById('gdmsFwMacCode');
+        if (_macEl) {
+            _macEl.addEventListener('click', function() {
+                navigator.clipboard && navigator.clipboard.writeText(macUpper).then(function() {
+                    var _msg = document.getElementById('gdmsFwMacCopiedMsg');
+                    if (_msg) { _msg.style.display = 'inline'; setTimeout(function(){ _msg.style.display = 'none'; }, 1500); }
+                });
+            });
+        }
 
         // Init / reset flatpickr — GLPI native pattern (wrap:true, CustomFlatpickrButtons)
         if (!fpWrap._fp) {
@@ -1227,34 +1288,36 @@ foreach ($net_stats as $ns) {
             asapBtn.disabled = true; schedBtn.disabled = true;
             activeBtn.innerHTML = '<i class="ti ti-loader me-1" style="animation:spin .8s linear infinite;display:inline-block;"></i>' + STR.scheduling;
 
+            // GLPI 11: use X-Glpi-Csrf-Token header so token is preserved (preserve_token=true).
+            // FormData body token is single-use — second upgrade fails without this fix.
             var csrfValue = (typeof window.glpiGetNewCSRFToken === 'function')
                 ? window.glpiGetNewCSRFToken()
                 : (document.querySelector('meta[property="glpi:csrf_token"]') || {}).getAttribute('content') || '';
 
-            var fetchUrl, fetchBody, fetchHeaders;
+            var fetchUrl, fetchBody;
+            var fetchHeaders = {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Glpi-Csrf-Token': csrfValue,
+            };
 
             if (isGwn) {
                 // GWN: POST to upgrade action with macs array (existing path)
                 var formData = new FormData();
-                formData.append('_glpi_csrf_token', csrfValue);
                 formData.append('macs', JSON.stringify([mac.replace(/:/g, '').toUpperCase()]));
                 if (scheduleMs > 0) formData.append('scheduleTimeMs', scheduleMs);
-                fetchUrl     = FW_UPGRADE_URL;
-                fetchBody    = formData;
-                fetchHeaders = {};
+                fetchUrl  = FW_UPGRADE_URL;
+                fetchBody = formData;
             } else {
                 // UC/phones: POST to upgrade_gdms with mac + version
                 var formData2 = new FormData();
-                formData2.append('_glpi_csrf_token', csrfValue);
                 formData2.append('mac', mac);
                 formData2.append('version', version);
                 if (scheduleMs > 0) formData2.append('scheduleMs', scheduleMs);
-                fetchUrl     = FW_UPGRADE_GDMS_URL;
-                fetchBody    = formData2;
-                fetchHeaders = {};
+                fetchUrl  = FW_UPGRADE_GDMS_URL;
+                fetchBody = formData2;
             }
 
-            fetch(fetchUrl, { method: 'POST', credentials: 'same-origin', body: fetchBody })
+            fetch(fetchUrl, { method: 'POST', credentials: 'same-origin', headers: fetchHeaders, body: fetchBody })
                 .then(function(r) { return r.json(); })
                 .then(function(resp) {
                     if (resp.error) {
@@ -1273,7 +1336,14 @@ foreach ($net_stats as $ns) {
                         body.appendChild(ok);
                         asapBtn.style.display = 'none'; schedBtn.style.display = 'none';
                         schedRow.style.display = 'none';
-                        document.querySelectorAll('.gdms-fw-badge[data-mac="' + mac + '"]')
+                        // Replace firmware version text with "Updating…"; hide the arrow badge
+                        document.querySelectorAll('small.gdms-fw-badge[data-mac="' + mac + '"]')
+                            .forEach(function(el) {
+                                el.textContent = STR.upgrading;
+                                el.style.cursor = 'default';
+                                el.classList.remove('gdms-fw-badge');
+                            });
+                        document.querySelectorAll('span.gdms-fw-badge[data-mac="' + mac + '"]')
                             .forEach(function(el) { el.style.display = 'none'; });
                     }
                 })

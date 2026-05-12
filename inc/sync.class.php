@@ -219,6 +219,19 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
         $history = new PluginGdmsintegrationHistory();
         $link    = new PluginGdmsintegrationLink();
 
+        // Prime device state cache — eliminates one DB query per device for getState()
+        // and one for saveStateWithNetwork(). One bulk load instead of 2N queries.
+        PluginGdmsintegrationDevice::primeCache();
+
+        // Pre-load existing topology links — eliminates one find() per device.
+        $existing_links = [];
+        foreach ($link->find() as $_lrow) {
+            $existing_links[strtolower($_lrow['source_mac']) . '|' . strtolower($_lrow['target_mac'])] = true;
+        }
+
+        // History rows collected for bulk insert at the end of the loop.
+        $history_batch = [];
+
         // Load config so router/switch port API calls have credentials
         $config_data = PluginGdmsintegrationConfig::getConfigByEntity($entities_id);
 
@@ -336,12 +349,12 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 if (!empty($serial)) { $serial_cache[$serial] = $new_row; }
             }
 
-            // History
-            $history->add([
+            // Collect history for bulk insert at end of loop
+            $history_batch[] = [
                 'mac'    => $mac ?: $serial,
                 'status' => $status,
                 'date'   => gmdate('Y-m-d H:i:s'),
-            ]);
+            ];
             // Store full cloud state for dashboard display
             // GDMS fields: publicIp, privateip, firmwareVersion, siteName, sn
             // GWN fields:  ip/ipv4, versionFirmware, networkName, upTime, sn (enriched)
@@ -660,14 +673,25 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             }
             // Topology link (networking devices only)
             if (!empty($d['uplink_mac'])) {
-                $uplink = strtolower(trim($d['uplink_mac']));
-                if (empty($link->find(['source_mac' => $mac, 'target_mac' => $uplink]))) {
+                $uplink  = strtolower(trim($d['uplink_mac']));
+                $link_key = $mac . '|' . $uplink;
+                if (!isset($existing_links[$link_key])) {
                     $link->add([
                         'source_mac' => $mac,
                         'target_mac' => $uplink,
                         'type'       => 'uplink',
                     ]);
+                    $existing_links[$link_key] = true;
                 }
+            }
+        }
+
+        // Insert history snapshots via ORM-approved insert() to comply with GLPI 11 query restrictions.
+        if (!empty($history_batch)) {
+            global $DB;
+            $table = PluginGdmsintegrationHistory::getTable();
+            foreach ($history_batch as $h) {
+                $DB->insert($table, $h);
             }
         }
 

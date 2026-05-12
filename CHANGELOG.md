@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.1] — 2026-05-12
+
+### Added
+- **Firmware modal — device name and private IP** — modal header now shows the device name and its private IP (clickable link) so the operator knows which device they are updating without scrolling the table.
+- **Firmware modal — copy MAC with one click** — clicking the MAC code in the modal copies it to the clipboard; shows a brief "Copied!" confirmation.
+- **Firmware modal — firmware downloads link** — info note now includes a direct link to grandstream.com/support/firmware that opens in a new tab.
+- **Firmware modal — beta-only devices show selectable version** — for GDMS-managed phones whose firmware page only has a beta channel (GRP260x, WP8x6, HT8xxV2, GCC6xx), the available version is now shown as a pre-selected radio button instead of a text note, making the scheduled version clearly visible.
+- **Topology — phone → PBX edges** — phones are now connected to their UCM/GCC PBX in the vis-network topology graph based on shared network name; lines are drawn automatically with no extra queries.
+- **Topology — localised node status** — node tooltips now use the active UI language for "Online"/"Offline" instead of hard-coded English.
+- **Firmware update in progress indicator** — after a successful upgrade request the firmware version cell shows "Updating…" instead of going blank; reverts to the real version on the next sync.
+
+### Fixed
+- **CSRF double-upgrade failure** — second firmware upgrade in the same session failed with CSRF error. Root cause: GLPI 11 consumes single-use form tokens but preserves `X-Glpi-Csrf-Token` header tokens (`preserve_token: true`). All firmware upgrade fetches now send `X-Requested-With: XMLHttpRequest` + `X-Glpi-Csrf-Token` header; the body token field is removed.
+
+### Improved
+- **Sync performance** — eliminated up to 3 DB round-trips per device: device state is loaded once into an in-process PHP cache (`primeCache()`) so `getState()` and `saveStateWithNetwork()` skip per-device `find()` calls; existing topology links are pre-loaded into a PHP set so link deduplication is a hash lookup; all history snapshots are flushed in a single bulk `INSERT` at the end of the loop instead of one per device. Expected reduction: ~35 % fewer queries on a 35-device account.
+- **vis-network updated to 10.0.3**.
+
+---
+
 ## [1.4.0] — 2026-05-10
 
 ### Added
