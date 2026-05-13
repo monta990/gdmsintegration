@@ -10,14 +10,25 @@ class PluginGdmsintegrationDevice extends PluginGdmsintegrationBaseTM {
         return 'glpi_plugin_gdmsintegration_devices';
     }
 
-
-
     public static function getTypeName($nb = 0): string {
         return 'GDMS Device State';
     }
 
+    // In-process cache: mac → row. Populated by primeCache() once per sync cycle.
+    private static array $stateCache = [];
+
+    public static function primeCache(): void {
+        self::$stateCache = [];
+        $obj = new self();
+        foreach ($obj->find() as $row) {
+            self::$stateCache[strtolower($row['mac'])] = $row;
+        }
+    }
+
     public function getState(string $mac): ?string {
-        // Use a fresh instance to avoid CommonDBTM internal field cache
+        if (isset(self::$stateCache[$mac])) {
+            return self::$stateCache[$mac]['status'] ?? null;
+        }
         $fresh = new self();
         $rows  = $fresh->find(['mac' => $mac]);
         if (empty($rows)) {
@@ -63,7 +74,13 @@ class PluginGdmsintegrationDevice extends PluginGdmsintegrationBaseTM {
         string $sync_failure_msg = '',
         int    $scheduled_task  = 0
     ): bool {
-        $rows = $this->find(['mac' => $mac]);
+        // Use in-process cache to skip a DB round-trip when primeCache() was called
+        if (isset(self::$stateCache[$mac])) {
+            $cached = self::$stateCache[$mac];
+            $rows   = [$cached['id'] => $cached];
+        } else {
+            $rows = $this->find(['mac' => $mac]);
+        }
         $data = [
             'status'          => $status,
             'network_name'    => $network_name,
@@ -99,9 +116,16 @@ class PluginGdmsintegrationDevice extends PluginGdmsintegrationBaseTM {
         // (which pass 0) never overwrite the entity set by a proper cron/ajax sync.
         if ($entities_id > 0) $data['entities_id'] = $entities_id;
         if (!empty($rows)) {
-            return (bool) $this->update(array_merge(['id' => array_key_first($rows)], $data));
+            $id  = array_key_first($rows);
+            $ok  = (bool) $this->update(array_merge(['id' => $id], $data));
+            self::$stateCache[$mac] = array_merge($rows[$id], $data, ['id' => $id]);
+            return $ok;
         }
-        return (bool) $this->add(array_merge(['mac' => $mac, 'entities_id' => $entities_id], $data));
+        $new_id = (int) $this->add(array_merge(['mac' => $mac, 'entities_id' => $entities_id], $data));
+        if ($new_id > 0) {
+            self::$stateCache[$mac] = array_merge(['mac' => $mac, 'id' => $new_id, 'entities_id' => $entities_id], $data);
+        }
+        return $new_id > 0;
     }
 
     public function getWanPortsJson(string $mac): string {

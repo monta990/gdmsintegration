@@ -2,10 +2,147 @@
 /**
  * GDMS Integration — Configuration form
  */
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date as XlDate;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+
 global $CFG_GLPI;
 
 Session::checkLoginUser();
 Session::checkRight('config', UPDATE);
+
+// ── History import ────────────────────────────────────────────────────────────
+if (isset($_POST['import_history'])) {
+    $upload = $_FILES['history_xlsx'] ?? null;
+    if (!$upload || $upload['error'] !== UPLOAD_ERR_OK || empty($upload['tmp_name'])) {
+        Session::addMessageAfterRedirect(__('No file received or upload error.', 'gdmsintegration'), false, ERROR);
+        Html::back();
+    } else {
+        try { $spreadsheet = IOFactory::load($upload['tmp_name']); }
+        catch (\Exception $e) {
+            Session::addMessageAfterRedirect(__('Could not read file:', 'gdmsintegration') . ' ' . $e->getMessage(), false, ERROR);
+            Html::back();
+            exit;
+        }
+        if ($spreadsheet->getSheetCount() < 2) {
+            Session::addMessageAfterRedirect(__('File must contain at least 2 sheets (pivot + summary).', 'gdmsintegration'), false, ERROR);
+            Html::back();
+        } else {
+            $cell = function($sheet, $c, $r) {
+                return $sheet->getCell(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($c) . $r);
+            };
+            $sumSheet = $spreadsheet->getSheet(1);
+            $sumRows  = $sumSheet->getHighestRow();
+            $nameToMac = [];
+            for ($r = 2; $r <= $sumRows; $r++) {
+                $name = trim((string)$cell($sumSheet,1,$r)->getValue());
+                $mac  = strtolower(trim((string)$cell($sumSheet,2,$r)->getValue()));
+                if ($name !== '' && $mac !== '') $nameToMac[strtolower($name)] = $mac;
+            }
+            $pivotSheet = $spreadsheet->getSheet(0);
+            $maxCol = Coordinate::columnIndexFromString($pivotSheet->getHighestColumn());
+            $maxRow = $pivotSheet->getHighestRow();
+            $colToMac = [];
+            for ($c = 2; $c <= $maxCol; $c++) {
+                $h = trim((string)$cell($pivotSheet,$c,1)->getValue());
+                if ($h === '') continue;
+                $mac = $nameToMac[strtolower($h)] ?? null;
+                if (!$mac) { $clean = strtolower(preg_replace('/[^0-9a-fA-F:]/','',$h)); if (strlen($clean)>=12) $mac=$clean; }
+                if ($mac) $colToMac[$c] = $mac;
+            }
+            if (empty($colToMac)) {
+                Session::addMessageAfterRedirect(__('No recognizable device columns found. Ensure the file was exported by this plugin.', 'gdmsintegration'), false, WARNING);
+                Html::back();
+            } else {
+                $histObj  = new PluginGdmsintegrationHistory();
+                $existing = [];
+                foreach ($histObj->find() as $h) {
+                    $m = strtolower(trim($h['mac']??'')); $d = substr($h['date']??'',0,10);
+                    if ($m&&$d) $existing[$m][$d]=true;
+                }
+                global $DB;
+                $RECORDS=100; $STEP=864; $ins=0; $skip=0;
+                for ($r=2; $r<=$maxRow; $r++) {
+                    $raw = $cell($pivotSheet,1,$r)->getValue();
+                    if ($raw===null||$raw==='') continue;
+                    $day = is_numeric($raw) ? XlDate::excelToDateTimeObject((float)$raw)->format('Y-m-d') : substr(trim((string)$raw),0,10);
+                    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/',$day)) continue;
+                    foreach ($colToMac as $c=>$mac) {
+                        if (!empty($existing[$mac][$day])) { $skip++; continue; }
+                        $val = $cell($pivotSheet,$c,$r)->getValue();
+                        if ($val===null||$val==='') continue;
+                        $pct = max(0.0,min(1.0,(float)$val));
+                        $on  = (int)round($pct*$RECORDS);
+                        $ts  = strtotime($day.' 00:08:00');
+                        if ($ts===false||$ts<86400) { $skip++; continue; }
+                        for ($i=0;$i<$RECORDS;$i++) {
+                            $DB->insert('glpi_plugin_gdmsintegration_history', [
+                                'mac'=>$mac, 'status'=>$i<$on?'online':'offline',
+                                'date'=>date('Y-m-d H:i:s',$ts+$i*$STEP),
+                            ]);
+                        }
+                        $existing[$mac][$day]=true; $ins++;
+                    }
+                }
+                Session::addMessageAfterRedirect(sprintf(__('Import complete: %d device-days imported (%d records each), %d device-days skipped (already had data).','gdmsintegration'),$ins,$RECORDS,$skip),true,INFO);
+                Html::back();
+            }
+        }
+    }
+    exit;
+}
+
+// ── Config export ─────────────────────────────────────────────────────────────
+if (isset($_POST['export_config'])) {
+    Session::checkRight('config', READ);
+    $eid = (int)($_POST['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);
+    $cfg_obj2 = new PluginGdmsintegrationConfig();
+    $cfg2 = $cfg_obj2->getConfigByEntity($eid);
+    $inc = !empty($_POST['include_credentials']);
+    $exp = ['_plugin'=>'gdmsintegration','_version'=>PLUGIN_GDMSINTEGRATION_VERSION,'_exported_at'=>date('c'),'_includes_credentials'=>$inc,'entities_id'=>$eid,
+        'username'=>$cfg2['username']??'','refresh_interval'=>(int)($cfg2['refresh_interval']??300),
+        'ip_version'=>$cfg2['ip_version']??'ipv4','debug_logging'=>(int)($cfg2['debug_logging']??0),
+        'chart_days'=>(int)($cfg2['chart_days']??60),'show_topology'=>(int)($cfg2['show_topology']??1),
+        'ticket_requester_id'=>(int)($cfg2['ticket_requester_id']??0),'wan_debounce_seconds'=>(int)($cfg2['wan_debounce_seconds']??300),
+        'wan_tickets_enabled'=>(int)($cfg2['wan_tickets_enabled']??1),'tickets_phone'=>(int)($cfg2['tickets_phone']??1),
+        'tickets_router'=>(int)($cfg2['tickets_router']??1),'tickets_switch'=>(int)($cfg2['tickets_switch']??1),
+        'tickets_ap'=>(int)($cfg2['tickets_ap']??1),'tickets_pbx'=>(int)($cfg2['tickets_pbx']??1),
+    ];
+    if ($inc) foreach (['password','client_id','client_secret','gwn_client_id','gwn_client_secret','webhook_secret'] as $k) $exp[$k]=$cfg2[$k]??'';
+    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Disposition: attachment; filename="gdms_config_entity'.$eid.'_'.date('Y-m-d').'.json"');
+    header('Cache-Control: no-cache, no-store');
+    header('X-Gdms-New-Csrf-Token: ' . Session::getNewCSRFToken());
+    echo json_encode($exp,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE); exit;
+}
+
+// ── Config import ─────────────────────────────────────────────────────────────
+if (isset($_POST['import_config'])) {
+    $upload2 = $_FILES['config_json'] ?? null;
+    if (!$upload2 || $upload2['error'] !== UPLOAD_ERR_OK) {
+        Session::addMessageAfterRedirect(__('No file received or upload error.', 'gdmsintegration'), false, ERROR);
+    } else {
+        $data = json_decode(file_get_contents($upload2['tmp_name']), true);
+        if (!is_array($data) || ($data['_plugin']??'') !== 'gdmsintegration') {
+            Session::addMessageAfterRedirect(__('Invalid or unrecognised configuration file.', 'gdmsintegration'), false, ERROR);
+        } else {
+            $eid2 = (int)($_POST['entities_id'] ?? $data['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);
+            $inp = ['entities_id'=>$eid2];
+            foreach (['refresh_interval','ip_version','debug_logging','chart_days','show_topology','ticket_requester_id','wan_debounce_seconds','wan_tickets_enabled','tickets_phone','tickets_router','tickets_switch','tickets_ap','tickets_pbx'] as $k) {
+                if (array_key_exists($k,$data)) $inp[$k]=$data[$k];
+            }
+            if (!empty($data['username'])) $inp['username']=$data['username'];
+            if (!empty($data['_includes_credentials'])) {
+                foreach (['password','client_id','client_secret','gwn_client_id','gwn_client_secret','webhook_secret'] as $k) {
+                    if (array_key_exists($k,$data)) $inp[$k]=$data[$k];
+                }
+            }
+            (new PluginGdmsintegrationConfig())->saveConfig($inp);
+            Session::addMessageAfterRedirect(__('Configuration imported. API credentials were not changed — re-enter them if needed.', 'gdmsintegration'), true, INFO);
+        }
+    }
+    Html::back(); exit;
+}
 
 $config = new PluginGdmsintegrationConfig();
 
@@ -139,7 +276,7 @@ function gdms_badge(bool $ok): string {
 ?>
 <div class="container-fluid px-4 mt-3">
 
-   <form method='post' action=''>
+   <form id="main-config-form" method='post' action=''>
 
    <?php // ── Entity ──────────────────────────────────────────────────── ?>
    <div class="row mb-4">
@@ -447,8 +584,80 @@ function gdms_badge(bool $ok): string {
       </div>
    </div>
 
+   <?php echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]); ?>
+   </form>
+
+   <?php // ── History Import ────────────────────────────────────────────── ?>
+   <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+         <i class="ti ti-file-import"></i>
+         <h5 class="mb-0"><?= __('Import History', 'gdmsintegration') ?></h5>
+      </div>
+      <div class="card-body">
+         <p class="text-muted mb-3">
+            <?= __('Restore availability history from a previously exported Excel file (gdms_history_*.xlsx). Days that already have data are skipped — no existing records are overwritten.', 'gdmsintegration') ?>
+         </p>
+         <form method="post" action="" enctype="multipart/form-data" class="gdms-import-form">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+               <input type="file" class="form-control" name="history_xlsx" accept=".xlsx" required style="max-width:340px">
+               <button type="submit" name="import_history" value="1" class="btn btn-outline-primary gdms-import-btn">
+                  <span class="spinner-border spinner-border-sm d-none me-1 gdms-spin" role="status" aria-hidden="true"></span>
+                  <i class="ti ti-upload me-1 gdms-icon"></i><?= __('Import', 'gdmsintegration') ?>
+               </button>
+            </div>
+            <?php echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]); ?>
+         </form>
+      </div>
+   </div>
+
+   <?php // ── Configuration Backup ──────────────────────────────────────── ?>
+   <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+         <i class="ti ti-settings-bolt"></i>
+         <h5 class="mb-0"><?= __('Configuration Backup', 'gdmsintegration') ?></h5>
+      </div>
+      <div class="card-body">
+         <p class="text-muted mb-3">
+            <?= __('Export all plugin settings to a JSON file, or restore them from a backup. API credentials and secrets are excluded from exports for security.', 'gdmsintegration') ?>
+         </p>
+         <div class="d-flex align-items-start gap-4 flex-wrap">
+            <div>
+               <p class="fw-semibold mb-2"><?= __('Export settings', 'gdmsintegration') ?></p>
+               <form method="post" action="" class="gdms-import-form" data-download="1">
+                  <input type="hidden" name="entities_id" value="<?= $entities_id ?>">
+                  <div class="form-check mb-2">
+                     <input class="form-check-input" type="checkbox" name="include_credentials" id="gdms_export_creds" value="1">
+                     <label class="form-check-label" for="gdms_export_creds">
+                        <?= __('Include API credentials (username, keys, secrets)', 'gdmsintegration') ?>
+                     </label>
+                  </div>
+                  <?php echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]); ?>
+                  <button type="submit" name="export_config" value="1" class="btn btn-outline-secondary gdms-import-btn">
+                     <span class="spinner-border spinner-border-sm d-none me-1 gdms-spin" role="status" aria-hidden="true"></span>
+                     <i class="ti ti-download me-1 gdms-icon"></i><?= __('Download JSON', 'gdmsintegration') ?>
+                  </button>
+               </form>
+            </div>
+            <div>
+               <p class="fw-semibold mb-2"><?= __('Import settings', 'gdmsintegration') ?></p>
+               <form method="post" action="" enctype="multipart/form-data" class="gdms-import-form">
+                  <input type="hidden" name="entities_id" value="<?= $entities_id ?>">
+                  <div class="d-flex align-items-center gap-3 flex-wrap">
+                     <input type="file" class="form-control" name="config_json" accept=".json" required style="max-width:280px">
+                     <button type="submit" name="import_config" value="1" class="btn btn-outline-primary gdms-import-btn">
+                        <span class="spinner-border spinner-border-sm d-none me-1 gdms-spin" role="status" aria-hidden="true"></span>
+                        <i class="ti ti-upload me-1 gdms-icon"></i><?= __('Import', 'gdmsintegration') ?>
+                     </button>
+                  </div>
+                  <?php echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]); ?>
+               </form>
+            </div>
+         </div>
+      </div>
+   </div>
+
    <div class="mb-4 d-flex align-items-center gap-3 flex-wrap">
-      <button type="submit" name="save" class="btn btn-primary px-4">
+      <button type="submit" name="save" form="main-config-form" class="btn btn-primary px-4">
          <i class="ti ti-device-floppy me-1"></i><?= __('Save', 'gdmsintegration') ?>
       </button>
       <?php if ($has_gdms || $has_gwn): ?>
@@ -458,12 +667,6 @@ function gdms_badge(bool $ok): string {
       <?php endif; ?>
    </div>
 
-   <?php
-   // Inject CSRF token — required for GLPI 11 Symfony CheckCsrfListener
-   echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
-   ?>
-   </form>
-
 </div>
 <script>
 document.querySelectorAll('.gdms-pw-toggle').forEach(function(btn) {
@@ -472,6 +675,60 @@ document.querySelectorAll('.gdms-pw-toggle').forEach(function(btn) {
         if (!input) return;
         input.type = input.type === 'password' ? 'text' : 'password';
         this.querySelector('i').className = input.type === 'password' ? 'ti ti-eye' : 'ti ti-eye-slash';
+    });
+});
+document.querySelectorAll('.gdms-import-form').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+        var btn = form.querySelector('.gdms-import-btn');
+        if (!btn) return;
+        var spin = btn.querySelector('.gdms-spin');
+        var icon = btn.querySelector('.gdms-icon');
+
+        if (form.dataset.download) {
+            // Intercept: send via fetch with header token (preserve_token=true — not consumed)
+            e.preventDefault();
+            if (spin) spin.classList.remove('d-none');
+            if (icon) icon.classList.add('d-none');
+            btn.disabled = true;
+
+            var fd = new FormData(form);
+            var token = fd.get('_glpi_csrf_token') || '';
+            fd.delete('_glpi_csrf_token');
+
+            fetch(location.href, {
+                method: 'POST',
+                headers: {
+                    'X-Glpi-Csrf-Token': token,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: fd
+            }).then(function(r) {
+                var cd = r.headers.get('Content-Disposition') || '';
+                var m  = cd.match(/filename="([^"]+)"/);
+                var fn = m ? m[1] : 'gdms_config.json';
+                var newToken = r.headers.get('X-Gdms-New-Csrf-Token');
+                if (newToken) {
+                    var ti = form.querySelector('[name="_glpi_csrf_token"]');
+                    if (ti) ti.value = newToken;
+                }
+                return r.blob().then(function(blob) {
+                    var a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = fn;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+                });
+            }).finally(function() {
+                btn.disabled = false;
+                if (spin) spin.classList.add('d-none');
+                if (icon) icon.classList.remove('d-none');
+            });
+        } else {
+            if (spin) spin.classList.remove('d-none');
+            if (icon) icon.classList.add('d-none');
+            setTimeout(function() { btn.disabled = true; }, 0);
+        }
     });
 });
 </script>

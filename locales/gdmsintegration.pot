@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.4.0\n"
+"Project-Id-Version: gdmsintegration 1.4.1\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-10\n"
-"PO-Revision-Date: 2026-05-10\n"
+"POT-Creation-Date: 2026-05-12\n"
+"PO-Revision-Date: 2026-05-12\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -1080,4 +1080,82 @@ msgstr ""
 
 #: front/config.form.php
 msgid "IP PBX / UCM (UCM, GCC)"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Copied!"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Firmware downloads"
+msgstr ""
+
+#: front/dashboard.php
+msgid "Updating\xe2\x80\xa6"
+msgstr ""
+
+
+#: front/config.form.php front/history_import.php
+msgid "Import History"
+msgstr ""
+
+#: front/config.form.php
+msgid "Restore availability history from a previously exported Excel file (gdms_history_*.xlsx). Days that already have data are skipped — no existing records are overwritten."
+msgstr ""
+
+#: front/config.form.php front/config_import.php
+msgid "Import"
+msgstr ""
+
+#: front/config.form.php
+msgid "Configuration Backup"
+msgstr ""
+
+#: front/config.form.php
+msgid "Export all plugin settings to a JSON file, or restore them from a backup. API credentials and secrets are excluded from exports for security."
+msgstr ""
+
+#: front/config.form.php
+msgid "Export settings"
+msgstr ""
+
+#: front/config.form.php
+msgid "Download JSON"
+msgstr ""
+
+#: front/config.form.php
+msgid "Import settings"
+msgstr ""
+
+#: front/history_import.php front/config_import.php
+msgid "No file received or upload error."
+msgstr ""
+
+#: front/history_import.php
+msgid "Could not read file:"
+msgstr ""
+
+#: front/history_import.php
+msgid "File must contain at least 2 sheets (pivot + summary)."
+msgstr ""
+
+#: front/history_import.php
+msgid "No recognizable device columns found. Ensure the file was exported by this plugin."
+msgstr ""
+
+#: front/history_import.php
+msgid "Import complete: %d device-days imported (%d records each), %d device-days skipped (already had data)."
+msgstr ""
+
+#: front/config_import.php
+msgid "Invalid or unrecognised configuration file."
+msgstr ""
+
+#: front/config_import.php
+msgid "Configuration imported. API credentials were not changed — re-enter them if needed."
+msgstr ""
+
+
+#: front/config.form.php
+msgid "Include API credentials (username, keys, secrets)"
 msgstr ""
