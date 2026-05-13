@@ -181,7 +181,7 @@ foreach (['A' => 26, 'B' => 22, 'C' => 16, 'D' => 12, 'E' => 12, 'F' => 10] as $
 // ─── Output ──────────────────────────────────────────────────────────────────
 $spreadsheet->setActiveSheetIndex(0);
 
-$filename = 'gdms_disponibilidad_' . date('Y-m-d') . '.xlsx';
+$filename = 'gdms_history_' . date('Y-m-d') . '.xlsx';
 
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment; filename="' . $filename . '"');

@@ -1100,7 +1100,7 @@ msgid "Import History"
 msgstr ""
 
 #: front/config.form.php
-msgid "Restore availability history from a previously exported Excel file (gdms_disponibilidad_*.xlsx). Days that already have data are skipped — no existing records are overwritten."
+msgid "Restore availability history from a previously exported Excel file (gdms_history_*.xlsx). Days that already have data are skipped — no existing records are overwritten."
 msgstr ""
 
 #: front/config.form.php front/config_import.php

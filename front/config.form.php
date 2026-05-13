@@ -111,7 +111,9 @@ if (isset($_POST['export_config'])) {
     if ($inc) foreach (['password','client_id','client_secret','gwn_client_id','gwn_client_secret','webhook_secret'] as $k) $exp[$k]=$cfg2[$k]??'';
     header('Content-Type: application/json; charset=utf-8');
     header('Content-Disposition: attachment; filename="gdms_config_entity'.$eid.'_'.date('Y-m-d').'.json"');
-    header('Cache-Control: no-cache, no-store'); echo json_encode($exp,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE); exit;
+    header('Cache-Control: no-cache, no-store');
+    header('X-Gdms-New-Csrf-Token: ' . Session::getNewCSRFToken());
+    echo json_encode($exp,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE); exit;
 }
 
 // ── Config import ─────────────────────────────────────────────────────────────
@@ -593,7 +595,7 @@ function gdms_badge(bool $ok): string {
       </div>
       <div class="card-body">
          <p class="text-muted mb-3">
-            <?= __('Restore availability history from a previously exported Excel file (gdms_disponibilidad_*.xlsx). Days that already have data are skipped — no existing records are overwritten.', 'gdmsintegration') ?>
+            <?= __('Restore availability history from a previously exported Excel file (gdms_history_*.xlsx). Days that already have data are skipped — no existing records are overwritten.', 'gdmsintegration') ?>
          </p>
          <form method="post" action="" enctype="multipart/form-data" class="gdms-import-form">
             <div class="d-flex align-items-center gap-3 flex-wrap">
@@ -676,21 +678,55 @@ document.querySelectorAll('.gdms-pw-toggle').forEach(function(btn) {
     });
 });
 document.querySelectorAll('.gdms-import-form').forEach(function(form) {
-    form.addEventListener('submit', function() {
+    form.addEventListener('submit', function(e) {
         var btn = form.querySelector('.gdms-import-btn');
         if (!btn) return;
         var spin = btn.querySelector('.gdms-spin');
         var icon = btn.querySelector('.gdms-icon');
-        if (spin) spin.classList.remove('d-none');
-        if (icon) icon.classList.add('d-none');
+
         if (form.dataset.download) {
-            // File download — page won't reload; restore button after delay
-            setTimeout(function() {
+            // Intercept: send via fetch with header token (preserve_token=true — not consumed)
+            e.preventDefault();
+            if (spin) spin.classList.remove('d-none');
+            if (icon) icon.classList.add('d-none');
+            btn.disabled = true;
+
+            var fd = new FormData(form);
+            var token = fd.get('_glpi_csrf_token') || '';
+            fd.delete('_glpi_csrf_token');
+
+            fetch(location.href, {
+                method: 'POST',
+                headers: {
+                    'X-Glpi-Csrf-Token': token,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: fd
+            }).then(function(r) {
+                var cd = r.headers.get('Content-Disposition') || '';
+                var m  = cd.match(/filename="([^"]+)"/);
+                var fn = m ? m[1] : 'gdms_config.json';
+                var newToken = r.headers.get('X-Gdms-New-Csrf-Token');
+                if (newToken) {
+                    var ti = form.querySelector('[name="_glpi_csrf_token"]');
+                    if (ti) ti.value = newToken;
+                }
+                return r.blob().then(function(blob) {
+                    var a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = fn;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+                });
+            }).finally(function() {
                 btn.disabled = false;
                 if (spin) spin.classList.add('d-none');
                 if (icon) icon.classList.remove('d-none');
-            }, 3000);
+            });
         } else {
+            if (spin) spin.classList.remove('d-none');
+            if (icon) icon.classList.add('d-none');
             setTimeout(function() { btn.disabled = true; }, 0);
         }
     });

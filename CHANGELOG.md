@@ -3,10 +3,10 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.4.1] — 2026-05-12
+## [1.4.1] — 2026-05-13
 
 ### Added
-- **History import from Excel** — new card in Configuration lets operators restore availability history from a previously exported `gdms_disponibilidad_*.xlsx` file. Device-days that already have data are skipped (non-destructive). Each imported day generates 100 synthetic records spaced ~14 min apart so the daily online/total ratio exactly reconstructs the original percentage (±1 %).
+- **History import from Excel** — new card in Configuration lets operators restore availability history from a previously exported `gdms_history_*.xlsx` file (renamed from `gdms_disponibilidad_*.xlsx`). Device-days that already have data are skipped (non-destructive). Each imported day generates 100 synthetic records spaced ~14 min apart so the daily online/total ratio exactly reconstructs the original percentage (±1 %).
 - **Plugin configuration export** — download all plugin settings as a JSON backup file. An optional checkbox includes API credentials (username, keys, secrets) in the export for full migration scenarios.
 - **Plugin configuration import** — restore settings from a previously exported JSON backup. Credentials are only written when the source file explicitly included them; all other imports leave stored secrets unchanged.
 - **Firmware modal — device name and private IP** — modal header now shows the device name and its private IP (clickable link) so the operator knows which device they are updating without scrolling the table.
