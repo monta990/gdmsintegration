@@ -1189,3 +1189,69 @@ msgstr "Téléchargements firmware"
 #: front/dashboard.php
 msgid "Updating…"
 msgstr "Mise à jour…"
+
+
+#: front/config.form.php front/history_import.php
+msgid "Import History"
+msgstr "Importer l'historique"
+
+#: front/config.form.php
+msgid "Restore availability history from a previously exported Excel file (gdms_disponibilidad_*.xlsx). Days that already have data are skipped — no existing records are overwritten."
+msgstr "Restaure l'historique de disponibilité depuis un fichier Excel exporté précédemment (gdms_disponibilidad_*.xlsx). Les jours qui ont déjà des données sont ignorés — aucun enregistrement existant n'est écrasé."
+
+#: front/config.form.php front/config_import.php
+msgid "Import"
+msgstr "Importer"
+
+#: front/config.form.php
+msgid "Configuration Backup"
+msgstr "Sauvegarde de configuration"
+
+#: front/config.form.php
+msgid "Export all plugin settings to a JSON file, or restore them from a backup. API credentials and secrets are excluded from exports for security."
+msgstr "Exporte tous les paramètres du plugin dans un fichier JSON, ou restaurez-les depuis une sauvegarde. Les identifiants et secrets API sont exclus des exports pour des raisons de sécurité."
+
+#: front/config.form.php
+msgid "Export settings"
+msgstr "Exporter la configuration"
+
+#: front/config.form.php
+msgid "Download JSON"
+msgstr "Télécharger JSON"
+
+#: front/config.form.php
+msgid "Import settings"
+msgstr "Importer la configuration"
+
+#: front/history_import.php front/config_import.php
+msgid "No file received or upload error."
+msgstr "Aucun fichier reçu ou erreur lors de l'envoi."
+
+#: front/history_import.php
+msgid "Could not read file:"
+msgstr "Impossible de lire le fichier :"
+
+#: front/history_import.php
+msgid "File must contain at least 2 sheets (pivot + summary)."
+msgstr "Le fichier doit contenir au moins 2 feuilles (pivot + résumé)."
+
+#: front/history_import.php
+msgid "No recognizable device columns found. Ensure the file was exported by this plugin."
+msgstr "Aucune colonne d'appareil reconnue. Assurez-vous que le fichier a été exporté par ce plugin."
+
+#: front/history_import.php
+msgid "Import complete: %d device-days imported (%d records each), %d device-days skipped (already had data)."
+msgstr "Importation terminée : %d jours-appareils importés (%d enregistrements chacun), %d jours-appareils ignorés (données déjà présentes)."
+
+#: front/config_import.php
+msgid "Invalid or unrecognised configuration file."
+msgstr "Fichier de configuration invalide ou non reconnu."
+
+#: front/config_import.php
+msgid "Configuration imported. API credentials were not changed — re-enter them if needed."
+msgstr "Configuration importée. Les identifiants API n'ont pas été modifiés — saisissez-les à nouveau si nécessaire."
+
+
+#: front/config.form.php
+msgid "Include API credentials (username, keys, secrets)"
+msgstr "Inclure les identifiants API (utilisateur, clés, secrets)"

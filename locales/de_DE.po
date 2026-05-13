@@ -1191,3 +1191,69 @@ msgstr "Firmware-Downloads"
 #: front/dashboard.php
 msgid "Updating…"
 msgstr "Aktualisierung…"
+
+
+#: front/config.form.php front/history_import.php
+msgid "Import History"
+msgstr "Verlauf importieren"
+
+#: front/config.form.php
+msgid "Restore availability history from a previously exported Excel file (gdms_disponibilidad_*.xlsx). Days that already have data are skipped — no existing records are overwritten."
+msgstr "Stellt den Verfügbarkeitsverlauf aus einer zuvor exportierten Excel-Datei (gdms_disponibilidad_*.xlsx) wieder her. Tage mit vorhandenen Daten werden übersprungen — keine bestehenden Einträge werden überschrieben."
+
+#: front/config.form.php front/config_import.php
+msgid "Import"
+msgstr "Importieren"
+
+#: front/config.form.php
+msgid "Configuration Backup"
+msgstr "Konfigurations-Sicherung"
+
+#: front/config.form.php
+msgid "Export all plugin settings to a JSON file, or restore them from a backup. API credentials and secrets are excluded from exports for security."
+msgstr "Exportiert alle Plugin-Einstellungen in eine JSON-Datei oder stellt sie aus einer Sicherung wieder her. API-Zugangsdaten und Geheimnisse werden aus Sicherheitsgründen nicht exportiert."
+
+#: front/config.form.php
+msgid "Export settings"
+msgstr "Einstellungen exportieren"
+
+#: front/config.form.php
+msgid "Download JSON"
+msgstr "JSON herunterladen"
+
+#: front/config.form.php
+msgid "Import settings"
+msgstr "Einstellungen importieren"
+
+#: front/history_import.php front/config_import.php
+msgid "No file received or upload error."
+msgstr "Keine Datei empfangen oder Fehler beim Hochladen."
+
+#: front/history_import.php
+msgid "Could not read file:"
+msgstr "Datei konnte nicht gelesen werden:"
+
+#: front/history_import.php
+msgid "File must contain at least 2 sheets (pivot + summary)."
+msgstr "Die Datei muss mindestens 2 Tabellenblätter enthalten (Pivot + Zusammenfassung)."
+
+#: front/history_import.php
+msgid "No recognizable device columns found. Ensure the file was exported by this plugin."
+msgstr "Keine erkennbaren Gerätespalten gefunden. Stellen Sie sicher, dass die Datei von diesem Plugin exportiert wurde."
+
+#: front/history_import.php
+msgid "Import complete: %d device-days imported (%d records each), %d device-days skipped (already had data)."
+msgstr "Import abgeschlossen: %d Geräte-Tage importiert (%d Einträge je), %d Geräte-Tage übersprungen (Daten bereits vorhanden)."
+
+#: front/config_import.php
+msgid "Invalid or unrecognised configuration file."
+msgstr "Ungültige oder nicht erkannte Konfigurationsdatei."
+
+#: front/config_import.php
+msgid "Configuration imported. API credentials were not changed — re-enter them if needed."
+msgstr "Konfiguration importiert. API-Zugangsdaten wurden nicht geändert — geben Sie sie bei Bedarf erneut ein."
+
+
+#: front/config.form.php
+msgid "Include API credentials (username, keys, secrets)"
+msgstr "API-Zugangsdaten einschließen (Benutzer, Schlüssel, Geheimnisse)"

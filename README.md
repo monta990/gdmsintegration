@@ -201,6 +201,10 @@ Availability % is calculated over the configured history period (default 60 days
 
 The same tiers and thresholds apply to both the NOC dashboard and the Excel export Summary sheet.
 
+#### History Import
+
+Availability history lost due to database migration, server move, or accidental deletion can be restored from a previously exported `gdms_disponibilidad_*.xlsx` file directly from the Configuration page. The importer reads device names and MACs from the Summary sheet and reconstructs the daily percentage from the pivot sheet (100 synthetic records per device-day, spaced ~14 min apart — same order of magnitude as the sync cron). Device-days that already have records in the database are skipped; no existing data is overwritten.
+
 ---
 
 ### Firmware Updates (All device families)
@@ -345,6 +349,17 @@ Logs written to `files/_log/gdmsintegration.log`.
 Disabling a type suppresses ticket creation for that category only. Ticket auto-resolution is never suppressed — open tickets still close when a device comes back online.
 
 After saving, the plugin tests both API connections and shows green/red status badges.
+
+### History Import card
+
+Upload a `gdms_disponibilidad_*.xlsx` file (exported from the availability chart) to restore historical availability data. Days already present in the database are skipped.
+
+### Configuration Backup card
+
+| Action | Description |
+|--------|-------------|
+| **Download JSON** | Exports all settings to a JSON file. Check *Include API credentials* to also export username, keys, and secrets (for full server migrations). |
+| **Import JSON** | Restores settings from a backup. If the file includes credentials, they are written; otherwise existing stored secrets are preserved. |
 
 ---
 
