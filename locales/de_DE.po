@@ -1257,3 +1257,30 @@ msgstr "Konfiguration importiert. API-Zugangsdaten wurden nicht geändert — ge
 #: front/config.form.php
 msgid "Include API credentials (username, keys, secrets)"
 msgstr "API-Zugangsdaten einschließen (Benutzer, Schlüssel, Geheimnisse)"
+
+#: front/dashboard.php
+msgid "MAC"
+msgstr "MAC"
+
+msgid "Reboot"
+msgstr "Neustart"
+
+#: front/dashboard.php
+msgid "Reboot this device?"
+msgstr "Dieses Gerät neu starten?"
+
+#: front/dashboard.php
+msgid "Reboot task created. Device will restart shortly."
+msgstr "Neustart-Aufgabe erstellt. Das Gerät wird in Kürze neu gestartet."
+
+#: front/dashboard.php
+msgid "Rebooting…"
+msgstr "Neustart läuft…"
+
+#: front/dashboard.php
+msgid "Confirm"
+msgstr "Bestätigen"
+
+#: front/dashboard.php
+msgid "Cancel"
+msgstr "Abbrechen"

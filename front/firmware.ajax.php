@@ -21,7 +21,7 @@
  */
 
 $_action_early = $_GET['action'] ?? 'check';
-if (in_array($_action_early, ['upgrade', 'upgrade_gdms'], true)) {
+if (in_array($_action_early, ['upgrade', 'upgrade_gdms', 'reboot_gdms'], true)) {
     Session::checkRight('config', UPDATE);
 } else {
     Session::checkRight('config', READ);
@@ -78,7 +78,7 @@ function gdmsFirmwareSlug(string $model): ?array {
         'GCC602'  => ['slug' => 'gcc602x',  'official' => false, 'beta' => true],
         'GCC601'  => ['slug' => 'gcc601x',  'official' => false, 'beta' => true],
         // IP Phones
-        'GRP260'  => ['slug' => 'grp260x',  'official' => false, 'beta' => true],
+        'GRP260'  => ['slug' => 'grp260x',  'official' => true,  'beta' => true],
         'GXV34'   => ['slug' => 'gxv34xx',  'official' => true,  'beta' => true],
         'WP8'     => ['slug' => 'wp8x6',    'official' => false, 'beta' => true],
         'HT8'     => ['slug' => 'ht8xxv2',  'official' => false, 'beta' => true],
@@ -246,7 +246,9 @@ if ($action === 'check_all') {
             'model'          => $model,
             'currentVersion' => $current,
             'official'       => $official,
+            'officialUrl'    => isset($slugInfo['slug']) ? ($slug_cache[$slugInfo['slug']]['officialUrl'] ?? null) : null,
             'beta'           => $beta,
+            'betaUrl'        => isset($slugInfo['slug']) ? ($slug_cache[$slugInfo['slug']]['betaUrl']     ?? null) : null,
             'hasUpdate'      => $hasUpdate,
             'network_id'     => (int)($row['network_id'] ?? 0),
             'isGwn'          => (bool)preg_match('/^GWN|^GSS/i', $model),
@@ -299,9 +301,10 @@ if ($action === 'upgrade_gdms') {
     $body    = json_decode($rawBody ?: '{}', true) ?? [];
 
     // Also support FormData
-    $mac        = $_POST['mac']        ?? $body['mac']        ?? '';
-    $version    = $_POST['version']    ?? $body['version']    ?? '';
-    $scheduleMs = (int)($_POST['scheduleMs'] ?? $body['scheduleMs'] ?? 0);
+    $mac         = $_POST['mac']         ?? $body['mac']         ?? '';
+    $version     = $_POST['version']     ?? $body['version']     ?? '';
+    $downloadUrl = trim($_POST['downloadUrl'] ?? $body['downloadUrl'] ?? '');
+    $scheduleMs  = (int)($_POST['scheduleMs'] ?? $body['scheduleMs'] ?? 0);
 
     $mac     = strtoupper(trim($mac));
     $version = trim($version);
@@ -317,11 +320,67 @@ if ($action === 'upgrade_gdms') {
         $mac = implode(':', str_split($mac, 2));
     }
 
-    PluginGdmsintegrationUtils::log("Firmware upgrade (GDMS task) requested — MAC: {$mac} version: {$version}");
+    // If no URL (official radio), construct from device model; beta radio sends scraped URL
+    $state_obj = new PluginGdmsintegrationDevice();
+    if ($downloadUrl === '') {
+        $rows   = $state_obj->find(['mac' => strtolower($mac)]);
+        $devRow = !empty($rows) ? reset($rows) : null;
+        if ($devRow && !empty($devRow['model'])) {
+            $m    = strtoupper(preg_replace('/[\s\-_]+/', '', trim($devRow['model'])));
+            $isV2 = str_contains($m, 'V2');
+            if     (str_starts_with($m, 'GRP260'))           $cdnBase = 'grp2600';
+            elseif (str_starts_with($m, 'GRP26'))            $cdnBase = 'grp2610';
+            elseif ($m === 'HT841' || $m === 'HT881')        $cdnBase = 'ht8x1';
+            elseif ($isV2 && preg_match('/^HT80[12]/', $m))  $cdnBase = 'ht80xv2';
+            elseif ($isV2 && preg_match('/^HT81[248]/', $m)) $cdnBase = 'ht81xv2';
+            elseif ($m === 'HT801')                          $cdnBase = 'ht801';
+            elseif ($m === 'HT802')                          $cdnBase = 'ht802';
+            elseif (preg_match('/^HT81[24]/', $m))           $cdnBase = 'ht81x';
+            elseif ($m === 'HT818')                          $cdnBase = 'ht818';
+            elseif ($m === 'HT813')                          $cdnBase = 'ht813';
+            elseif ($m === 'GAC2570')                        $cdnBase = 'gac2570';
+            elseif ($m === 'GAC2500')                        $cdnBase = 'gac2500';
+            elseif ($m === 'GBX20')                          $cdnBase = 'gbx20';
+            elseif ($m === 'GSC3574' || $m === 'GSC3575')    $cdnBase = 'gsc3575';
+            elseif ($m === 'GSC3570')                        $cdnBase = 'gsc3570';
+            elseif (str_starts_with($m, 'GSC3518'))          $cdnBase = 'gsc3518';
+            elseif ($m === 'GSC3505')                        $cdnBase = 'gsc3505';
+            elseif ($m === 'GSC3510')                        $cdnBase = 'gsc3510';
+            elseif ($m === 'GSC3506' || $m === 'GSC3516')    $cdnBase = 'gsc35x6';
+            elseif ($m === 'GDS3702')                        $cdnBase = 'gds3702';
+            elseif ($m === 'GDS3705')                        $cdnBase = 'gds3705';
+            elseif ($m === 'GDS3710' || $m === 'GDS3712')    $cdnBase = 'gds37xx_';
+            elseif (preg_match('/^GDS372[567]/', $m))        $cdnBase = 'gds372x';
+            else                                             $cdnBase = strtolower($m);
+            $downloadUrl = 'https://firmware.grandstream.com/' . $cdnBase . 'fw.bin';
+        }
+    }
 
-    $result = PluginGdmsintegrationAPI::gdmsCreateUpgradeTask($config, $mac, $version, $scheduleMs);
+    PluginGdmsintegrationUtils::log("Firmware upgrade (GDMS task) requested — MAC: {$mac} version: {$version} url: " . ($downloadUrl ?: '(none)'));
+
+    $result = PluginGdmsintegrationAPI::gdmsCreateUpgradeTask($config, $mac, $version, $scheduleMs, $downloadUrl);
     if (!empty($result['error'])) {
         PluginGdmsintegrationUtils::log("Firmware upgrade (GDMS task) FAILED — " . $result['error']);
+    }
+    echo json_encode($result);
+    return;
+}
+
+// ── REBOOT_GDMS — UC devices via task/add taskType=1 ──────────────────────────
+if ($action === 'reboot_gdms') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['error' => 'POST required']); return; }
+    if (empty($config['client_id']) || empty($config['client_secret'])) { echo json_encode(['error' => 'GDMS UC not configured']); return; }
+
+    $mac = strtoupper(trim($_POST['mac'] ?? ''));
+    if (!$mac) { echo json_encode(['error' => 'mac is required']); return; }
+    if (!str_contains($mac, ':')) {
+        $mac = implode(':', str_split($mac, 2));
+    }
+
+    PluginGdmsintegrationUtils::log("Reboot (GDMS task) requested — MAC: {$mac}");
+    $result = PluginGdmsintegrationAPI::gdmsCreateRebootTask($config, $mac);
+    if (!empty($result['error'])) {
+        PluginGdmsintegrationUtils::log("Reboot (GDMS task) FAILED — " . $result['error']);
     }
     echo json_encode($result);
     return;

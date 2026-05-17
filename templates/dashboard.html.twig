@@ -1,0 +1,1444 @@
+{% if not is_configured %}
+<div class="container-xl mt-5">
+   <div class="card border-0 shadow-sm mx-auto" style="max-width:540px;">
+      <div class="card-body text-center py-5 px-4">
+         <i class="ti ti-plug text-secondary mb-3" style="font-size:3rem;"></i>
+         <h4 class="fw-bold mb-2">{{ __('GDMS not configured yet', 'gdmsintegration') }}</h4>
+         <p class="text-muted mb-4">{{ __('To start syncing your Grandstream devices, you need to connect your GDMS Cloud account. It only takes a moment.', 'gdmsintegration') }}</p>
+         <a href="{{ config_url }}" class="btn btn-primary px-4">
+            <i class="ti ti-settings me-2"></i>{{ __('Set up GDMS', 'gdmsintegration') }}
+         </a>
+      </div>
+   </div>
+</div>
+{% else %}
+<div class="container-fluid px-4 mt-3">
+
+   {# ── Header card ──────────────────────────────────────────────── #}
+   <div class="card mb-4">
+      <div class="card-body py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+         <div class="d-flex align-items-center gap-3">
+            <i class="ti ti-antenna text-primary"></i>
+            <div>
+               <h4 class="mb-0 fw-bold">{{ 'GDMS — ' ~ __('Dashboard', 'gdmsintegration') }}</h4>
+               <small class="text-muted">{{ __('Live view of your Grandstream cloud devices', 'gdmsintegration') }}</small>
+            </div>
+         </div>
+         <div class="d-flex align-items-center gap-2">
+            {% if last_sync_label %}
+            <small class="text-muted" id="gdms-last-sync" title="{{ last_sync_at }}">{{ last_sync_label }}</small>
+            {% endif %}
+            <small class="text-muted" id="gdms-refresh-countdown"></small>
+            <button type="button" id="gdms-refresh-btn" class="btn btn-sm btn-outline-primary">
+               <i class="ti ti-refresh me-1" id="gdms-refresh-icon"></i>{{ __('Sync now', 'gdmsintegration') }}
+            </button>
+            <a href="{{ config_url }}" class="btn btn-sm btn-outline-secondary">
+               <i class="ti ti-settings me-1"></i>{{ __('Settings', 'gdmsintegration') }}
+            </a>
+         </div>
+      </div>
+   </div>
+
+   {# ── Summary stat cards ───────────────────────────────────────── #}
+   <div class="row g-2 mb-3">
+      {% for card in cards %}
+      <div class="col-6 col-sm-4 col-md-2">
+         <div class="card h-100 text-center py-3 px-2">
+            <div class="mb-1">
+               <i class="ti {{ card.icon }} text-primary" style="font-size:2rem;"></i>
+            </div>
+            <div class="small fw-semibold text-muted mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;">
+               {{ card.label }}
+            </div>
+            <div class="d-flex justify-content-center gap-3">
+               {% for v in card.vals %}
+               <div>
+                  <div class="fw-bold fs-2 lh-1 {{ v.cls }}">{{ v.v }}</div>
+                  <div class="text-muted" style="font-size:.78rem;">{{ v.lbl }}</div>
+               </div>
+               {% endfor %}
+            </div>
+         </div>
+      </div>
+      {% endfor %}
+   </div>
+
+   {# ── Cloud Alerts (GWN only) ───────────────────────────────────── #}
+   {% if has_gwn_config %}
+   <div class="card mb-4" id="gdms-alerts-card">
+      <div class="card-header d-flex align-items-center gap-2" role="button"
+           data-bs-toggle="collapse" data-bs-target="#gdms-alerts-collapse"
+           aria-expanded="false" aria-controls="gdms-alerts-collapse"
+           style="cursor:pointer;">
+         <i class="ti ti-bell text-warning"></i>
+         <h5 class="mb-0 me-auto">{{ __('Cloud Alerts', 'gdmsintegration') }}</h5>
+<i class="ti ti-chevron-down gdms-alerts-chevron" style="transition:transform .2s;"></i>
+      </div>
+      <div id="gdms-alerts-collapse" class="collapse">
+         <div id="gdms-alerts-body" class="card-body py-2">
+            <div class="text-center py-2 text-muted small">
+               <div class="spinner-border spinner-border-sm me-2"></div>
+               {{ __('Loading alerts…', 'gdmsintegration') }}
+            </div>
+         </div>
+      </div>
+   </div>
+   {% endif %}
+
+   {# ── Availability bar ─────────────────────────────────────────── #}
+   <div class="card mb-3 px-3 py-2">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+         <span class="small fw-semibold text-nowrap">{{ __('Overall availability', 'gdmsintegration') }} — {{ __('all devices', 'gdmsintegration') }}</span>
+         <div class="progress flex-grow-1" style="height:10px;min-width:120px;">
+            <div class="progress-bar {{ pct >= 90 ? 'bg-success' : (pct >= 70 ? 'bg-warning' : 'bg-danger') }}"
+                 style="width:{{ pct }}%"></div>
+         </div>
+         <span class="small fw-bold {{ pct >= 90 ? 'text-success' : (pct >= 70 ? 'text-warning' : 'text-danger') }}">{{ pct }}%</span>
+         <span class="text-muted small">{{ online }} / {{ total }} {{ __('online', 'gdmsintegration') }}</span>
+      </div>
+   </div>
+
+   {# ── Critical SLA banner ──────────────────────────────────────── #}
+   {% if critical_devices|length %}
+   <div class="alert border-danger mb-3 d-flex align-items-start gap-3" role="alert"
+        style="border-left:4px solid var(--bs-danger) !important; background:rgba(220,53,69,.08);">
+      <i class="ti ti-alert-triangle text-danger mt-1" style="font-size:1.4rem;flex-shrink:0;"></i>
+      <div>
+         <strong class="text-danger">{{ __('Critical SLA — devices offline', 'gdmsintegration') }}</strong>
+         <div class="mt-1 small">
+         {% for cr in critical_devices %}
+            <span class="me-3">
+               <i class="ti ti-circle-x text-danger me-1"></i>
+               {% if cr.asset_url is not empty %}
+               <a href="{{ cr.asset_url|raw }}" target="_blank" rel="noopener" class="text-danger fw-semibold text-decoration-none">{{ cr.name|raw }}</a>
+               {% else %}
+               <span class="fw-semibold">{{ cr.name|raw }}</span>
+               {% endif %}
+               <span class="text-muted">({{ cr.uptime }}% {{ __('uptime', 'gdmsintegration') }})</span>
+            </span>
+         {% endfor %}
+         </div>
+      </div>
+   </div>
+   {% endif %}
+
+   {# ── Device table ─────────────────────────────────────────────── #}
+   <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+         <i class="ti ti-list"></i>
+         <h5 class="mb-0 me-auto">{{ __('Devices', 'gdmsintegration') }}</h5>
+         <button type="button" id="gdms-sort-reset" class="btn btn-sm btn-outline-secondary" style="display:none;"
+                 title="{{ __('Reset sort', 'gdmsintegration') }}">
+            <i class="ti ti-arrows-sort"></i> {{ __('Reset sort', 'gdmsintegration') }}
+         </button>
+      </div>
+
+      {# Vue filter bar — mounted by window.Vue.createApp if available #}
+      <div id="gdms-filter-app" class="d-flex align-items-center gap-2 flex-wrap py-2 px-3 border-bottom"
+           style="display:none!important;" data-vue-filter>
+         <input type="search" v-model="search" class="form-control form-control-sm"
+                style="max-width:220px;" :placeholder="strDevice">
+         <div class="btn-group btn-group-sm">
+            <button type="button" class="btn"
+                    :class="statusFilter==='all'?'btn-secondary':'btn-outline-secondary'"
+                    @click="statusFilter='all'" v-text="strAll"></button>
+            <button type="button" class="btn"
+                    :class="statusFilter==='online'?'btn-success':'btn-outline-success'"
+                    @click="statusFilter='online'" v-text="strOnline"></button>
+            <button type="button" class="btn"
+                    :class="statusFilter==='offline'?'btn-danger':'btn-outline-danger'"
+                    @click="statusFilter='offline'" v-text="strOffline"></button>
+         </div>
+         <div class="btn-group btn-group-sm">
+            <button type="button" class="btn"
+                    :class="typeFilter==='all'?'btn-secondary':'btn-outline-secondary'"
+                    @click="typeFilter='all'" v-text="strAll"></button>
+            <button type="button" class="btn"
+                    :class="typeFilter==='network'?'btn-primary':'btn-outline-primary'"
+                    @click="typeFilter='network'" v-text="strNetwork"></button>
+            <button type="button" class="btn"
+                    :class="typeFilter==='phone'?'btn-info':'btn-outline-info'"
+                    @click="typeFilter='phone'" v-text="strPhone"></button>
+         </div>
+      </div>
+
+      <div class="table-responsive">
+         <table id="gdms-device-table" class="table table-hover table-sm mb-0">
+            <thead>
+               <tr>
+                  <th class="ps-3 gdms-sortable" data-col="name" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Device Name', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="type" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Type', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="model" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Model', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="network" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Network', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th>{{ __('IP', 'gdmsintegration') }}</th>
+                  <th>{{ __('MAC Address', 'gdmsintegration') }}</th>
+                  <th>{{ __('Serial', 'gdmsintegration') }}</th>
+                  <th>{{ __('Firmware', 'gdmsintegration') }}</th>
+                  <th>{{ __('Ports', 'gdmsintegration') }}</th>
+                  <th>{{ __('Uptime', 'gdmsintegration') }}</th>
+                  <th class="gdms-sortable" data-col="status" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Status', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th title="{{ __('Cumulative upload / download since device first registered in cloud. Hover a cell for the exact period.', 'gdmsintegration') }}" style="cursor:default;">{{ __('Traffic ↑↓', 'gdmsintegration') }} <i class="ti ti-info-circle opacity-50" style="font-size:.75em;"></i></th>
+                  <th class="gdms-sortable" data-col="clients" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Clients', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="avail" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Avail. %', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="sla" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('SLA', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+               </tr>
+            </thead>
+            <tbody>
+               {% for row_idx, r in rows %}
+               <tr data-original-index="{{ row_idx + 1 }}"
+                   data-name="{{ r.name|lower|raw }}"
+                   data-type="{{ r.type == 'Phone' ? 1 : 0 }}"
+                   data-model="{{ r.model|lower|raw }}"
+                   data-network="{{ r.network_name|lower|raw }}"
+                   data-status="{{ r.online ? 0 : 1 }}"
+                   data-clients="{{ r.clients }}"
+                   data-avail="{{ r.uptime }}"
+                   data-sla="{{ r.sla_rank }}">
+                  <td class="ps-3">
+                     {% if r.asset_url is not empty %}
+                     <a href="{{ r.asset_url|raw }}" target="_blank" rel="noopener" class="fw-semibold text-decoration-none">
+                        {{ r.name|raw }}
+                        <i class="ti ti-external-link ms-1 small opacity-50"></i>
+                     </a>
+                     {% else %}
+                     <span class="fw-semibold">{{ r.name|raw }}</span>
+                     {% endif %}
+                  </td>
+                  <td>
+                     {% if r.type == 'Phone' %}
+                     <span class="badge border border-primary text-primary">{{ __('Phone', 'gdmsintegration') }}</span>
+                     {% else %}
+                     <span class="badge border border-secondary" style="color:inherit">{{ __('Network', 'gdmsintegration') }}</span>
+                     {% endif %}
+                  </td>
+                  <td><small class="text-muted font-monospace gdms-copy" style="cursor:pointer;"
+                             data-copy="{{ r.model|raw }}"
+                             title="{{ __('Copy model', 'gdmsintegration') }}">{{ r.model|raw ?: '—' }}</small></td>
+                  <td>
+                  {% if r._net_data is not null %}
+                  <small class="gdms-net-link"
+                      data-net="{{ r._net_data|json_encode }}"
+                      style="cursor:pointer;color:inherit;border-bottom:1px dashed rgba(128,128,128,.5);"
+                      title="{{ __('Click for network details', 'gdmsintegration') }}">
+                      {{ r.network_name|raw }}
+                      <i class="ti ti-info-circle ms-1 opacity-50" style="font-size:.7em;"></i>
+                  </small>
+                  {% else %}
+                  <small>{{ r.network_name|raw ?: '—' }}</small>
+                  {% endif %}
+                  </td>
+                  <td><small class="font-monospace">
+                     {% if r.ip is not empty %}
+                     <a href="https://www.whois.com/whois/{{ r.ip|url_encode|raw }}" target="_blank" rel="noopener" class="text-decoration-none" title="{{ __('Public IP', 'gdmsintegration') }}">
+                        {{ r.ip|raw }} <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i>
+                     </a>
+                     {% else %}—{% endif %}
+                     {% if r._pref_ip is not empty %}
+                     <br><a href="{{ r._pref_ip_href|raw }}" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.85em;" title="{{ __('Private IP', 'gdmsintegration') }}">{{ r._pref_ip }} <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
+                     {% endif %}
+                     {% if r._sec_ip is not empty %}
+                     <br><a href="{{ r._sec_ip_href|raw }}" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.75em;word-break:break-all;" title="{{ r._sec_ip_is_ipv6 ? 'IPv6' : __('Private IP', 'gdmsintegration') }}">{{ r._sec_ip }} <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
+                     {% endif %}
+                  </small></td>
+                  <td><code class="small gdms-copy" style="cursor:pointer;"
+                             data-copy="{{ r.mac|raw }}"
+                             title="{{ __('Copy MAC', 'gdmsintegration') }}">{{ r.mac|raw }}</code></td>
+                  <td><small class="text-muted gdms-copy" style="cursor:pointer;"
+                             data-copy="{{ r.serial|raw }}"
+                             title="{{ __('Copy serial', 'gdmsintegration') }}">{{ r.serial|raw ?: '—' }}</small></td>
+                  <td class="text-nowrap">
+                     {% if r.firmware is not empty %}
+                     <small class="font-monospace text-muted gdms-fw-badge" style="cursor:pointer;"
+                            data-mac="{{ r.mac|lower|raw }}"
+                            data-current="{{ r.firmware|raw }}"
+                            data-model="{{ r.raw_model }}"
+                            data-name="{{ r.name|raw }}"
+                            data-ip="{{ r.private_ip|raw }}"
+                            title="{{ __('Click to check firmware', 'gdmsintegration') }}">{{ r.firmware|raw }}</small>
+                     <span class="gdms-fw-badge" style="{{ r._fw_badge_shown ? '' : 'display:none; ' }}cursor:pointer;"
+                           data-mac="{{ r.mac|lower|raw }}"
+                           data-current="{{ r.firmware|raw }}"
+                           data-model="{{ r.raw_model }}"
+                           data-name="{{ r.name|raw }}"
+                           data-ip="{{ r.private_ip|raw }}"
+                           title="{{ __('Firmware update available', 'gdmsintegration') }}">
+                        <i class="ti ti-arrow-up-circle text-warning ms-1"></i>
+                     </span>
+                     {% else %}
+                     <small class="font-monospace text-muted">—</small>
+                     {% endif %}
+                  </td>
+                  <td>
+                     {% if not r._is_phone and r.mac is not empty %}
+                     <span class="gdms-wan-ports d-flex gap-1 align-items-center flex-nowrap"
+                           data-mac="{{ r.mac|lower|raw }}"
+                           data-upload="{{ r.upload_bytes }}"
+                           data-download="{{ r.download_bytes }}"
+                           data-first-seen="{{ r.first_seen }}"
+                           data-last-seen="{{ r.last_seen }}">
+                        <span class="text-muted small">—</span>
+                     </span>
+                     {% elseif r._is_phone and r.sip_status is not empty %}
+                     <span class="gdms-sip-dot" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;"
+                           title="{{ r._sip_tip }}"
+                           data-pbx-name="{{ r._pbx.name ?? '' }}"
+                           data-pbx-ip="{{ r._pbx.ip ?? '' }}"
+                           data-pbx-url="{{ r._pbx.url ?? '' }}"
+                           data-mac="{{ r.mac|raw }}"
+                           data-sip="{{ r.sip_status }}"
+                           data-dnd="{{ r.dnd }}"
+                           data-sync="{{ r.is_synchronized }}"
+                           data-sync-msg="{{ r.sync_failure_msg }}"
+                           data-task="{{ r.scheduled_task }}"
+                           data-extension="{{ r.sip_extension }}"
+                           data-last-seen="{{ r.last_seen }}"
+                           data-private-ip="{{ r.private_ip|raw }}"
+                           data-public-ip="{{ r.ip|raw }}"
+                           data-site="{{ r.network_name|raw }}"
+                           data-name="{{ r.name|raw }}">
+                        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:{{ r._sip_color }};outline:1px solid rgba(128,128,128,.3);{{ not r.online ? 'opacity:.4;' : '' }}flex-shrink:0;"></span>
+                        {% if r.dnd %}
+                        <small class="text-danger" style="font-size:.65em;line-height:1;" title="{{ __('Do Not Disturb', 'gdmsintegration') }}">DND</small>
+                        {% endif %}
+                     </span>
+                     {% endif %}
+                  </td>
+                  <td>
+                  {% if r._uptime_tip %}
+                  <small title="{{ r._uptime_tip }}" style="cursor:default;border-bottom:1px dotted rgba(128,128,128,.4);">{{ r._uptime_display }}</small>
+                  {% else %}
+                  <small>{{ r._uptime_display }}</small>
+                  {% endif %}
+                  </td>
+                  <td class="text-nowrap">
+                     <span class="badge {{ r.online ? 'bg-success' : 'bg-danger' }} text-white">
+                        {{ r.online ? __('Online', 'gdmsintegration') : __('Offline', 'gdmsintegration') }}
+                     </span>
+                     {% if r.sip_extension is not empty %}
+                     <br><span class="badge bg-light text-dark border mt-1" style="font-size:.68em;" title="{{ __('SIP Extension', 'gdmsintegration') }}">
+                        {{ r.sip_extension }}
+                     </span>
+                     {% endif %}
+                  </td>
+                  <td class="text-nowrap">
+                     {% if r._ul_val > 0 or r._dl_val > 0 %}
+                     <small class="d-block"
+                            title="{{ r._traffic_tip }}"
+                            style="font-size:.72em;cursor:default;border-bottom:1px dotted rgba(128,128,128,.4);">
+                        <span class="text-success">↑{{ r._ul_fmt }}</span>
+                        <span class="ms-1 text-info">↓{{ r._dl_fmt }}</span>
+                     </small>
+                     {% else %}<small class="text-muted">—</small>{% endif %}
+                  </td>
+                  <td class="text-center">
+                     {% set cli = r.clients %}
+                     {% if cli > 0 and r.network_id > 0 %}
+                     <span class="badge text-bg-info fw-bold gdms-clients-badge"
+                           style="cursor:pointer;"
+                           data-mac="{{ r.mac|raw }}"
+                           data-network-id="{{ r.network_id }}"
+                           data-name="{{ r.name|raw }}"
+                           title="{{ __('Click to see connected clients', 'gdmsintegration') }}">{{ cli }}</span>
+                     {% elseif cli > 0 %}
+                     <span class="badge text-bg-info fw-bold">{{ cli }}</span>
+                     {% else %}<small class="text-muted">—</small>{% endif %}
+                  </td>
+                  <td>{{ r.uptime }}%</td>
+                  <td>{{ r.sla|raw }}</td>
+               </tr>
+               {% else %}
+               <tr><td colspan="15" class="text-center text-muted py-3">
+                  {{ __('No GDMS devices found. Run a sync first.', 'gdmsintegration') }}
+               </td></tr>
+               {% endfor %}
+            </tbody>
+         </table>
+      </div>
+   </div>
+
+   {# ── History chart ─────────────────────────────────────────────── #}
+   {% if chart_datasets|length %}
+   <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+         <i class="ti ti-chart-line"></i>
+         <h5 class="mb-0 me-auto">{{ sprintf(__('Online %% — last %d days', 'gdmsintegration'), chart_days) }}</h5>
+         <a href="{{ urls.history_export|raw }}"
+            class="btn btn-sm btn-outline-secondary"
+            title="{{ __('Export to Excel', 'gdmsintegration') }}">
+            <i class="ti ti-file-spreadsheet me-1"></i>{{ __('Export', 'gdmsintegration') }}
+         </a>
+      </div>
+      <div class="card-body p-0">
+         <div id="gdms-history-chart" style="height:280px;"></div>
+      </div>
+   </div>
+   {% endif %}
+
+   {# ── Topology ──────────────────────────────────────────────────── #}
+   {% if show_topology %}
+   <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+         <i class="ti ti-hierarchy"></i>
+         <h5 class="mb-0">{{ __('Network Topology', 'gdmsintegration') }}</h5>
+      </div>
+      <div id="gdms-network" style="height:450px; border-radius:0 0 .375rem .375rem; overflow:hidden;"></div>
+   </div>
+   {% endif %}
+
+</div>
+
+{% if show_topology %}
+<script src="{{ visnetwork_url|raw }}"></script>
+{% endif %}
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+<script>
+(function () {
+    'use strict';
+
+    var STR = {{ js_strings|json_encode|raw }};
+
+    // Byte formatter
+    function fmtBytes(b) {
+        if (b >= 1073741824) return (b/1073741824).toFixed(1)+' GB';
+        if (b >= 1048576)    return (b/1048576).toFixed(1)+' MB';
+        if (b >= 1024)       return Math.round(b/1024)+' KB';
+        return b+' B';
+    }
+
+    function fmtTime(s) { return s >= 60 ? Math.floor(s/60)+'m '+(s%60)+'s' : s+'s'; }
+
+    function doSync(source) {
+        if (gdmsSyncing) return;
+        gdmsSyncing = true;
+        var icon = document.getElementById('gdms-refresh-icon');
+        if (icon) icon.style.cssText = 'animation:spin .8s linear infinite;display:inline-block;';
+        fetch(AJAX_URL, {
+            method: 'POST',
+            headers: {'X-Requested-With': 'XMLHttpRequest',
+                'X-Glpi-Csrf-Token': (typeof window.glpiGetNewCSRFToken === 'function'
+                    ? window.glpiGetNewCSRFToken()
+                    : (document.querySelector('meta[property="glpi:csrf_token"]') || document.createElement('meta')).getAttribute('content') || '')
+            },
+            credentials: 'same-origin'
+        })
+            .then(function(r){ return r.json(); })
+            .then(function(){ location.reload(); })
+            .catch(function(){ location.reload(); });
+    }
+
+    {% if show_topology %}
+    if (typeof vis !== 'undefined') {
+        var nodes = new vis.DataSet({{ nodes|json_encode|raw }});
+        var edges = new vis.DataSet({{ edges|json_encode|raw }});
+        var container = document.getElementById('gdms-network');
+        if (container) {
+            new vis.Network(container, { nodes: nodes, edges: edges }, {
+                nodes: { shape: 'dot', size: 14, font: { color: '#fff', size: 12 } },
+                edges: { arrows: 'to', color: { color: '#aaa', highlight: '#007bff' } },
+                physics: { stabilization: { iterations: 150 } },
+                interaction: { hover: true }
+            });
+        }
+    }
+    {% endif %}
+
+    var AJAX_URL           = '{{ urls.sync|raw }}';
+    var REFRESH_S          = {{ refresh_interval }};
+    var gdmsSyncing        = false;
+    var gdmsCountdown      = REFRESH_S;
+    var countEl            = document.getElementById('gdms-refresh-countdown');
+    var btn                = document.getElementById('gdms-refresh-btn');
+
+    if (btn) btn.addEventListener('click', function(){ gdmsCountdown = REFRESH_S; doSync('btn'); });
+
+    setInterval(function() {
+        if (gdmsSyncing) return;
+        if (countEl) countEl.textContent = fmtTime(gdmsCountdown);
+        if (--gdmsCountdown < 0) { gdmsCountdown = REFRESH_S; doSync(); }
+    }, 1000);
+
+    // ── Firmware update check ─────────────────────────────────────────────────
+    var FW_URL             = '{{ urls.fw_check|raw }}';
+    var FW_UPGRADE_URL     = '{{ urls.fw_upgrade|raw }}';
+    var FW_CHECK_ALL_URL   = '{{ urls.fw_check_all|raw }}';
+    var FW_UPGRADE_GDMS_URL= '{{ urls.fw_upgrade_gdms|raw }}';
+
+    var modalHtml = `
+<div class="modal fade" id="gdmsFwModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:min(540px,94vw);">
+    <div class="modal-content">
+      <div class="modal-header py-3">
+        <h5 class="modal-title">
+          <i class="ti ti-arrow-up-circle text-warning me-2"></i>
+          ${STR.fwUpdateTitle}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="gdmsFwModalBody">
+        <div class="d-flex align-items-center gap-2">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+          <span>${STR.fwChecking}</span>
+        </div>
+      </div>
+      <div class="modal-footer flex-column align-items-stretch gap-2 pt-2">
+        <div id="gdmsFwScheduleRow" style="display:none;">
+          <div class="d-flex align-items-center gap-2">
+            <label class="form-label mb-0 text-nowrap small fw-semibold">${STR.fwScheduleFor}:</label>
+            <div class="btn-group flex-grow-1 flatpickr" id="gdmsFwFlatpickrWrap">
+              <input type="text" class="form-control form-control-sm rounded-start ps-2"
+                     id="gdmsFwDatetime" data-input placeholder="dd/mm/yyyy hh:mm" autocomplete="off">
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-toggle
+                      title="${STR.fwShowPicker}">
+                <i class="ti ti-calendar-time"></i>
+              </button>
+            </div>
+          </div>
+          <small class="text-muted d-block mt-1">${STR.fwLeaveEmpty}</small>
+        </div>
+        <div class="d-flex flex-column gap-2 w-100">
+          <button type="button" class="btn btn-success text-white w-100" id="gdmsFwAsapBtn" style="display:none;">
+            <i class="ti ti-bolt me-1"></i>${STR.applyAsap}
+          </button>
+          <button type="button" class="btn btn-warning text-dark w-100" id="gdmsFwScheduleBtn" style="display:none;">
+            <i class="ti ti-calendar-check me-1"></i>${STR.schedUpdate}
+          </button>
+          <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">
+            ${STR.close}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document.getElementById('gdmsFwModal').addEventListener('hide.bs.modal', function() { if (document.activeElement) document.activeElement.blur(); });
+
+    var fwData = {};
+
+    setTimeout(function() {
+        fetch(FW_CHECK_ALL_URL, { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(list) {
+                if (!Array.isArray(list)) return;
+                list.forEach(function(item) {
+                    fwData[item.mac] = item;
+                    if (!item.hasUpdate) return;
+                    document.querySelectorAll('.gdms-fw-badge[data-mac="' + item.mac + '"]')
+                        .forEach(function(el) { el.style.display = 'inline'; });
+                });
+            })
+            .catch(function() {});
+    }, 2000);
+
+    document.addEventListener('click', function(e) {
+        var badge = e.target.closest('.gdms-fw-badge');
+        if (!badge) return;
+        var mac     = badge.getAttribute('data-mac');
+        var current = badge.getAttribute('data-current');
+        var model   = badge.getAttribute('data-model') || '';
+        var devName = badge.getAttribute('data-name') || '';
+        var devIp   = badge.getAttribute('data-ip')   || '';
+        var info    = fwData[mac] || {};
+        var isGwn   = info.isGwn || /^GWN|^GSS/i.test(model);
+        var official    = info.official    || null;
+        var officialUrl = info.officialUrl || '';
+        var beta        = info.beta        || null;
+        var betaUrl     = info.betaUrl     || '';
+        var latestFw = info.latestVersion || official || beta || null;
+
+        var body     = document.getElementById('gdmsFwModalBody');
+        var schedBtn = document.getElementById('gdmsFwScheduleBtn');
+        var asapBtn  = document.getElementById('gdmsFwAsapBtn');
+        var schedRow = document.getElementById('gdmsFwScheduleRow');
+        var dtInput  = document.getElementById('gdmsFwDatetime');
+        var fpWrap   = document.getElementById('gdmsFwFlatpickrWrap');
+
+        var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; };
+
+        var versionRows = '';
+        if (official) {
+            versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
+              + '<input type="radio" name="gdmsFwVersion" value="' + esc(official) + '" data-url="" class="form-check-input mt-0"' + (official ? ' checked' : '') + '>'
+              + '<code class="text-warning">' + esc(official) + '</code>'
+              + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
+              + '</label></td></tr>';
+        }
+        if (beta && beta !== official && isGwn) {
+            versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
+              + '<input type="radio" name="gdmsFwVersion" value="' + esc(beta) + '" data-url="' + esc(betaUrl) + '" class="form-check-input mt-0"' + (!official ? ' checked' : '') + '>'
+              + '<code class="fw-semibold" style="color:var(--bs-warning-text,var(--bs-warning,#fd7e14));">' + esc(beta) + '</code>'
+              + ' <span class="badge bg-warning text-dark ms-1">' + STR.betaFw + '</span>'
+              + '</label></td></tr>';
+        } else if (beta && beta !== official && !isGwn) {
+            versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
+              + '<input type="radio" name="gdmsFwVersion" value="' + esc(beta) + '" data-url="' + esc(betaUrl) + '" class="form-check-input mt-0" checked>'
+              + '<code class="text-warning">' + esc(beta) + '</code>'
+              + ' <span class="badge ms-1" style="background:var(--bs-primary,#006eca);color:#fff;">' + STR.gdmsManaged + '</span>'
+              + '</label></td></tr>';
+        }
+        if (!official && !beta && latestFw) {
+            versionRows += '<tr><td><code class="text-warning">' + esc(latestFw) + '</code>'
+              + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span></td></tr>';
+        }
+
+        var macUpper  = mac.toUpperCase();
+        var macIpRow  = devName
+            ? '<tr><th class="text-muted fw-normal">' + STR.deviceName + '</th><td>' + esc(devName) + '</td></tr>'
+            : '';
+        if (devIp) {
+            macIpRow += '<tr><th class="text-muted fw-normal">' + STR.fwPrivateIp + '</th>'
+              + '<td><a href="http://' + esc(devIp) + '/" target="_blank" rel="noopener" class="font-monospace">' + esc(devIp) + '</a></td></tr>';
+        }
+        var macCell = '<code id="gdmsFwMacCode" style="cursor:pointer;" title="' + STR.deviceMac + '">' + esc(macUpper) + '</code>';
+        body.innerHTML = '<table class="table table-sm mb-0">'
+          + macIpRow
+          + '<tr><th class="text-muted fw-normal w-50">' + STR.curFw + '</th><td><code>' + esc(current) + '</code></td></tr>'
+          + '<tr><th class="text-muted fw-normal align-top pt-2">' + STR.selectVersion + '</th>'
+          + '<td>' + (versionRows ? '<table class="mb-0">' + versionRows + '</table>' : '<span class="text-muted">—</span>') + '</td></tr>'
+          + '<tr><th class="text-muted fw-normal">' + STR.deviceMac + '</th>'
+          + '<td>' + macCell + ' <small class="text-muted ms-1" id="gdmsFwMacCopiedMsg" style="display:none;">' + STR.fwMacCopied + '</small></td></tr>'
+          + '</table>'
+          + '<div class="alert alert-warning mt-3 mb-0 py-2 small"><i class="ti ti-alert-triangle me-1"></i>' + STR.rebootWarning + '</div>'
+          + '<div class="alert alert-info mt-2 mb-0 py-2 small"><i class="ti ti-info-circle me-1"></i>'
+            + STR.gdmsVersionNote
+            + ' <a href="https://www.grandstream.com/support/firmware" target="_blank" rel="noopener" class="ms-1">'
+            + STR.fwPageLbl + ' <i class="ti ti-external-link" style="font-size:.8em;"></i></a></div>';
+
+        var _macEl = document.getElementById('gdmsFwMacCode');
+        if (_macEl) {
+            _macEl.addEventListener('click', function() {
+                navigator.clipboard && navigator.clipboard.writeText(macUpper).then(function() {
+                    var _msg = document.getElementById('gdmsFwMacCopiedMsg');
+                    if (_msg) { _msg.style.display = 'inline'; setTimeout(function(){ _msg.style.display = 'none'; }, 1500); }
+                });
+            });
+        }
+
+        if (!fpWrap._fp) {
+            var _fpNow = new Date();
+            var _fpInput = document.getElementById('gdmsFwDatetime');
+            var _fpToggle = fpWrap.querySelector('[data-toggle]');
+            fpWrap._fp = flatpickr(_fpInput, {
+                enableTime:    true,
+                dateFormat:    'd/m/Y H:i',
+                time_24hr:     true,
+                minDate:       new Date(Date.now() + 5 * 60 * 1000),
+                defaultHour:   _fpNow.getHours(),
+                defaultMinute: _fpNow.getMinutes(),
+                locale: typeof getFlatPickerLocale === 'function'
+                    ? getFlatPickerLocale('{{ fp_lang }}', '{{ fp_region }}')
+                    : { firstDayOfWeek: 1 }
+            });
+            fpWrap._fp.setDate(new Date(Date.now() + 5 * 60 * 1000), false);
+            if (_fpToggle) _fpToggle.addEventListener('click', function() { fpWrap._fp.open(); });
+        } else {
+            var _fpNow2 = new Date();
+            fpWrap._fp.set('defaultHour',   _fpNow2.getHours());
+            fpWrap._fp.set('defaultMinute', _fpNow2.getMinutes());
+            fpWrap._fp.set('minDate', new Date(Date.now() + 5 * 60 * 1000));
+            fpWrap._fp.clear();
+        }
+        var hasVersion = !!(versionRows || latestFw);
+        schedRow.style.display = hasVersion ? '' : 'none';
+        asapBtn.style.display  = hasVersion ? 'inline-block' : 'none';
+        schedBtn.style.display = hasVersion ? 'inline-block' : 'none';
+        asapBtn.disabled  = false;
+        schedBtn.disabled = false;
+        asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i>' + STR.applyAsap;
+        schedBtn.innerHTML = '<i class="ti ti-calendar-check me-1"></i>' + STR.schedUpdate;
+
+        function getSelectedVersion() {
+            var radio = body.querySelector('input[name="gdmsFwVersion"]:checked');
+            return radio ? radio.value : (latestFw || '');
+        }
+        function getSelectedUrl() {
+            var radio = body.querySelector('input[name="gdmsFwVersion"]:checked');
+            return radio ? (radio.getAttribute('data-url') || '') : '';
+        }
+        function doUpgrade(scheduleMs) {
+            var version = getSelectedVersion();
+            if (!version) return;
+            var activeBtn = scheduleMs > 0 ? schedBtn : asapBtn;
+            asapBtn.disabled = true; schedBtn.disabled = true;
+            activeBtn.innerHTML = '<i class="ti ti-loader me-1" style="animation:spin .8s linear infinite;display:inline-block;"></i>' + STR.scheduling;
+
+            var csrfValue = (typeof window.glpiGetNewCSRFToken === 'function')
+                ? window.glpiGetNewCSRFToken()
+                : (document.querySelector('meta[property="glpi:csrf_token"]') || document.createElement('meta')).getAttribute('content') || '';
+
+            var fetchHeaders = { 'X-Requested-With': 'XMLHttpRequest', 'X-Glpi-Csrf-Token': csrfValue };
+            var fetchUrl, fetchBody;
+
+            if (isGwn) {
+                var formData = new FormData();
+                formData.append('macs', JSON.stringify([mac.replace(/:/g, '').toUpperCase()]));
+                if (scheduleMs > 0) formData.append('scheduleTimeMs', scheduleMs);
+                fetchUrl = FW_UPGRADE_URL; fetchBody = formData;
+            } else {
+                var formData2 = new FormData();
+                formData2.append('mac', mac);
+                formData2.append('version', version);
+                var selUrl = getSelectedUrl();
+                if (selUrl) formData2.append('downloadUrl', selUrl);
+                if (scheduleMs > 0) formData2.append('scheduleMs', scheduleMs);
+                fetchUrl = FW_UPGRADE_GDMS_URL; fetchBody = formData2;
+            }
+
+            fetch(fetchUrl, { method: 'POST', credentials: 'same-origin', headers: fetchHeaders, body: fetchBody })
+                .then(function(r) { return r.json(); })
+                .then(function(resp) {
+                    if (resp.error) {
+                        var errDiv = document.createElement('div');
+                        errDiv.className = 'alert alert-danger mt-2 mb-0 py-2 small';
+                        errDiv.textContent = resp.error;
+                        errDiv.insertAdjacentHTML('afterbegin', '<i class="ti ti-circle-x me-1"></i> ');
+                        body.appendChild(errDiv);
+                        asapBtn.disabled = false; schedBtn.disabled = false;
+                        asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i>' + STR.applyAsap;
+                        schedBtn.innerHTML = '<i class="ti ti-calendar-check me-1"></i>' + STR.schedUpdate;
+                    } else {
+                        var ok = document.createElement('div');
+                        ok.className = 'alert alert-success mt-2 mb-0 py-2 small';
+                        ok.innerHTML = '<i class="ti ti-check-circle me-1"></i>' + STR.schedOk;
+                        body.appendChild(ok);
+                        asapBtn.style.display = 'none'; schedBtn.style.display = 'none';
+                        schedRow.style.display = 'none';
+                        document.querySelectorAll('small.gdms-fw-badge[data-mac="' + mac + '"]')
+                            .forEach(function(el) { el.textContent = STR.upgrading; el.style.cursor = 'default'; el.classList.remove('gdms-fw-badge'); });
+                        document.querySelectorAll('span.gdms-fw-badge[data-mac="' + mac + '"]')
+                            .forEach(function(el) { el.style.display = 'none'; });
+                    }
+                })
+                .catch(function() {
+                    var connErr = document.createElement('div');
+                    connErr.className = 'alert alert-danger mt-2 mb-0 py-2 small';
+                    connErr.textContent = STR.reqFailed;
+                    body.appendChild(connErr);
+                    asapBtn.disabled = false; schedBtn.disabled = false;
+                    asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i>' + STR.applyAsap;
+                    schedBtn.innerHTML = '<i class="ti ti-calendar-check me-1"></i>' + STR.schedUpdate;
+                });
+        }
+
+        asapBtn.onclick  = function() { doUpgrade(0); };
+        schedBtn.onclick = function() {
+            var sel = fpWrap._fp && fpWrap._fp.selectedDates[0];
+            if (!sel || sel.getTime() <= Date.now()) { doUpgrade(0); return; }
+            doUpgrade(sel.getTime());
+        };
+
+        var modalEl = document.getElementById('gdmsFwModal');
+        if (typeof bootstrap !== 'undefined') {
+            new bootstrap.Modal(modalEl).show();
+        } else if (typeof $ !== 'undefined') {
+            $(modalEl).modal('show');
+        }
+    });
+
+    // ── WAN port status ─────────────────────────────────────────────────────
+    var PORTS_URL = '{{ urls.ports|raw }}';
+
+    var portSpeeds = {0:'—', 1:'10M '+STR.hdx, 2:'10M '+STR.fdx, 3:'100M '+STR.hdx, 4:'100M '+STR.fdx, 5:'1G '+STR.fdx, 6:'1G '+STR.fdx, 7:'10G '+STR.fdx};
+    var wanTypeNames = {0:STR.wanDhcp, 1:STR.wanStatic, 2:STR.wanPppoe, 3:STR.wanPptp, 4:STR.wanL2tp};
+    var connectNames = {0:STR.disconnected, 1:STR.online};
+
+    function fmtDuration(secs) {
+        if (!secs) return '—';
+        var d = Math.floor(secs / 86400), h = Math.floor((secs % 86400) / 3600), m = Math.floor((secs % 3600) / 60);
+        var r = '';
+        if (d) r += d + 'd ';
+        if (h) r += h + 'h ';
+        r += m + 'm';
+        return r.trim() || '<1m';
+    }
+
+    var portModal = document.createElement('div');
+    portModal.className = 'modal fade'; portModal.id = 'gdmsPortModal';
+    portModal.setAttribute('tabindex', '-1'); portModal.setAttribute('aria-hidden', 'true');
+    portModal.innerHTML =
+      '<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">' +
+      '<div class="modal-header"><h5 class="modal-title"><i class="ti ti-network me-2 text-primary"></i> ' +
+      STR.portStatus +
+      ' <small class="text-muted ms-2" id="gdmsPortModalDevice"></small></h5>' +
+      '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+      '<div class="modal-body" id="gdmsPortModalBody"><div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div></div>' +
+      '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' +
+      STR.close + '</button></div></div></div>';
+    document.body.appendChild(portModal);
+    portModal.addEventListener('hide.bs.modal', function() { if (document.activeElement) document.activeElement.blur(); });
+
+    var portData = {};
+
+    setTimeout(function() {
+        fetch(PORTS_URL, { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                portData = data || {};
+                Object.keys(portData).forEach(function(mac) {
+                    var ports = portData[mac];
+                    if (!Array.isArray(ports) || !ports.length) return;
+                    var container = document.querySelector('.gdms-wan-ports[data-mac="' + mac + '"]');
+                    if (!container) return;
+                    container.innerHTML = '';
+                    ports.forEach(function(p) {
+                        var isWan = p.role == 1;
+                        var linkUp = p.link == 1;
+                        var color;
+                        if (isWan) {
+                            if (!linkUp)                  color = '#6c757d';
+                            else if (p.connectStatus === 1) color = '#28a745';
+                            else if (p.connectStatus === 0) color = '#fd7e14';
+                            else                          color = '#ffc107';
+                        } else {
+                            color = linkUp ? '#20c997' : '#6c757d';
+                        }
+                        var label = p.silk || p.name || (isWan ? 'WAN' : 'LAN');
+                        var wanLabel = p.wanName ? ' — ' + p.wanName : '';
+                        var portLabel = p.name && p.name !== p.silk ? ' (' + p.name + ')' : '';
+                        var dot = document.createElement('span');
+                        var dotStatus;
+                        if (!linkUp) {
+                            dotStatus = ' — ' + STR.linkDown;
+                        } else if (isWan) {
+                            dotStatus = p.connectStatus === 1 ? ' — ' + STR.online
+                                      : p.connectStatus === 0 ? ' — ' + STR.noInternet
+                                      : ' — ' + STR.linkUp;
+                        } else {
+                            dotStatus = ' — ' + STR.linkUp;
+                        }
+                        dot.title = label + portLabel + wanLabel + dotStatus;
+                        dot.style.cssText = 'display:inline-block;width:9px;height:9px;border-radius:50%;background:' + color + ';cursor:pointer;flex-shrink:0' + (isWan ? ';outline:1px solid rgba(255,255,255,.3)' : '');
+                        container.appendChild(dot);
+                    });
+                });
+            })
+            .catch(function() {});
+    }, 3000);
+
+    document.addEventListener('click', function(e) {
+        var container = e.target.closest('.gdms-wan-ports');
+        if (!container) return;
+        var mac   = container.getAttribute('data-mac');
+        var ports = portData[mac];
+        if (!ports) return;
+
+        var row   = container.closest('tr');
+        var dName = row ? (row.querySelector('td a') || row.querySelector('td')).textContent.trim() : mac;
+        document.getElementById('gdmsPortModalDevice').textContent = dName;
+
+        var body  = document.getElementById('gdmsPortModalBody');
+        if (!ports.length) { body.innerHTML = '<p class="text-muted text-center">' + STR.noPorts + '</p>'; }
+        else {
+            var ulBytes   = parseInt(container.getAttribute('data-upload')    || '0', 10);
+            var dlBytes   = parseInt(container.getAttribute('data-download')   || '0', 10);
+            var firstSeen = container.getAttribute('data-first-seen') || '';
+            var lastSeen  = container.getAttribute('data-last-seen')  || '';
+            var infoHtml = '';
+            if (ulBytes > 0 || dlBytes > 0 || firstSeen || lastSeen) {
+                infoHtml = '<div class="border-bottom pb-2 mb-3 small">';
+                if (ulBytes > 0 || dlBytes > 0) {
+                    infoHtml += '<div class="fw-semibold text-muted mb-1"><i class="ti ti-chart-bar me-1"></i>' + STR.netUsage + '</div>';
+                    infoHtml += '<div class="d-flex gap-4 mb-2">';
+                    infoHtml += '<span><span class="text-muted me-1">' + STR.upload + ':</span><span class="text-success fw-semibold"> ↑ ' + fmtBytes(ulBytes) + '</span></span>';
+                    infoHtml += '<span><span class="text-muted me-1">' + STR.download + ':</span><span class="text-info fw-semibold"> ↓ ' + fmtBytes(dlBytes) + '</span></span>';
+                    infoHtml += '</div>';
+                }
+                if (firstSeen || lastSeen) {
+                    infoHtml += '<div class="d-flex flex-wrap gap-3 text-muted">';
+                    if (firstSeen) infoHtml += '<span><i class="ti ti-calendar-plus me-1"></i><span class="me-1">' + STR.firstSeen + ':</span>' + firstSeen.slice(0,16) + '</span>';
+                    if (lastSeen)  infoHtml += '<span><i class="ti ti-calendar-check me-1"></i><span class="me-1">' + STR.lastSeen + ':</span>' + lastSeen.slice(0,16) + '</span>';
+                    infoHtml += '</div>';
+                }
+                infoHtml += '</div>';
+            }
+            var legendItems = [
+                {color:'#28a745', label:STR.wanOnline},
+                {color:'#fd7e14', label:STR.wanNoInet},
+                {color:'#ffc107', label:STR.wanUnknown},
+                {color:'#20c997', label:STR.lanUp},
+                {color:'#6c757d', label:STR.linkDown},
+            ];
+            var legend = '<div class="d-flex flex-wrap gap-3 mb-3 small border-bottom pb-2">';
+            legendItems.forEach(function(li) {
+                legend += '<span style="display:inline-flex;align-items:center;gap:5px">'
+                        + '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + li.color + ';outline:1px solid rgba(128,128,128,.35);flex-shrink:0"></span>'
+                        + '<span>' + li.label + '</span>'
+                        + '</span>';
+            });
+            legend += '</div>';
+            var html = infoHtml + legend + '<div class="row g-2">';
+            ports.forEach(function(p) {
+                var isWan  = p.role == 1;
+                var linkUp = p.link == 1;
+                var cs     = (p.connectStatus !== undefined) ? p.connectStatus : -1;
+                var statusColor, statusIcon, statusText;
+                if (isWan) {
+                    if (!linkUp)  { statusColor='secondary'; statusIcon='circle-x';     statusText=STR.linkDown; }
+                    else if(cs==1){ statusColor='success';   statusIcon='circle-check'; statusText=STR.online; }
+                    else if(cs==0){ statusColor='warning';   statusIcon='alert-circle'; statusText=STR.noInternet; }
+                    else          { statusColor='warning';   statusIcon='alert-circle'; statusText=STR.linkUp; }
+                } else {
+                    statusColor = linkUp ? 'info'      : 'secondary';
+                    statusIcon  = linkUp ? 'circle-check' : 'circle-x';
+                    statusText  = linkUp ? STR.linkUp  : STR.linkDown;
+                }
+                var label    = p.silk || (isWan ? 'WAN' : 'LAN');
+                var portName = (p.name && p.name !== p.silk) ? p.name : '';
+                html += '<div class="col-md-6"><div class="card border-' + statusColor + ' h-100">';
+                html += '<div class="card-header bg-transparent border-' + statusColor + ' d-flex justify-content-between align-items-center py-2">';
+                html += '<strong class="text-' + statusColor + '"><i class="ti ti-' + statusIcon + ' me-1"></i>' + label;
+                if (portName) html += ' <small class="fw-normal opacity-75">(' + portName + ')</small>';
+                html += '</strong>';
+                if (p.wanName) html += '<small class="text-muted ms-2">' + p.wanName + '</small>';
+                html += '</div><div class="card-body py-2 small"><dl class="row mb-0">';
+                if (isWan) {
+                    html += '<dt class="col-5 text-muted fw-normal">' + STR.connection + '</dt><dd class="col-7">' + statusText + '</dd>';
+                    if (p.ip) html += '<dt class="col-5 text-muted fw-normal">' + STR.ipAddress + '</dt><dd class="col-7"><code>' + p.ip + '</code></dd>';
+                    if (p.wanType !== undefined && p.wanType >= 0) html += '<dt class="col-5 text-muted fw-normal">' + STR.wanTypeLbl + '</dt><dd class="col-7">' + (wanTypeNames[p.wanType] || '—') + '</dd>';
+                    if (p.gateway) html += '<dt class="col-5 text-muted fw-normal">' + STR.gateway + '</dt><dd class="col-7"><code>' + p.gateway + '</code></dd>';
+                    if (p.firstDns || p.secondDns) {
+                        var dnsVal = [p.firstDns, p.secondDns].filter(Boolean).join(' / ');
+                        html += '<dt class="col-5 text-muted fw-normal">' + STR.dns + '</dt><dd class="col-7"><code>' + dnsVal + '</code></dd>';
+                    }
+                    if (p.wamMac) html += '<dt class="col-5 text-muted fw-normal">' + STR.wanMac + '</dt><dd class="col-7"><code>' + p.wamMac + '</code></dd>';
+                    if (p.portIpv6) html += '<dt class="col-5 text-muted fw-normal">IPv6</dt><dd class="col-7"><code style="font-size:.8em;word-break:break-all;">' + p.portIpv6 + '</code></dd>';
+                    if (p.connectDuration) html += '<dt class="col-5 text-muted fw-normal">' + STR.connectedFor + '</dt><dd class="col-7">' + fmtDuration(p.connectDuration) + '</dd>';
+                    if (p.txBytes || p.rxBytes) {
+                        html += '<dt class="col-5 text-muted fw-normal">↑ Upload</dt><dd class="col-7 text-success">' + fmtBytes(p.txBytes || 0) + '</dd>';
+                        html += '<dt class="col-5 text-muted fw-normal">↓ Download</dt><dd class="col-7 text-info">' + fmtBytes(p.rxBytes || 0) + '</dd>';
+                    }
+                    if (p.txPackets || p.rxPackets) {
+                        html += '<dt class="col-5 text-muted fw-normal">' + STR.txrxPkts + '</dt>'
+                             + '<dd class="col-7 small text-nowrap">'
+                             + '<span class="text-success">↑' + (p.txPackets || 0).toLocaleString() + '</span>'
+                             + ' <span class="text-info">↓' + (p.rxPackets || 0).toLocaleString() + '</span>'
+                             + '</dd>';
+                    }
+                } else {
+                    html += '<dt class="col-5 text-muted fw-normal">' + STR.statusLbl + '</dt><dd class="col-7">' + statusText + '</dd>';
+                    if (linkUp) {
+                        html += '<dt class="col-5 text-muted fw-normal">' + STR.negotiatedSpeed + '</dt><dd class="col-7 fw-semibold text-success">' + (portSpeeds[p.speed] || '—') + '</dd>';
+                    }
+                    if (p.customName) html += '<dt class="col-5 text-muted fw-normal">' + STR.portLabel + '</dt><dd class="col-7">' + p.customName + '</dd>';
+                    if (p.desc)       html += '<dt class="col-5 text-muted fw-normal">' + STR.description + '</dt><dd class="col-7">' + p.desc + '</dd>';
+                }
+                html += '<dt class="col-5 text-muted fw-normal">' + STR.linkSpeed + '</dt><dd class="col-7">' + (portSpeeds[p.speed] || '—') + '</dd>';
+                if (p.type) html += '<dt class="col-5 text-muted fw-normal">' + STR.portType + '</dt><dd class="col-7">' + p.type + '</dd>';
+                html += '</dl></div></div></div>';
+            });
+            html += '</div>';
+            body.innerHTML = html;
+        }
+
+        var bsModal = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(portModal) : null;
+        if (bsModal) bsModal.show();
+        else if (typeof $ !== 'undefined') $(portModal).modal('show');
+    });
+
+    // ── Network stats modal ────────────────────────────────────────
+    var netModal = document.createElement('div');
+    netModal.className = 'modal fade'; netModal.id = 'gdmsNetModal';
+    netModal.setAttribute('tabindex', '-1'); netModal.setAttribute('aria-hidden', 'true');
+    netModal.innerHTML =
+      '<div class="modal-dialog modal-sm"><div class="modal-content">' +
+      '<div class="modal-header py-2"><i class="ti ti-network me-2 text-primary"></i>' +
+      '<h6 class="modal-title mb-0 fw-semibold" id="gdmsNetModalTitle"></h6>' +
+      '<button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button></div>' +
+      '<div class="modal-body p-0" id="gdmsNetModalBody"></div>' +
+      '<div class="modal-footer py-2 justify-content-end">' +
+      '<button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">' +
+      STR.close + '</button></div></div></div>';
+    document.body.appendChild(netModal);
+    netModal.addEventListener('hide.bs.modal', function() { if (document.activeElement) document.activeElement.blur(); });
+
+    var LBL_ONLINE  = STR.lbl_online;
+    var LBL_OFFLINE = STR.lbl_offline;
+    var LBL_TOTAL   = STR.lbl_total;
+    var LBL_ROUTER  = STR.lbl_router;
+    var LBL_SWITCH  = STR.lbl_switch;
+    var LBL_AP      = STR.lbl_ap;
+    var LBL_CLIENTS = STR.lbl_clients;
+    var LBL_PHONES  = STR.lbl_phones;
+
+    document.addEventListener('click', function(e) {
+        var link = e.target.closest('.gdms-net-link');
+        if (!link) return;
+        var raw = link.getAttribute('data-net');
+        if (!raw) return;
+        var nd;
+        try { nd = JSON.parse(raw); } catch(ex) { return; }
+
+        document.getElementById('gdmsNetModalTitle').textContent = nd.name;
+
+        var rows = [
+            { icon: 'ti ti-sitemap', label: LBL_ROUTER, on: nd.router_on, off: nd.router_off },
+            { icon: 'ti ti-server',  label: LBL_SWITCH, on: nd.switch_on, off: nd.switch_off },
+            { icon: 'ti ti-wifi',    label: LBL_AP,     on: nd.ap_on,     off: nd.ap_off     },
+            { icon: 'ti ti-phone',   label: LBL_PHONES, on: nd.phone_on,  off: nd.phone_off  },
+        ];
+        rows = rows.filter(function(r){ return (r.on + r.off) > 0; });
+
+        var html = '<ul class="list-group list-group-flush">';
+        rows.forEach(function(r) {
+            var total = r.on + r.off;
+            var pct   = total > 0 ? Math.round(r.on / total * 100) : null;
+            var barClass = (pct === null) ? 'bg-secondary' : (pct >= 80 ? 'bg-success' : (pct >= 50 ? 'bg-warning' : 'bg-danger'));
+            html += '<li class="list-group-item px-3 py-2">';
+            html += '<div class="d-flex align-items-center justify-content-between mb-1">';
+            html += '<span><i class="' + r.icon + ' me-2 text-primary" style="width:14px;"></i><strong>' + r.label + '</strong></span>';
+            html += '<span class="small text-muted">';
+            if (total === 0) {
+                html += '<span class="badge text-bg-secondary opacity-50">0</span>';
+            } else {
+                html += '<span class="badge bg-success me-1">' + r.on + ' ' + LBL_ONLINE + '</span>';
+                if (r.off > 0) html += '<span class="badge bg-danger">' + r.off + ' ' + LBL_OFFLINE + '</span>';
+            }
+            html += '</span></div>';
+            if (total > 0) {
+                html += '<div class="progress" style="height:4px;border-radius:2px;"><div class="progress-bar ' + barClass + '" style="width:' + (pct||0) + '%;"></div></div>';
+                html += '<div class="text-end text-muted" style="font-size:.7rem;margin-top:2px;">' + LBL_TOTAL + ': ' + total + '</div>';
+            }
+            html += '</li>';
+        });
+        html += '<li class="list-group-item px-3 py-2 d-flex align-items-center justify-content-between">';
+        html += '<span><i class="ti ti-users me-2 text-warning" style="width:14px;"></i><strong>' + LBL_CLIENTS + '</strong></span>';
+        html += '<span class="badge bg-warning text-dark fs-6">' + nd.clients + '</span></li>';
+        if (nd.upload_bytes > 0 || nd.download_bytes > 0) {
+            html += '<li class="list-group-item px-3 py-2"><div class="fw-semibold text-muted mb-1 small"><i class="ti ti-chart-bar me-1"></i>' + STR.netTraffic + '</div>';
+            html += '<div class="d-flex gap-3 small"><span class="text-success">↑ ' + fmtBytes(nd.upload_bytes) + '</span><span class="text-info">↓ ' + fmtBytes(nd.download_bytes) + '</span></div></li>';
+        }
+        html += '</ul>';
+        document.getElementById('gdmsNetModalBody').innerHTML = html;
+
+        var bsNet = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(netModal) : null;
+        if (bsNet) bsNet.show();
+        else if (typeof $ !== 'undefined') $(netModal).modal('show');
+    });
+
+    // ── WiFi Clients modal ───────────────────────────────────────────────────
+    var CLIENTS_URL = '{{ urls.clients|raw }}';
+
+    var clientModal = document.createElement('div');
+    clientModal.className = 'modal fade'; clientModal.id = 'gdmsClientModal';
+    clientModal.setAttribute('tabindex', '-1'); clientModal.setAttribute('aria-hidden', 'true');
+    clientModal.innerHTML =
+      '<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">' +
+      '<div class="modal-header"><h5 class="modal-title"><i class="ti ti-users me-2 text-info"></i>' +
+      STR.connectedClients +
+      ' <small class="text-muted ms-2" id="gdmsClientModalDevice"></small></h5>' +
+      '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+      '<div class="modal-body p-0" id="gdmsClientModalBody"><div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div></div>' +
+      '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' +
+      STR.close + '</button></div></div></div>';
+    document.body.appendChild(clientModal);
+    clientModal.addEventListener('hide.bs.modal', function() { if (document.activeElement) document.activeElement.blur(); });
+
+    document.addEventListener('click', function(e) {
+        var badge = e.target.closest('.gdms-clients-badge');
+        if (!badge) return;
+        var networkId = badge.getAttribute('data-network-id');
+        var apMac     = badge.getAttribute('data-mac') || '';
+        var devName   = badge.getAttribute('data-name') || apMac;
+        document.getElementById('gdmsClientModalDevice').textContent = devName;
+        var body = document.getElementById('gdmsClientModalBody');
+        body.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>';
+
+        var bsCli = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(clientModal) : null;
+        if (bsCli) bsCli.show(); else if (typeof $ !== 'undefined') $(clientModal).modal('show');
+
+        var url = CLIENTS_URL + '&network_id=' + encodeURIComponent(networkId) + '&mac=' + encodeURIComponent(apMac);
+        fetch(url, { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(list) {
+                if (!Array.isArray(list) || !list.length) {
+                    body.innerHTML = '<p class="text-muted text-center py-3">' + STR.noClients + '</p>';
+                    return;
+                }
+                var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || '—'))); return d.innerHTML; };
+                var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead><tr>'
+                    + '<th class="ps-3">' + STR.hostname + '</th>'
+                    + '<th>IP</th><th>MAC</th>'
+                    + '<th>' + STR.band + ' / SSID</th>'
+                    + '<th>' + STR.signal + '</th>'
+                    + '<th>' + STR.txrx + '</th>'
+                    + '</tr></thead><tbody>';
+                list.forEach(function(c) {
+                    var rssiColor = c.rssi <= -76 ? 'text-danger' : (c.rssi <= -60 ? 'text-warning' : 'text-success');
+                    html += '<tr><td class="ps-3 fw-semibold">' + esc(c.hostname || c.mac) + '</td>'
+                        + '<td><code class="small">' + esc(c.ip) + '</code></td>'
+                        + '<td><code class="small">' + esc(c.mac) + '</code></td>'
+                        + '<td><small>' + esc(c.band) + (c.ssid ? ' — ' + esc(c.ssid) : '') + '</small></td>'
+                        + '<td class="' + rssiColor + ' fw-semibold">' + (c.rssi ? c.rssi + ' dBm' : '—') + '</td>'
+                        + '<td class="small text-nowrap">'
+                            + (c.txRate ? '<span class="text-success">↑' + c.txRate + 'M</span> ' : '')
+                            + (c.rxRate ? '<span class="text-info">↓' + c.rxRate + 'M</span>' : '')
+                        + '</td></tr>';
+                });
+                html += '</tbody></table></div>';
+                body.innerHTML = html;
+            })
+            .catch(function() { body.innerHTML = '<p class="text-danger text-center py-3">' + STR.reqFailed + '</p>'; });
+    });
+
+    // ── SIP Phone detail modal ───────────────────────────────────────────────
+    var sipModal = document.createElement('div');
+    sipModal.className = 'modal fade'; sipModal.id = 'gdmsSipModal';
+    sipModal.setAttribute('tabindex', '-1'); sipModal.setAttribute('aria-hidden', 'true');
+    sipModal.innerHTML =
+      '<div class="modal-dialog modal-dialog-centered"><div class="modal-content">' +
+      '<div class="modal-header py-2"><h5 class="modal-title"><i class="ti ti-phone me-2 text-primary"></i>' +
+      '<span id="gdmsSipModalTitle"></span></h5>' +
+      '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+      '<div class="modal-body" id="gdmsSipModalBody"></div>' +
+      '<div class="modal-footer py-2">' +
+      '<button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">' + STR.close + '</button>' +
+      '</div></div></div>';
+    document.body.appendChild(sipModal);
+    sipModal.addEventListener('hide.bs.modal', function() {
+        if (document.activeElement) document.activeElement.blur();
+    });
+
+    document.addEventListener('click', function(e) {
+        var dot = e.target.closest('.gdms-sip-dot');
+        if (!dot) return;
+        var sip       = dot.getAttribute('data-sip')       || '';
+        var dnd       = parseInt(dot.getAttribute('data-dnd')    || '0', 10);
+        var sync      = parseInt(dot.getAttribute('data-sync')   || '0', 10);
+        var syncMsg   = dot.getAttribute('data-sync-msg')  || '';
+        var task      = parseInt(dot.getAttribute('data-task')   || '0', 10);
+        var ext       = dot.getAttribute('data-extension') || '';
+        var lastSeen  = dot.getAttribute('data-last-seen') || '';
+        var privIp    = dot.getAttribute('data-private-ip')|| '';
+        var pubIp     = dot.getAttribute('data-public-ip') || '';
+        var site      = dot.getAttribute('data-site')      || '';
+        var devName   = dot.getAttribute('data-name')      || '';
+        var pbxName   = dot.getAttribute('data-pbx-name')  || '';
+        var pbxIp     = dot.getAttribute('data-pbx-ip')    || '';
+        var pbxUrl    = dot.getAttribute('data-pbx-url')   || '';
+        var mac       = dot.getAttribute('data-mac')        || '';
+
+        document.getElementById('gdmsSipModalTitle').textContent = devName;
+
+        var registered = sip === 'registered';
+        var sipColor   = registered ? '#28a745' : '#dc3545';
+        var sipLabel   = registered ? STR.sipRegistered : STR.sipUnregistered;
+
+        var esc = function(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || '—'))); return d.innerHTML; };
+
+        var rows = [];
+        rows.push(['<i class="ti ti-phone-call me-1"></i>' + STR.sipStatusLbl,
+            '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + sipColor + ';outline:1px solid rgba(128,128,128,.3);margin-right:5px;"></span><strong style="color:' + sipColor + '">' + esc(sipLabel) + '</strong>']);
+        if (ext)      rows.push(['<i class="ti ti-hash me-1"></i>' + STR.extension, '<code>' + esc(ext) + '</code>']);
+        if (site)     rows.push(['<i class="ti ti-building me-1"></i>' + STR.site, esc(site)]);
+        if (mac)      rows.push(['<i class="ti ti-fingerprint me-1"></i>' + STR.macLbl,
+            '<code class="gdms-copy" style="cursor:pointer;" data-copy="' + esc(mac) + '" title="' + STR.copyMac + '">' + esc(mac) + '</code>']);
+        if (privIp)   rows.push(['<i class="ti ti-network me-1"></i>' + STR.fwPrivateIp,
+            '<a href="http://' + esc(privIp) + '" target="_blank" rel="noopener"><code>' + esc(privIp) + '</code></a>']);
+        if (pubIp)    rows.push(['<i class="ti ti-world me-1"></i>' + STR.publicIpLbl,
+            '<a href="https://www.whois.com/whois/' + esc(pubIp) + '" target="_blank" rel="noopener"><code>' + esc(pubIp) + '</code></a>']);
+        if (lastSeen) rows.push(['<i class="ti ti-clock me-1"></i>' + STR.lastSeenCap, esc(lastSeen)]);
+        if (pbxIp)    rows.push(['<i class="ti ti-cpu me-1"></i>' + STR.pbxUcm,
+            '<a href="http://' + esc(pbxIp) + '" target="_blank" rel="noopener"><code>' + esc(pbxIp) + '</code></a>'
+            + (pbxName ? ' ' + (pbxUrl ? '<a href="' + esc(pbxUrl) + '" target="_blank" rel="noopener" class="text-muted small text-decoration-none">(' + esc(pbxName) + ' <i class="ti ti-external-link opacity-50" style="font-size:.8em;"></i>)</a>' : '<span class="text-muted small">(' + esc(pbxName) + ')</span>') : '')]);
+        rows.push(['<i class="ti ti-bell-off me-1"></i>' + STR.dndLbl,
+            dnd ? '<span class="badge text-bg-danger">' + STR.active + '</span>'
+                : '<span class="badge border" style="color:inherit;background:transparent">' + STR.off + '</span>']);
+        rows.push(['<i class="ti ti-refresh me-1"></i>' + STR.synchronized,
+            sync ? '<span class="badge text-bg-success">' + STR.yes + '</span>'
+                 : '<span class="badge text-bg-warning">' + STR.no + '</span>']);
+        if (!sync && syncMsg) rows.push(['<i class="ti ti-alert-triangle me-1 text-warning"></i>' + STR.syncError, '<small class="text-danger">' + esc(syncMsg) + '</small>']);
+        rows.push(['<i class="ti ti-calendar me-1"></i>' + STR.scheduledTask,
+            task ? '<span class="badge text-bg-primary">' + STR.pending + '</span>'
+                 : '<span class="badge border" style="color:inherit;background:transparent">' + STR.none + '</span>']);
+
+        var html = '<dl class="row mb-0 small">';
+        rows.forEach(function(r) {
+            html += '<dt class="col-sm-5 text-muted fw-normal">' + r[0] + '</dt><dd class="col-sm-7 mb-1">' + r[1] + '</dd>';
+        });
+        html += '</dl>';
+        html += '<div class="d-flex align-items-center gap-2 border-top pt-2 mt-1">' +
+            '<span class="me-auto small"><i class="ti ti-alert-triangle text-warning me-1"></i>' + STR.rebootConfirm + '</span>' +
+            '<button type="button" class="btn btn-danger btn-sm" id="gdmsSipRebootBtn"><i class="ti ti-refresh me-1"></i>' + STR.rebootBtn + '</button>' +
+            '</div>';
+        document.getElementById('gdmsSipModalBody').innerHTML = html;
+
+        var _rb = document.getElementById('gdmsSipRebootBtn');
+        _rb._rs = 'idle';
+        _rb.className = 'btn btn-danger btn-sm';
+        _rb.innerHTML = '<i class="ti ti-refresh me-1"></i>' + STR.rebootBtn;
+        _rb.disabled = false;
+
+        _rb.onclick = function() {
+            if (_rb._rs !== 'idle') return;
+            _rb._rs = 'loading';
+            _rb.disabled = true;
+            _rb.innerHTML = '<i class="ti ti-loader" style="animation:spin .8s linear infinite;display:inline-block;"></i> ' + STR.rebooting;
+            var _csrf = typeof window.glpiGetNewCSRFToken === 'function'
+                ? window.glpiGetNewCSRFToken()
+                : (document.querySelector('meta[property="glpi:csrf_token"]') || document.createElement('meta')).getAttribute('content') || '';
+            var _fd = new FormData(); _fd.append('mac', mac);
+            fetch(REBOOT_GDMS_URL, { method:'POST', credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest','X-Glpi-Csrf-Token':_csrf}, body:_fd })
+                .then(function(r) { return r.json(); })
+                .then(function(resp) {
+                    _rb._rs = 'idle'; _rb.className = 'btn btn-danger btn-sm';
+                    _rb.innerHTML = '<i class="ti ti-refresh me-1"></i>' + STR.rebootBtn; _rb.disabled = false;
+                    var badge = document.createElement('div');
+                    badge.className = 'alert ' + (resp.error ? 'alert-danger' : 'alert-success') + ' py-1 px-2 mb-2 small';
+                    badge.textContent = resp.error || STR.rebootOk;
+                    document.getElementById('gdmsSipModalBody').prepend(badge);
+                })
+                .catch(function() {
+                    _rb._rs = 'idle'; _rb.className = 'btn btn-danger btn-sm';
+                    _rb.innerHTML = '<i class="ti ti-refresh me-1"></i>' + STR.rebootBtn; _rb.disabled = false;
+                });
+        };
+
+        var bsSip = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(sipModal) : null;
+        if (bsSip) bsSip.show();
+        else if (typeof $ !== 'undefined') $(sipModal).modal('show');
+    });
+
+    // ── Cloud Alerts panel ────────────────────────────────────────────────────
+    var REBOOT_GDMS_URL = '{{ urls.reboot_gdms|raw }}';
+    var ALERTS_URL  = '{{ urls.alerts|raw }}';
+    var alertsBody = document.getElementById('gdms-alerts-body');
+    if (alertsBody) {
+        alertsBody.addEventListener('click', function(e) {
+            var btn = e.target.closest('.gdms-alert-dismiss');
+            if (!btn) return;
+            e.preventDefault();
+            var row = btn.closest('tr');
+            if (row) row.style.display = 'none';
+        });
+
+        setTimeout(function() {
+            fetch(ALERTS_URL, { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(list) {
+                    if (!Array.isArray(list) || !list.length) {
+                        alertsBody.innerHTML = '<p class="text-muted text-center py-2 small mb-0">' + STR.noAlerts + '</p>';
+                        return;
+                    }
+var sevColor = {'critical':'danger','warning':'warning','medium':'warning','info':'info','low':'secondary','error':'danger'};
+                    var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s||''))); return d.innerHTML; };
+                    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle"><thead><tr>'
+                      + '<th class="ps-3" style="white-space:nowrap">' + STR.alertTime + '</th>'
+                      + '<th>' + STR.alertSev + '</th>'
+                      + '<th>' + STR.alertDevice + '</th>'
+                      + '<th>' + STR.alertMsg + '</th>'
+                      + '<th></th>'
+                      + '</tr></thead><tbody>';
+                    list.slice(0, 50).forEach(function(a) {
+                        var sev = String(a.severity || 'info').toLowerCase();
+                        var cls = sevColor[sev] || 'secondary';
+                        var ct  = parseInt(a.createTime || 0);
+                        var ts  = ct ? new Date(ct).toLocaleString() : '—';
+                        var desc = String(a.description || a.alertType || '');
+                        var extras = [];
+                        if (a.category) extras.push(STR.alertCategory + ': ' + a.category);
+                        if (a.reason)   extras.push(STR.alertReason   + ': ' + a.reason);
+                        if (a.port_id)  extras.push('Port: ' + a.port_id);
+                        var extraHtml = extras.length
+                            ? '<br><span class="text-muted" style="font-size:.8em;">' + extras.map(esc).join(' · ') + '</span>'
+                            : '';
+                        var devName = String(a.deviceName || a.deviceMac || '—');
+                        html += '<tr data-alert-id="' + esc(a.id) + '">'
+                          + '<td class="ps-3 text-nowrap small text-muted">' + esc(ts) + '</td>'
+                          + '<td><span class="badge bg-' + cls + ' text-' + (cls === 'warning' ? 'dark' : 'white') + '">' + esc(sev) + '</span></td>'
+                          + '<td class="small text-nowrap">' + esc(devName) + '</td>'
+                          + '<td class="small">' + esc(desc) + extraHtml + '</td>'
+                          + '<td class="text-end pe-2"><button type="button" class="btn btn-sm btn-link p-0 text-muted gdms-alert-dismiss" data-alert-id="' + esc(a.id) + '" title="' + esc(STR.alertDismiss) + '"><i class="ti ti-x"></i></button></td>'
+                          + '</tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    alertsBody.innerHTML = html;
+
+                    var chevron = document.querySelector('.gdms-alerts-chevron');
+                    var collapse = document.getElementById('gdms-alerts-collapse');
+                    if (chevron && collapse && collapse.classList.contains('show')) {
+                        chevron.style.transform = 'rotate(180deg)';
+                    }
+                })
+                .catch(function() {
+                    if (alertsBody) alertsBody.innerHTML = '<p class="text-danger text-center py-2">' + STR.alertsError + '</p>';
+                });
+        }, 1500);
+
+        document.getElementById('gdms-alerts-card') && document.getElementById('gdms-alerts-card').addEventListener('show.bs.collapse', function() {
+            var chevron = document.querySelector('.gdms-alerts-chevron');
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
+        });
+        document.getElementById('gdms-alerts-card') && document.getElementById('gdms-alerts-card').addEventListener('hide.bs.collapse', function() {
+            var chevron = document.querySelector('.gdms-alerts-chevron');
+            if (chevron) chevron.style.transform = '';
+        });
+    }
+
+    // ── Copy-on-click ─────────────────────────────────────────────────────────
+    document.addEventListener('click', function(e) {
+        var el = e.target.closest('.gdms-copy');
+        if (!el) return;
+        var txt = el.getAttribute('data-copy') || el.textContent;
+        navigator.clipboard && navigator.clipboard.writeText(txt);
+    });
+
+})();
+</script>
+
+{% if chart_datasets|length %}
+<script type="module">
+(function() {
+    var hc = document.getElementById('gdms-history-chart');
+    if (!hc || typeof echarts === 'undefined') return;
+
+    var _bg   = window.getComputedStyle(document.body).backgroundColor;
+    var _rgb  = _bg.match(/\d+/g);
+    var dark  = (_rgb && parseInt(_rgb[0]) < 100)
+             || document.documentElement.getAttribute('data-bs-theme') === 'dark';
+
+    var chartLabels   = {{ chart_labels|json_encode|raw }};
+    var chartDatasets = {{ chart_datasets|json_encode|raw }};
+
+    var ec = echarts.init(hc, dark ? 'dark' : null, { renderer: 'svg' });
+    ec.setOption({
+        backgroundColor: 'transparent',
+        tooltip: {
+            trigger: 'axis',
+            formatter: function(params) {
+                var s = '<b>' + params[0].axisValue + '</b><br/>';
+                params.forEach(function(p) {
+                    if (p.value === null || p.value === undefined) return;
+                    s += '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + p.color + ';margin-right:5px;"></span>'
+                       + p.seriesName + ': ' + p.value + '%<br/>';
+                });
+                return s;
+            }
+        },
+        legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 11 } },
+        grid: { top: 12, right: 16, bottom: 40, left: 48, containLabel: false },
+        xAxis: { type: 'category', data: chartLabels, axisLabel: { fontSize: 11 }, axisLine: { lineStyle: { opacity: .3 } }, splitLine: { show: false } },
+        yAxis: { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%', fontSize: 11 }, splitLine: { lineStyle: { opacity: .15 } } },
+        series: chartDatasets.map(function(ds) {
+            return { name: ds.label, type: 'line', data: ds.data, smooth: true, connectNulls: true, symbolSize: 4,
+                lineStyle: { color: ds.borderColor, width: 2 }, itemStyle: { color: ds.borderColor },
+                areaStyle: { color: ds.borderColor, opacity: .08 } };
+        })
+    });
+    window.addEventListener('resize', function() { ec.resize(); });
+})();
+</script>
+{% endif %}
+
+<script>
+(function () {
+    var tbl = document.getElementById('gdms-device-table');
+    if (!tbl) return;
+    var tbody   = tbl.querySelector('tbody');
+    var resetBtn = document.getElementById('gdms-sort-reset');
+    var sortCol = null;
+    var sortAsc = true;
+    var numCols = ['type', 'status', 'clients', 'avail', 'sla'];
+
+    function applySort(col, asc) {
+        sortCol = col; sortAsc = asc;
+        tbl.querySelectorAll('th.gdms-sortable .gdms-sort-icon').forEach(function (ic) {
+            ic.textContent = '⇅'; ic.className = 'gdms-sort-icon opacity-40';
+        });
+        var activeTh = tbl.querySelector('th[data-col="' + col + '"]');
+        if (activeTh) {
+            var icon = activeTh.querySelector('.gdms-sort-icon');
+            if (icon) { icon.textContent = asc ? '↑' : '↓'; icon.className = 'gdms-sort-icon'; }
+        }
+        var rows = Array.from(tbody.querySelectorAll('tr[data-original-index]'));
+        rows.sort(function (a, b) {
+            var av = a.dataset[col] || '', bv = b.dataset[col] || '', cmp;
+            cmp = numCols.indexOf(col) !== -1 ? parseFloat(av) - parseFloat(bv) : av.localeCompare(bv);
+            return asc ? cmp : -cmp;
+        });
+        rows.forEach(function (r) { tbody.appendChild(r); });
+        if (resetBtn) resetBtn.style.display = '';
+    }
+
+    (function () {
+        var p = new URLSearchParams(location.search);
+        var c = p.get('sort'), d = p.get('dir');
+        if (c && tbl.querySelector('th[data-col="' + c + '"]')) applySort(c, d !== 'desc');
+    })();
+
+    tbl.querySelectorAll('th.gdms-sortable').forEach(function (th) {
+        th.addEventListener('click', function () {
+            var col = th.dataset.col;
+            var asc = sortCol === col ? !sortAsc : true;
+            applySort(col, asc);
+            var url = new URL(location.href);
+            url.searchParams.set('sort', col); url.searchParams.set('dir', asc ? 'asc' : 'desc');
+            history.replaceState(null, '', url);
+        });
+    });
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function () {
+            sortCol = null;
+            tbl.querySelectorAll('th.gdms-sortable .gdms-sort-icon').forEach(function (ic) {
+                ic.textContent = '⇅'; ic.className = 'gdms-sort-icon opacity-40';
+            });
+            var rows = Array.from(tbody.querySelectorAll('tr[data-original-index]'));
+            rows.sort(function (a, b) { return +a.dataset.originalIndex - +b.dataset.originalIndex; });
+            rows.forEach(function (r) { tbody.appendChild(r); });
+            resetBtn.style.display = 'none';
+            var url = new URL(location.href);
+            url.searchParams.delete('sort'); url.searchParams.delete('dir');
+            history.replaceState(null, '', url);
+        });
+    }
+})();
+</script>
+
+{# Vue filter bar init — uses window.Vue.createApp exposed by GLPI 11/12 #}
+<script>
+(function() {
+    var filterApp = document.getElementById('gdms-filter-app');
+    if (!filterApp || typeof window.Vue === 'undefined' || typeof window.Vue.createApp !== 'function') return;
+    filterApp.style.removeProperty('display');
+    window.Vue.createApp({
+        data: function() {
+            return {
+                search: '',
+                statusFilter: 'all',
+                typeFilter: 'all',
+                strAll:     '{{ __('All', 'gdmsintegration') }}',
+                strOnline:  '{{ __('Online', 'gdmsintegration') }}',
+                strOffline: '{{ __('Offline', 'gdmsintegration') }}',
+                strNetwork: '{{ __('Network', 'gdmsintegration') }}',
+                strPhone:   '{{ __('Phone', 'gdmsintegration') }}',
+                strDevice:  '{{ __('Device', 'gdmsintegration') }}...',
+            };
+        },
+        watch: {
+            search:       'applyFilters',
+            statusFilter: 'applyFilters',
+            typeFilter:   'applyFilters'
+        },
+        methods: {
+            applyFilters: function() {
+                var s = this.search.toLowerCase();
+                var sf = this.statusFilter;
+                var tf = this.typeFilter;
+                document.querySelectorAll('#gdms-device-table tbody tr[data-name]').forEach(function(row) {
+                    var show = true;
+                    if (s && !row.dataset.name.includes(s) && !row.dataset.model.includes(s) && !row.dataset.network.includes(s)) show = false;
+                    if (sf === 'online'  && row.dataset.status !== '0') show = false;
+                    if (sf === 'offline' && row.dataset.status === '0') show = false;
+                    if (tf === 'phone'   && row.dataset.type !== '1') show = false;
+                    if (tf === 'network' && row.dataset.type === '1') show = false;
+                    row.style.display = show ? '' : 'none';
+                });
+            }
+        }
+    }).mount('#gdms-filter-app');
+})();
+</script>
+{% endif %}

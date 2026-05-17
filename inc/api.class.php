@@ -29,7 +29,7 @@ class PluginGdmsintegrationAPI {
     // -----------------------------------------------------------------------
     // Device classification
     // -----------------------------------------------------------------------
-    private const PHONE_PREFIXES = ['GRP','GXP','GXV','GXW','WP','HT','DP','GHP','GVC','GSC','GDS'];
+    private const PHONE_PREFIXES = ['GRP','GXP','GXV','GXW','WP','HT','DP','GHP','GVC','GSC','GDS','GAC'];
     private const PBX_PREFIXES   = ['UCM','GCC','CLOUDUCM','SOFTWAREUCM'];
 
     public static function classifyModel(string $model): ?string {
@@ -436,7 +436,8 @@ class PluginGdmsintegrationAPI {
             if ($_m && !empty($_row['sn_cloud'])) $_snCache[$_m] = $_row['sn_cloud'];
         }
 
-        $all = [];
+        $all            = [];
+        $hadNetworkError = false;
         foreach ($networkMap as $networkId => $networkName) {
             $page = 1;
             do {
@@ -448,6 +449,7 @@ class PluginGdmsintegrationAPI {
                 PluginGdmsintegrationUtils::debug("GWN ap/list network {$networkId} page {$page} response: " . json_encode($data));
                 if ($data === false || (int)($data['retCode'] ?? -1) !== 0) {
                     PluginGdmsintegrationUtils::log("GWN ap/list error network {$networkId}: " . ($data['msg'] ?? ''));
+                    $hadNetworkError = true;
                     break;
                 }
                 $raw   = $data['data']['result'] ?? $data['data'] ?? [];
@@ -498,6 +500,9 @@ class PluginGdmsintegrationAPI {
                 }
                 $page++;
             } while (!empty($batch) && $page <= self::MAX_PAGES);
+        }
+        if ($hadNetworkError) {
+            return false;
         }
         return $all;
     }
@@ -932,7 +937,8 @@ class PluginGdmsintegrationAPI {
         array  $config,
         string $mac,
         string $version,
-        int    $scheduleMs = 0
+        int    $scheduleMs = 0,
+        string $downloadUrl = ''
     ): array {
         $tokenData = self::gdmsGetToken($config);
         if (!$tokenData) return ['error' => 'Cannot obtain GDMS token'];
@@ -941,19 +947,23 @@ class PluginGdmsintegrationAPI {
         $clientId = $tokenData['client_id']    ?? ($config['client_id'] ?? '');
         $secret   = $config['client_secret'] ?? '';
 
+        $ts0     = (int)(microtime(true) * 1000);
         $payload = [
-            'taskName'  => 'UPGRADE',
-            'taskType'  => 1,
-            'macList'   => [$mac],
-            'execType'  => 1,
-            'fwVersion' => $version,
+            'taskName' => 'GLPI_UPG_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts0,
+            'taskType' => 3,
+            'macList'  => [$mac],
+            'execType' => $scheduleMs > 0 ? 2 : 1,
         ];
+        if ($downloadUrl !== '') {
+            $payload['firmwareDownloadUrl'] = $downloadUrl;
+        }
         if ($scheduleMs > 0) {
-            $payload['scheduleTime'] = $scheduleMs;
+            $payload['startTimestamp'] = $scheduleMs;
+            $payload['endTimestamp']   = $scheduleMs + 7 * 24 * 3600 * 1000;
         }
 
         $body = json_encode($payload);
-        $ts   = (int)(microtime(true) * 1000);
+        $ts   = $ts0;
         $sig  = self::gdmsBuildTaskSignature($token, $clientId, $secret, $ts, $body);
 
         $url = self::GDMS_BASE . '/v1.0.0/task/add'
@@ -972,6 +982,44 @@ class PluginGdmsintegrationAPI {
         return ['success' => true, 'mac' => $mac, 'version' => $version];
     }
 
+    // GDMS — Reboot task for UC devices
+    // POST /oapi/v1.0.0/task/add  taskType=1
+    // -----------------------------------------------------------------------
+    public static function gdmsCreateRebootTask(array $config, string $mac): array {
+        $tokenData = self::gdmsGetToken($config);
+        if (!$tokenData) return ['error' => 'Cannot obtain GDMS token'];
+
+        $token    = $tokenData['access_token'] ?? '';
+        $clientId = $tokenData['client_id']    ?? ($config['client_id'] ?? '');
+        $secret   = $config['client_secret'] ?? '';
+
+        $ts_r    = (int)(microtime(true) * 1000);
+        $payload = [
+            'taskName' => 'GLPI_RBT_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts_r,
+            'taskType' => 1,
+            'macList'  => [$mac],
+            'execType' => 1,
+        ];
+
+        $body = json_encode($payload);
+        $ts   = $ts_r;
+        $sig  = self::gdmsBuildTaskSignature($token, $clientId, $secret, $ts, $body);
+
+        $url = self::GDMS_BASE . '/v1.0.0/task/add'
+             . '?access_token=' . urlencode($token)
+             . '&signature='    . $sig
+             . "&timestamp={$ts}";
+
+        $data = self::curl($url, ['Content-Type: application/json'], $body);
+        if (!is_array($data) || ($data['retCode'] ?? -1) != 0) {
+            $err = $data['msg'] ?? json_encode($data);
+            PluginGdmsintegrationUtils::log("GDMS task/add REBOOT error for {$mac}: {$err}");
+            return ['error' => $err];
+        }
+        PluginGdmsintegrationUtils::log("GDMS reboot task created for {$mac}");
+        return ['success' => true, 'mac' => $mac];
+    }
+
     // -----------------------------------------------------------------------
     // Grandstream firmware page scraper
     // Returns ['official' => 'x.x.x.x', 'beta' => 'x.x.x.x'|null]
@@ -979,16 +1027,24 @@ class PluginGdmsintegrationAPI {
     // -----------------------------------------------------------------------
     public static function scrapeFirmwareVersions(string $slug): array {
         $base   = 'https://www.grandstream.com/support/firmware/';
-        $result = ['official' => null, 'beta' => null];
+        $result = ['official' => null, 'officialUrl' => null, 'beta' => null, 'betaUrl' => null];
 
         $html = self::curlGet($base . $slug . '-official-firmware');
         if ($html && preg_match('/(\d+\.\d+\.\d+\.\d+)/', $html, $m)) {
             $result['official'] = $m[1];
+            if (preg_match('/href=["\']([^"\']+\.(?:zip|bin))["\']/', $html, $um)) {
+                $fn = preg_replace('/fw[\d.]+\.bin$/i', 'fw.bin', basename($um[1]));
+                $result['officialUrl'] = 'https://firmware.grandstream.com/' . $fn;
+            }
         }
 
         $html = self::curlGet($base . $slug . '-beta-firmware');
         if ($html && preg_match('/(\d+\.\d+\.\d+\.\d+)/', $html, $m)) {
             $result['beta'] = $m[1];
+            if (preg_match('/href=["\']([^"\']+\.(?:zip|bin))["\']/', $html, $um)) {
+                $fn = preg_replace('/fw[\d.]+\.bin$/i', 'fw.bin', basename($um[1]));
+                $result['betaUrl'] = 'https://firmware.grandstream.com/BETA/' . $fn;
+            }
         }
 
         return $result;
