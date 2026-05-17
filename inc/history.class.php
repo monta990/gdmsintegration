@@ -10,8 +10,6 @@ class PluginGdmsintegrationHistory extends PluginGdmsintegrationBaseTM {
         return 'glpi_plugin_gdmsintegration_history';
     }
 
-
-
     public static function getTypeName($nb = 0): string {
         return 'GDMS History';
     }

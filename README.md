@@ -97,9 +97,9 @@ Hovering over the uptime value shows a multi-line tooltip with traffic and timin
 The network name in each row is a **clickable link**. Clicking it opens a modal showing the composition and health of that specific network:
 
 - A row for each device category present in the network (Router / Switch / AP / Phones & PBX), showing online/offline badge pair and a colour-coded availability progress bar.
-  - 🟢 Green bar — ≥ 80 % availability
-  - 🟡 Yellow bar — 50–79 % availability
-  - 🔴 Red bar — < 50 % availability
+  - 🟢 Green bar — ≥ 80 % availability.
+  - 🟡 Yellow bar — 50–79 % availability.
+  - 🔴 Red bar — < 50 % availability.
 - **Clients** badge — total connected wireless clients in the network.
 - **Network traffic** row — aggregate `↑ Upload` and `↓ Download` for all devices in that network (auto-scaled; only shown when traffic data exists).
 - Device categories with zero devices are filtered out automatically.
@@ -148,17 +148,18 @@ This dot also appears for ATA devices (HT series) regardless of whether they are
 
 **Clicking the dot** opens a detail modal with:
 
-- SIP registration status
-- Extension number (when available)
-- Site / network
-- MAC address — click to copy
-- Private IP — clickable, opens device admin page
-- Public IP — clickable, opens WHOIS lookup
-- Last seen timestamp
-- PBX / UCM — private IP (clickable) + device name as a link to the GLPI asset (opens new tab)
-- Do Not Disturb badge
-- Provisioning sync status and last sync error (when present)
-- Scheduled task badge
+- SIP registration status.
+- Extension number (when available).
+- Site / network.
+- MAC address — click to copy.
+- Private IP — clickable, opens device admin page.
+- Public IP — clickable, opens WHOIS lookup.
+- Last seen timestamp.
+- PBX / UCM — private IP (clickable) + device name as a link to the GLPI asset (opens new tab).
+- Do Not Disturb badge.
+- Provisioning sync status and last sync error (when present).
+- Scheduled task badge.
+- Restart device - BETA - THIS FEATURE MAY FAIL.
 
 ---
 
@@ -207,9 +208,9 @@ Availability history lost due to database migration, server move, or accidental 
 
 ---
 
-### Firmware Updates (All device families)
+### Firmware Updates (All device families) - BETA - THIS FEATURE MAY FAIL
 
-The dashboard checks firmware availability for all Grandstream devices 2 seconds after page load, in background, without blocking the sync or the device table. GLPI's native Flatpickr date/time picker is used for scheduling updates, with locale matching the active GLPI session. For GDMS-managed devices (UCM, GRP, WP, HT), GDMS applies the latest firmware available in its repository — the version shown in the modal is informational.
+The dashboard checks firmware availability for all Grandstream devices 2 seconds after page load, in background, without blocking the sync or the device table. GLPI's native Flatpickr date/time picker is used for scheduling updates, with locale matching the active GLPI session.
 
 **Version sources:**
 
@@ -226,18 +227,18 @@ An amber **⬆** icon appears next to the firmware version when an update is ava
 
 **Clicking the ⬆ icon** opens a modal showing:
 - Current version installed on the device.
-- Available versions with selection radio buttons:
-  - **Official firmware** (green badge) — stable release from Grandstream.
-  - **Beta firmware** (yellow badge) — pre-release, when available for that model family.
+- Available versions with radio buttons (hidden when no version data is available):
+  - **Official firmware** (green badge) — stable release.
+  - **Beta firmware** (yellow badge) — shown only when the scraper detects an active beta; disappears automatically when Grandstream removes the beta release.
 - Reboot warning (the device will restart during the upgrade).
-- Two action buttons that apply to the selected version:
+- Two action buttons:
   - **Apply now (ASAP)** — sends the upgrade command immediately.
     - GWN devices: calls GWN Cloud `/upgrade/add`.
-    - All other devices: creates a GDMS UC `task/add` task with `taskName=UPGRADE`.
-  - **Schedule update** — a datetime picker lets you set a specific date and time; the value is sent as milliseconds epoch.
-- Success or error is shown inline in the modal without closing it. The modal refreshes its CSRF token between requests, so scheduling multiple upgrades in one session works without page reload.
+    - GDMS UC devices (UCM/GCC/GRP/WP/HT): creates a GDMS `task/add` (taskType 3) with a direct Grandstream CDN URL derived from the device model (e.g. `firmware.grandstream.com/grp2600fw.bin` for GRP2600–GRP2604). Beta selection passes the scraped URL instead.
+  - **Schedule update** — date/time picker pre-filled to now +5 min; value sent as milliseconds epoch.
+- Success or error shown inline without closing the modal. CSRF token refreshed between requests.
 
-> GWN devices do not expose beta firmware versions through the GWN Cloud API — only the official stable version is available for them.
+> GWN devices do not expose beta firmware via the GWN Cloud API — only the official stable version is available for them.
 
 
 ---
@@ -434,6 +435,14 @@ See [CHANGELOG.md](CHANGELOG.md).
 ## Author
 
 Edwin Elias Alvarez — [GitHub](https://github.com/monta990)
+
+---
+
+## APIS
+
+[GDMS API](https://doc.grandstream.dev/GDMS-API/EN)
+
+[GWN API](https://doc.grandstream.dev/GWN-API/EN)
 
 ---
 

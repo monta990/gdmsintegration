@@ -1,6 +1,6 @@
-<?php
+﻿<?php
 /**
- * GDMS Integration — NOC Dashboard
+ * GDMS Integration --- NOC Dashboard
  */
 global $CFG_GLPI;
 
@@ -9,8 +9,8 @@ if (!Session::haveRight('config', READ) && !Session::haveRight('networking', REA
     throw new \Glpi\Exception\Http\AccessDeniedHttpException();
 }
 
-Html::requireJs('charts');    // ECharts 5 — lib/echarts.js
-Html::requireJs('flatpickr'); // Flatpickr — lib/flatpickr.js
+Html::requireJs('charts');    // ECharts 5 - lib/echarts.js
+Html::requireJs('flatpickr'); // Flatpickr - lib/flatpickr.js
 
 Html::header(
     'GDMS — ' . __('Dashboard', 'gdmsintegration'),
@@ -42,7 +42,7 @@ $chart_days       = max(7, min(365, (int)($config['chart_days'] ?? 60)));
 $show_topology    = (int)($config['show_topology'] ?? 1);
 $ip_version       = in_array($config['ip_version'] ?? '', ['ipv4', 'ipv6'], true) ? $config['ip_version'] : 'ipv4';
 
-// Flatpickr locale — extract language and region from GLPI session
+// Flatpickr locale --- extract language and region from GLPI session
 $_fp_lang   = 'en';
 $_fp_region = '';
 if (!empty($_SESSION['glpilanguage'])) {
@@ -51,26 +51,19 @@ if (!empty($_SESSION['glpilanguage'])) {
     $_fp_region = strtoupper($_fp_parts[1] ?? '');
 }
 
+$_plugin_web = ($CFG_GLPI['root_doc'] ?? '') . '/' . basename(dirname(__DIR__, 2)) . '/gdmsintegration';
+
 if (!$is_configured) {
-    $config_url = '/plugins/gdmsintegration/front/config.form.php';
-    echo '<div class="container-xl mt-5">';
-    echo '   <div class="card border-0 shadow-sm mx-auto" style="max-width:540px;">';
-    echo '      <div class="card-body text-center py-5 px-4">';
-    echo '         <i class="ti ti-plug text-secondary mb-3" style="font-size:3rem;"></i>';
-    echo '         <h4 class="fw-bold mb-2">' . __('GDMS not configured yet', 'gdmsintegration') . '</h4>';
-    echo '         <p class="text-muted mb-4">' . __('To start syncing your Grandstream devices, you need to connect your GDMS Cloud account. It only takes a moment.', 'gdmsintegration') . '</p>';
-    echo '         <a href="' . htmlspecialchars($config_url, ENT_QUOTES, 'UTF-8') . '" class="btn btn-primary px-4">';
-    echo '            <i class="ti ti-settings me-2"></i>' . __('Set up GDMS', 'gdmsintegration');
-    echo '         </a>';
-    echo '      </div>';
-    echo '   </div>';
-    echo '</div>';
+    echo PluginGdmsintegrationTwig::get()->render('dashboard.html.twig', [
+        'is_configured' => false,
+        'config_url'    => $_plugin_web . '/front/config.form.php',
+    ]);
     Html::footer();
     return;
 }
 
 // Load GDMS-managed devices from the plugin's own device-state table.
-// This is the authoritative list of what GDMS manages — NOT all GLPI assets.
+// This is the authoritative list of what GDMS manages --- NOT all GLPI assets.
 $online  = 0;
 $offline = 0;
 $rows    = [];
@@ -86,7 +79,7 @@ $all_states = $state_obj->find(); // every MAC the plugin currently manages in t
 $_all_macs    = array_filter(array_column($all_states, 'mac'));
 $_uptime_map  = PluginGdmsintegrationSync::calculateUptimeBatch($_all_macs);
 
-// Build MAC → GLPI asset map across ALL entities (entity 0 vs active entity mismatch)
+// Build MAC --- GLPI asset map across ALL entities (entity 0 vs active entity mismatch)
 $mac_to_asset = [];
 foreach (['NetworkEquipment', 'Phone'] as $itemtype) {
     $obj     = new $itemtype();
@@ -224,7 +217,7 @@ $isPhoneModel = static function(string $m): bool {
     return false;
 };
 
-// Build network → first UCM/GCC device map for phone modal PBX info
+// Build network --- first UCM/GCC device map for phone modal PBX info
 $pbx_by_network = [];
 foreach ($rows as $_r) {
     if (!preg_match('/^UCM|^GCC|^CLOUDUCM|^SOFTWAREUCM/i', $_r['raw_model'] ?? '')) continue;
@@ -235,8 +228,8 @@ foreach ($rows as $_r) {
 }
 
 // Build per-network device stats for tooltip (router/switch/AP/clients counts)
-// Device classification: GWN7001/7002/7003 prefix → router; GWN7800/GSS → switch; GWN76xx → AP; UCM/GCC/GRP/GXP etc → phone/pbx
-$net_stats = []; // network_name → [router_on, router_off, switch_on, switch_off, ap_on, ap_off, clients_wired, clients_wireless]
+// Device classification: GWN7001/7002/7003 prefix -- router; GWN7800/GSS -- switch; GWN76xx -- AP; UCM/GCC/GRP/GXP etc -- phone/pbx
+$net_stats = []; // network_name -- [router_on, router_off, switch_on, switch_off, ap_on, ap_off, clients_wired, clients_wireless]
 foreach ($rows as $r) {
     $nname = $r['network_name'];
     if ($nname === '') continue;
@@ -264,12 +257,12 @@ foreach ($rows as $r) {
     $net_stats[$nname]['download_bytes'] += $r['download_bytes'];
 }
 
-// Uptime history — last N days per device per day (configurable via chart_days)
+// Uptime history -- last N days per device per day (configurable via chart_days)
 $history_obj = new PluginGdmsintegrationHistory();
 $history_ago  = gmdate('Y-m-d H:i:s', strtotime("-{$chart_days} days"));
 $hist_rows    = $history_obj->find(['date' => ['>', $history_ago]], ['date DESC']);
 
-// Build: mac → (name) and date → per-mac status
+// Build: mac -- (name) and date -- per-mac status
 $mac_to_name = [];
 foreach ($all_states as $st) {
     $m = strtolower(trim($st['mac'] ?? ''));
@@ -295,7 +288,7 @@ foreach ($hist_rows as $h) {
 ksort($all_days);
 $chart_labels = array_keys($all_days);
 
-// Build dataset per device — only include MACs that are currently managed
+// Build dataset per device -- only include MACs that are currently managed
 // (present in the devices table). Removed devices are excluded even if
 // their history rows survived the last cleanup cycle.
 $chart_datasets = [];
@@ -324,7 +317,7 @@ foreach ($per_device as $mac => $days) {
     ];
 }
 
-// Topology — only build if show_topology is enabled (saves DB query when disabled)
+// Topology -- only build if show_topology is enabled (saves DB query when disabled)
 $nodes = [];
 $edges = [];
 if ($show_topology) {
@@ -346,7 +339,7 @@ if ($show_topology) {
             $edges[] = ['from' => $l['source_mac'], 'to' => $l['target_mac']];
         }
     }
-    // Phone → PBX edges: match each registered phone to its UCM by /24 subnet of private_ip.
+    // Phone -- PBX edges: match each registered phone to its UCM by /24 subnet of private_ip.
     // Phones and their UCM share the same LAN segment, so subnet is a reliable heuristic
     // even when multiple UCMs share the same GDMS network_name (e.g. one GDMS account).
     // Fallback: network_name match (for phones without private_ip).
@@ -354,8 +347,8 @@ if ($show_topology) {
         $p = explode('.', $ip);
         return count($p) === 4 ? $p[0] . '.' . $p[1] . '.' . $p[2] : '';
     };
-    $_pbx_by_subnet  = []; // /24 → mac
-    $_pbx_by_netname = []; // network_name → mac  (fallback, first-UCM-wins)
+    $_pbx_by_subnet  = []; // /24 â†’ mac
+    $_pbx_by_netname = []; // network_name â†’ mac  (fallback, first-UCM-wins)
     foreach ($rows as $_r) {
         if (!preg_match('/^UCM|^GCC|^CLOUDUCM/i', $_r['raw_model'] ?? '') || empty($_r['mac'])) continue;
         $_sn = $_subnet($_r['private_ip'] ?: $_r['ip']);
@@ -395,1690 +388,263 @@ foreach ($net_stats as $ns) {
     $summary['phone_off']  += $ns['phone_off'];
     $summary['clients']    += $ns['clients'];
 }
+
+// ---- Row pre-processing -----
+$fmtB = function(int $b): string {
+    if ($b >= 1073741824) return round($b / 1073741824, 1) . ' GB';
+    if ($b >= 1048576)    return round($b / 1048576, 1) . ' MB';
+    if ($b >= 1024)       return round($b / 1024, 0) . ' KB';
+    return $b . ' B';
+};
+$ipHref = function(string $ip): string {
+    return 'http://' . (strpos($ip, ':') !== false ? '[' . $ip . ']' : urlencode($ip));
+};
+
+foreach ($rows as &$r) {
+    $us = (int)($r['uptime_sec'] ?? 0);
+    $ud = intdiv($us, 86400);
+    $uh = intdiv($us % 86400, 3600);
+    $um = intdiv($us % 3600, 60);
+    $r['_uptime_str']     = $ud > 0 ? "{$ud}d {$uh}h {$um}m" : ($uh > 0 ? "{$uh}h {$um}m" : "{$um}m");
+    $r['_uptime_display'] = $us > 0 ? $r['_uptime_str'] : '—';
+    $r['_is_phone']       = ($r['type'] === 'Phone') || $isPhoneModel($r['raw_model'] ?? '');
+
+    $r['_pref_ip'] = $ip_version === 'ipv6'
+        ? (!empty($r['ipv6'])       ? $r['ipv6']       : $r['private_ip'])
+        : (!empty($r['private_ip']) ? $r['private_ip'] : $r['ipv6']);
+    $r['_sec_ip']  = $ip_version === 'ipv6'
+        ? (!empty($r['ipv6']) && !empty($r['private_ip']) ? $r['private_ip'] : '')
+        : (!empty($r['private_ip']) && !empty($r['ipv6']) ? $r['ipv6'] : '');
+    $r['_pref_ip_href']   = !empty($r['_pref_ip']) ? $ipHref($r['_pref_ip']) : '';
+    $r['_sec_ip_href']    = !empty($r['_sec_ip'])  ? $ipHref($r['_sec_ip'])  : '';
+    $r['_sec_ip_is_ipv6'] = strpos((string)($r['_sec_ip'] ?? ''), ':') !== false;
+
+    $ul        = (int)($r['upload_bytes']   ?? 0);
+    $dl        = (int)($r['download_bytes'] ?? 0);
+    $ch2       = (int)($r['channel_2g'] ?? 0);
+    $ch5       = (int)($r['channel_5g'] ?? 0);
+    $ls        = $r['last_seen'] ?? '';
+    $tip_lines = [];
+    if ($ul > 0 || $dl > 0) {
+        $tip_lines[] = __('Network usage', 'gdmsintegration');
+        $tip_lines[] = __('Upload', 'gdmsintegration') . ': ↑ ' . $fmtB($ul) . '  ' . __('Download', 'gdmsintegration') . ': ↓ ' . $fmtB($dl);
+    }
+    if ($ch2 > 0 || $ch5 > 0) {
+        $ch_parts = [];
+        if ($ch2 > 0) $ch_parts[] = '2.4GHz ch' . $ch2;
+        if ($ch5 > 0) $ch_parts[] = '5GHz ch' . $ch5;
+        $tip_lines[] = implode('  ', $ch_parts);
+    }
+    if (!empty($r['location']))   $tip_lines[] = __('Location',   'gdmsintegration') . ': ' . html_entity_decode($r['location']);
+    if (!empty($r['first_seen'])) $tip_lines[] = __('First seen', 'gdmsintegration') . ': ' . substr($r['first_seen'], 0, 16);
+    if ($ls)                      $tip_lines[] = __('Last seen',  'gdmsintegration') . ': ' . substr($ls, 0, 16);
+    $r['_uptime_tip'] = implode("\n", $tip_lines);
+
+    $wan_tx           = (int)($r['wan_tx_bytes'] ?? 0);
+    $wan_rx           = (int)($r['wan_rx_bytes'] ?? 0);
+    $r['_ul_val']     = $wan_tx > 0 ? $wan_tx : $ul;
+    $r['_dl_val']     = $wan_rx > 0 ? $wan_rx : $dl;
+    $r['_ul_fmt']     = $fmtB($r['_ul_val']);
+    $r['_dl_fmt']     = $fmtB($r['_dl_val']);
+    $traffic_src      = $wan_tx > 0
+        ? __('WAN port aggregate (sum of all WAN ports since last router reboot)', 'gdmsintegration')
+        : __('Device-reported traffic (wireless client usage)', 'gdmsintegration');
+    $fs_raw           = $r['first_seen'] ?? '';
+    $r['_traffic_tip'] = $fs_raw
+        ? sprintf(__('%s — since first seen in cloud (%s, ~%d days)', 'gdmsintegration'), $traffic_src, substr($fs_raw, 0, 10), max(1, (int)((time() - strtotime($fs_raw)) / 86400)))
+        : $traffic_src;
+
+    $rnet            = $r['network_name'] ?? '';
+    $rstat           = $net_stats[$rnet] ?? null;
+    $r['_net_data']  = ($rnet !== '' && $rstat !== null)
+        ? array_merge(['name' => html_entity_decode($rnet)], $rstat)
+        : null;
+
+    $r['_fw_badge_shown'] = !empty($r['firmware_latest']) && $r['firmware_latest'] !== $r['firmware'];
+
+    $_pbx_net    = strtolower(html_entity_decode($r['network_name'] ?? ''));
+    $r['_pbx']   = $pbx_by_network[$_pbx_net] ?? null;
+    $_sip_tip    = '';
+    if (!empty($r['sip_status'])) {
+        $_sip_tip  = $r['sip_status'] === 'registered' ? __('SIP Registered', 'gdmsintegration') : __('SIP Unregistered', 'gdmsintegration');
+        if (!empty($r['sip_extension'])) $_sip_tip .= ' Â· ' . __('Ext', 'gdmsintegration') . ': ' . $r['sip_extension'];
+        if (!empty($r['dnd']))           $_sip_tip .= ' Â· ' . __('Do Not Disturb', 'gdmsintegration');
+    }
+    $r['_sip_tip']   = $_sip_tip;
+    $r['_sip_color'] = ($r['sip_status'] ?? '') === 'registered' ? '#28a745' : '#dc3545';
+}
+unset($r);
+
+// --- Summary cards ----
+$total = $online + $offline;
+$pct   = $total > 0 ? round($online / $total * 100) : 0;
+$cards = [
+    ['icon' => 'ti-network', 'label' => __('Networks',     'gdmsintegration'), 'vals' => [['v' => $total_networks,       'lbl' => __('Total',     'gdmsintegration'), 'cls' => '']]],
+    ['icon' => 'ti-sitemap', 'label' => __('Router',       'gdmsintegration'), 'vals' => [['v' => $summary['router_on'], 'lbl' => __('Online',    'gdmsintegration'), 'cls' => 'text-success'], ['v' => $summary['router_off'],  'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger']]],
+    ['icon' => 'ti-server',  'label' => __('Switch',       'gdmsintegration'), 'vals' => [['v' => $summary['switch_on'], 'lbl' => __('Online',    'gdmsintegration'), 'cls' => 'text-success'], ['v' => $summary['switch_off'],  'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger']]],
+    ['icon' => 'ti-wifi',    'label' => 'AP',                                  'vals' => [['v' => $summary['ap_on'],     'lbl' => __('Online',    'gdmsintegration'), 'cls' => 'text-success'], ['v' => $summary['ap_off'],      'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger']]],
+    ['icon' => 'ti-phone',   'label' => __('Phones & PBX', 'gdmsintegration'), 'vals' => [['v' => $summary['phone_on'],  'lbl' => __('Online',    'gdmsintegration'), 'cls' => 'text-success'], ['v' => $summary['phone_off'],  'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger']]],
+    ['icon' => 'ti-users',   'label' => __('Clients',      'gdmsintegration'), 'vals' => [['v' => $summary['clients'],   'lbl' => __('Connected', 'gdmsintegration'), 'cls' => 'text-info']]],
+];
+
+$critical_devices = array_values(array_filter($rows, fn($r) => $r['sla'] === __('Critical', 'gdmsintegration') && !$r['online']));
+
+// ---- URL map ----
+$_base = $_plugin_web . '/front/';
+$_eid  = 'entities_id=' . $entities_id;
+$urls  = [
+    'sync'            => $_base . 'sync.ajax.php?'                         . $_eid,
+    'fw_check'        => $_base . 'firmware.ajax.php?action=check&'        . $_eid,
+    'fw_upgrade'      => $_base . 'firmware.ajax.php?action=upgrade&'      . $_eid,
+    'fw_check_all'    => $_base . 'firmware.ajax.php?action=check_all&'    . $_eid,
+    'fw_upgrade_gdms' => $_base . 'firmware.ajax.php?action=upgrade_gdms&' . $_eid,
+    'reboot_gdms'     => $_base . 'firmware.ajax.php?action=reboot_gdms&'  . $_eid,
+    'ports'           => $_base . 'ports.ajax.php?action=status&'          . $_eid,
+    'clients'         => $_base . 'clients.ajax.php?'                      . $_eid,
+    'alerts'          => $_base . 'alerts.ajax.php?'                       . $_eid,
+    'history_export'  => $_base . 'history_export.php?'                    . $_eid,
+];
+
+// --- JS strings ----
+$js_strings = [
+    'syncing'         => __('Syncing…',                                                              'gdmsintegration'),
+    'rebootWarning'   => __('The device will reboot during the update. Schedule during a maintenance window.', 'gdmsintegration'),
+    'reqFailed'       => __('Request failed. Check connection.',                                     'gdmsintegration'),
+    'schedOk'         => __('Update scheduled successfully. The device will update shortly.',        'gdmsintegration'),
+    'applyAsap'       => __('Apply now (ASAP)',                                                      'gdmsintegration'),
+    'schedUpdate'     => __('Schedule update',                                                       'gdmsintegration'),
+    'scheduling'      => __('Scheduling…',                                                           'gdmsintegration'),
+    'linkDown'        => __('Link down',                                                             'gdmsintegration'),
+    'linkUp'          => __('Link up',                                                               'gdmsintegration'),
+    'online'          => __('Online',                                                                'gdmsintegration'),
+    'noInternet'      => __('No internet',                                                           'gdmsintegration'),
+    'noPorts'         => __('No ports found',                                                        'gdmsintegration'),
+    'netUsage'        => __('Network usage',                                                         'gdmsintegration'),
+    'netTraffic'      => __('Network traffic',                                                       'gdmsintegration'),
+    'firstSeen'       => __('First seen',                                                            'gdmsintegration'),
+    'lastSeen'        => __('Last seen',                                                             'gdmsintegration'),
+    'wanOnline'       => __('WAN online',                                                            'gdmsintegration'),
+    'wanNoInet'       => __('WAN up, no internet',                                                   'gdmsintegration'),
+    'wanUnknown'      => __('WAN up, unknown',                                                       'gdmsintegration'),
+    'lanUp'           => __('LAN up',                                                                'gdmsintegration'),
+    'connection'      => __('Connection',                                                            'gdmsintegration'),
+    'ipAddress'       => __('IP Address',                                                            'gdmsintegration'),
+    'wanTypeLbl'      => __('Type',                                                                  'gdmsintegration'),
+    'connectedFor'    => __('Connected for',                                                         'gdmsintegration'),
+    'statusLbl'       => __('Status',                                                                'gdmsintegration'),
+    'portType'        => __('Port type',                                                             'gdmsintegration'),
+    'negotiatedSpeed' => __('Negotiated speed',                                                      'gdmsintegration'),
+    'portLabel'       => __('Port label',                                                            'gdmsintegration'),
+    'unknown'         => __('Unknown',                                                               'gdmsintegration'),
+    'officialFw'      => __('Official firmware',                                                     'gdmsintegration'),
+    'betaFw'          => __('Beta firmware',                                                         'gdmsintegration'),
+    'gdmsManaged'     => __('GDMS managed',                                                          'gdmsintegration'),
+    'gdmsVersionNote' => __('GDMS applies the latest firmware available in its repository. The selected version is informational only.', 'gdmsintegration'),
+    'selectVersion'   => __('Select version',                                                        'gdmsintegration'),
+    'curFw'           => __('Current firmware',                                                      'gdmsintegration'),
+    'deviceMac'       => __('Device MAC',                                                            'gdmsintegration'),
+    'hdx'             => __('HDX',                                                                   'gdmsintegration'),
+    'fdx'             => __('FDX',                                                                   'gdmsintegration'),
+    'disconnected'    => __('Disconnected',                                                          'gdmsintegration'),
+    'lbl_online'      => __('online',                                                                'gdmsintegration'),
+    'lbl_offline'     => __('offline',                                                               'gdmsintegration'),
+    'lbl_total'       => __('Total',                                                                 'gdmsintegration'),
+    'lbl_router'      => __('Router',                                                                'gdmsintegration'),
+    'lbl_switch'      => __('Switch',                                                                'gdmsintegration'),
+    'lbl_ap'          => __('AP',                                                                    'gdmsintegration'),
+    'lbl_phones'      => __('Phones & PBX',                                                          'gdmsintegration'),
+    'lbl_clients'     => __('Clients',                                                               'gdmsintegration'),
+    'noClients'       => __('No clients connected',                                                  'gdmsintegration'),
+    'noAlerts'        => __('No recent alerts',                                                      'gdmsintegration'),
+    'alertsError'     => __('Could not load alerts',                                                 'gdmsintegration'),
+    'alertTime'       => __('Time',                                                                  'gdmsintegration'),
+    'alertSev'        => __('Severity',                                                              'gdmsintegration'),
+    'alertDevice'     => __('Device',                                                                'gdmsintegration'),
+    'alertMsg'        => __('Alert',                                                                 'gdmsintegration'),
+    'alertDismiss'    => __('Dismiss',                                                               'gdmsintegration'),
+    'hostname'        => __('Hostname',                                                              'gdmsintegration'),
+    'band'            => __('Band',                                                                  'gdmsintegration'),
+    'signal'          => __('Signal',                                                                'gdmsintegration'),
+    'txrx'            => __('TX / RX',                                                               'gdmsintegration'),
+    'alertCategory'   => __('Category',                                                              'gdmsintegration'),
+    'alertReason'     => __('Reason',                                                                'gdmsintegration'),
+    'wanDhcp'         => __('DHCP',                                                                  'gdmsintegration'),
+    'wanStatic'       => __('Static',                                                                'gdmsintegration'),
+    'wanPppoe'        => __('PPPoE',                                                                 'gdmsintegration'),
+    'wanPptp'         => __('PPTP',                                                                  'gdmsintegration'),
+    'wanL2tp'         => __('L2TP',                                                                  'gdmsintegration'),
+    'upgrading'       => __('Updating…',                                                             'gdmsintegration'),
+    'deviceName'      => __('Device',                                                                'gdmsintegration'),
+    'fwPrivateIp'     => __('Private IP',                                                            'gdmsintegration'),
+    'fwMacCopied'     => __('Copied!',                                                               'gdmsintegration'),
+    'fwPageLbl'       => __('Firmware downloads',                                                    'gdmsintegration'),
+    'fwUpdateTitle'   => __('Firmware Update Available',                                             'gdmsintegration'),
+    'fwChecking'      => __('Checking firmware…',                                                    'gdmsintegration'),
+    'fwScheduleFor'   => __('Schedule for',                                                          'gdmsintegration'),
+    'fwShowPicker'    => __('Show date picker',                                                      'gdmsintegration'),
+    'fwLeaveEmpty'    => __('Leave empty to apply as soon as possible',                              'gdmsintegration'),
+    'close'           => __('Close',                                                                 'gdmsintegration'),
+    'portStatus'      => __('Port Status',                                                           'gdmsintegration'),
+    'connectedClients'=> __('Connected Clients',                                                     'gdmsintegration'),
+    'sipRegistered'   => __('Registered',                                                            'gdmsintegration'),
+    'sipUnregistered' => __('Unregistered',                                                          'gdmsintegration'),
+    'sipStatusLbl'    => __('SIP Status',                                                            'gdmsintegration'),
+    'extension'       => __('Extension',                                                             'gdmsintegration'),
+    'site'            => __('Site',                                                                  'gdmsintegration'),
+    'macLbl'          => __('MAC',                                                                   'gdmsintegration'),
+    'copyMac'         => __('Copy MAC',                                                              'gdmsintegration'),
+    'publicIpLbl'     => __('Public IP',                                                             'gdmsintegration'),
+    'lastSeenCap'     => __('Last Seen',                                                             'gdmsintegration'),
+    'pbxUcm'          => __('PBX / UCM',                                                             'gdmsintegration'),
+    'dndLbl'          => __('Do Not Disturb',                                                        'gdmsintegration'),
+    'active'          => __('Active',                                                                'gdmsintegration'),
+    'off'             => __('Off',                                                                   'gdmsintegration'),
+    'synchronized'    => __('Synchronized',                                                          'gdmsintegration'),
+    'yes'             => __('Yes',                                                                   'gdmsintegration'),
+    'no'              => __('No',                                                                    'gdmsintegration'),
+    'syncError'       => __('Sync Error',                                                            'gdmsintegration'),
+    'scheduledTask'   => __('Scheduled Task',                                                        'gdmsintegration'),
+    'pending'         => __('Pending',                                                               'gdmsintegration'),
+    'none'            => __('None',                                                                  'gdmsintegration'),
+    'rebootBtn'       => __('Reboot',                                                                 'gdmsintegration'),
+    'rebootConfirm'   => __('Reboot this device?',                                                    'gdmsintegration'),
+    'rebootOk'        => __('Reboot task created. Device will restart shortly.',                      'gdmsintegration'),
+    'rebooting'       => __('Rebooting…',                                                             'gdmsintegration'),
+    'confirm'         => __('Confirm',                                                                'gdmsintegration'),
+    'cancel'          => __('Cancel',                                                                 'gdmsintegration'),
+];
+
+echo PluginGdmsintegrationTwig::get()->render('dashboard.html.twig', [
+    'is_configured'    => true,
+    'entities_id'      => $entities_id,
+    'rows'             => $rows,
+    'cards'            => $cards,
+    'summary'          => $summary,
+    'net_stats'        => $net_stats,
+    'online'           => $online,
+    'offline'          => $offline,
+    'total'            => $total,
+    'pct'              => $pct,
+    'total_networks'   => $total_networks,
+    'critical_devices' => $critical_devices,
+    'chart_datasets'   => $chart_datasets,
+    'chart_labels'     => $chart_labels,
+    'nodes'            => array_values($nodes),
+    'edges'            => array_values($edges),
+    'show_topology'    => $show_topology,
+    'chart_days'       => $chart_days,
+    'has_gwn_config'   => !empty($config['gwn_client_id']),
+    'js_strings'       => $js_strings,
+    'urls'             => $urls,
+    'fp_lang'          => $_fp_lang,
+    'fp_region'        => $_fp_region,
+    'refresh_interval' => $refresh_interval,
+    'last_sync_label'  => $last_sync_label,
+    'last_sync_at'     => $last_sync_at ?? '',
+    'visnetwork_url'   => $_plugin_web . '/front/visnetwork.php',
+    'config_url'       => $_plugin_web . '/front/config.form.php',
+]);
+
+Html::footer();
+return;
 ?>
-<div class="container-fluid px-4 mt-3">
-
-   <?php // Header card ?>
-   <div class="card mb-4">
-      <div class="card-body py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-         <div class="d-flex align-items-center gap-3">
-            <i class="ti ti-antenna text-primary"></i>
-            <div>
-               <h4 class="mb-0 fw-bold"><?= 'GDMS — ' . __('Dashboard', 'gdmsintegration') ?></h4>
-               <small class="text-muted"><?= __('Live view of your Grandstream cloud devices', 'gdmsintegration') ?></small>
-            </div>
-         </div>
-         <div class="d-flex align-items-center gap-2">
-            <?php if ($last_sync_label): ?>
-            <small class="text-muted" id="gdms-last-sync" title="<?= htmlspecialchars($last_sync_at ?? '', ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($last_sync_label, ENT_QUOTES, 'UTF-8') ?></small>
-            <?php endif; ?>
-            <small class="text-muted" id="gdms-refresh-countdown"></small>
-            <button type="button" id="gdms-refresh-btn" class="btn btn-sm btn-outline-primary">
-               <i class="ti ti-refresh me-1" id="gdms-refresh-icon"></i><?= __('Sync now', 'gdmsintegration') ?>
-            </button>
-            <a href="/plugins/gdmsintegration/front/config.form.php" class="btn btn-sm btn-outline-secondary">
-               <i class="ti ti-settings me-1"></i><?= __('Settings', 'gdmsintegration') ?>
-            </a>
-         </div>
-      </div>
-   </div>
-
-   <?php // Summary stat cards — Grandstream Cloud style ?>
-   <?php
-   $total = $online + $offline;
-   $pct   = $total > 0 ? round($online / $total * 100) : 0;
-   $cards = [
-       [
-           'icon'    => 'ti-network',
-           'label'   => __('Networks', 'gdmsintegration'),
-           'vals'    => [['v' => $total_networks, 'lbl' => __('Total', 'gdmsintegration'), 'cls' => '']],
-       ],
-       [
-           'icon'    => 'ti-sitemap',
-           'label'   => __('Router', 'gdmsintegration'),
-           'vals'    => [
-               ['v' => $summary['router_on'],  'lbl' => __('Online', 'gdmsintegration'),  'cls' => 'text-success'],
-               ['v' => $summary['router_off'], 'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger'],
-           ],
-       ],
-       [
-           'icon'    => 'ti-server',
-           'label'   => __('Switch', 'gdmsintegration'),
-           'vals'    => [
-               ['v' => $summary['switch_on'],  'lbl' => __('Online', 'gdmsintegration'),  'cls' => 'text-success'],
-               ['v' => $summary['switch_off'], 'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger'],
-           ],
-       ],
-       [
-           'icon'    => 'ti-wifi',
-           'label'   => 'AP',
-           'vals'    => [
-               ['v' => $summary['ap_on'],  'lbl' => __('Online', 'gdmsintegration'),  'cls' => 'text-success'],
-               ['v' => $summary['ap_off'], 'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger'],
-           ],
-       ],
-       [
-           'icon'    => 'ti-phone',
-           'label'   => __('Phones & PBX', 'gdmsintegration'),
-           'vals'    => [
-               ['v' => $summary['phone_on'],  'lbl' => __('Online', 'gdmsintegration'),  'cls' => 'text-success'],
-               ['v' => $summary['phone_off'], 'lbl' => __('Offline', 'gdmsintegration'), 'cls' => 'text-danger'],
-           ],
-       ],
-       [
-           'icon'    => 'ti-users',
-           'label'   => __('Clients', 'gdmsintegration'),
-           'vals'    => [['v' => $summary['clients'], 'lbl' => __('Connected', 'gdmsintegration'), 'cls' => 'text-info']],
-       ],
-   ];
-   ?>
-
-   <div class="row g-2 mb-3">
-      <?php foreach ($cards as $card): ?>
-      <div class="col-6 col-sm-4 col-md-2">
-         <div class="card h-100 text-center py-3 px-2">
-            <div class="mb-1">
-               <i class="ti <?= $card['icon'] ?> text-primary" style="font-size:2rem;"></i>
-            </div>
-            <div class="small fw-semibold text-muted mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;">
-               <?= $card['label'] ?>
-            </div>
-            <div class="d-flex justify-content-center gap-3">
-               <?php foreach ($card['vals'] as $v): ?>
-               <div>
-                  <div class="fw-bold fs-2 lh-1 <?= $v['cls'] ?>"><?= $v['v'] ?></div>
-                  <div class="text-muted" style="font-size:.78rem;"><?= $v['lbl'] ?></div>
-               </div>
-               <?php endforeach; ?>
-            </div>
-         </div>
-      </div>
-      <?php endforeach; ?>
-   </div>
-
-   <?php if (!empty($config['gwn_client_id'])): ?>
-   <div class="card mb-4" id="gdms-alerts-card">
-      <div class="card-header d-flex align-items-center gap-2" role="button"
-           data-bs-toggle="collapse" data-bs-target="#gdms-alerts-collapse"
-           aria-expanded="false" aria-controls="gdms-alerts-collapse"
-           style="cursor:pointer;">
-         <i class="ti ti-bell text-warning"></i>
-         <h5 class="mb-0 me-auto"><?= __('Cloud Alerts', 'gdmsintegration') ?></h5>
-         <small class="text-muted me-2" id="gdms-alerts-meta"></small>
-         <i class="ti ti-chevron-down gdms-alerts-chevron" style="transition:transform .2s;"></i>
-      </div>
-      <div id="gdms-alerts-collapse" class="collapse">
-         <div id="gdms-alerts-body" class="card-body py-2">
-            <div class="text-center py-2 text-muted small">
-               <div class="spinner-border spinner-border-sm me-2"></div>
-               <?= __('Loading alerts…', 'gdmsintegration') ?>
-            </div>
-         </div>
-      </div>
-   </div>
-   <?php endif; ?>
-
-   <?php // Availability bar ?>
-   <div class="card mb-3 px-3 py-2">
-      <div class="d-flex align-items-center gap-3 flex-wrap">
-         <span class="small fw-semibold text-nowrap"><?= __('Overall availability', 'gdmsintegration') ?> — <?= __('all devices', 'gdmsintegration') ?></span>
-         <div class="progress flex-grow-1" style="height:10px;min-width:120px;">
-            <div class="progress-bar <?= $pct >= 90 ? 'bg-success' : ($pct >= 70 ? 'bg-warning' : 'bg-danger') ?>"
-                 style="width:<?= $pct ?>%"></div>
-         </div>
-         <span class="small fw-bold <?= $pct >= 90 ? 'text-success' : ($pct >= 70 ? 'text-warning' : 'text-danger') ?>"><?= $pct ?>%</span>
-         <span class="text-muted small"><?= $online ?> / <?= $total ?> <?= __('online', 'gdmsintegration') ?></span>
-      </div>
-   </div>
-
-   <?php
-   // Critical SLA banner — shown when any device has been persistently offline (Critical SLA tier)
-   $critical_devices = array_filter($rows, fn($r) => $r['sla'] === __('Critical', 'gdmsintegration') && !$r['online']);
-   if (!empty($critical_devices)):
-   ?>
-   <div class="alert border-danger mb-3 d-flex align-items-start gap-3" role="alert"
-        style="border-left:4px solid var(--bs-danger) !important; background:rgba(220,53,69,.08);">
-      <i class="ti ti-alert-triangle text-danger mt-1" style="font-size:1.4rem;flex-shrink:0;"></i>
-      <div>
-         <strong class="text-danger"><?= __('Critical SLA — devices offline', 'gdmsintegration') ?></strong>
-         <div class="mt-1 small">
-         <?php foreach ($critical_devices as $cr): ?>
-            <span class="me-3">
-               <i class="ti ti-circle-x text-danger me-1"></i>
-               <?php if (!empty($cr['asset_url'])): ?>
-               <a href="<?= $cr['asset_url'] ?>" target="_blank" rel="noopener" class="text-danger fw-semibold text-decoration-none"><?= $cr['name'] ?></a>
-               <?php else: ?>
-               <span class="fw-semibold"><?= $cr['name'] ?></span>
-               <?php endif; ?>
-               <span class="text-muted">(<?= $cr['uptime'] ?>% <?= __('uptime', 'gdmsintegration') ?>)</span>
-            </span>
-         <?php endforeach; ?>
-         </div>
-      </div>
-   </div>
-   <?php endif; ?>
-
-   <?php // Device table ?>
-   <div class="card mb-4">
-      <div class="card-header d-flex align-items-center gap-2">
-         <i class="ti ti-list"></i>
-         <h5 class="mb-0 me-auto"><?= __('Devices', 'gdmsintegration') ?></h5>
-         <button type="button" id="gdms-sort-reset" class="btn btn-sm btn-outline-secondary" style="display:none;"
-                 title="<?= htmlspecialchars(__('Reset sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>">
-            <i class="ti ti-arrows-sort"></i> <?= __('Reset sort', 'gdmsintegration') ?>
-         </button>
-      </div>
-      <div class="table-responsive">
-         <table id="gdms-device-table" class="table table-hover table-sm mb-0">
-            <thead>
-               <tr>
-                  <th class="ps-3 gdms-sortable" data-col="name" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Device Name', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th class="gdms-sortable" data-col="type" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Type', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th class="gdms-sortable" data-col="model" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Model', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th class="gdms-sortable" data-col="network" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Network', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th><?= __('IP', 'gdmsintegration') ?></th>
-                  <th><?= __('MAC Address', 'gdmsintegration') ?></th>
-                  <th><?= __('Serial', 'gdmsintegration') ?></th>
-                  <th><?= __('Firmware', 'gdmsintegration') ?></th>
-                  <th><?= __('Ports', 'gdmsintegration') ?></th>
-                  <th><?= __('Uptime', 'gdmsintegration') ?></th>
-                  <th class="gdms-sortable" data-col="status" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Status', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th title="<?= htmlspecialchars(__('Cumulative upload / download since device first registered in cloud. Hover a cell for the exact period.', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>" style="cursor:default;"><?= __('Traffic ↑↓', 'gdmsintegration') ?> <i class="ti ti-info-circle opacity-50" style="font-size:.75em;"></i></th>
-                  <th class="gdms-sortable" data-col="clients" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Clients', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th class="gdms-sortable" data-col="avail" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Avail. %', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th class="gdms-sortable" data-col="sla" style="cursor:pointer;user-select:none;" title="<?= htmlspecialchars(__('Click to sort', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= __('SLA', 'gdmsintegration') ?> <span class="gdms-sort-icon opacity-40">⇅</span></th>
-               </tr>
-            </thead>
-            <tbody>
-               <?php $row_idx = 0; foreach ($rows as $r): $row_idx++; ?>
-               <?php
-               // Convert uptime seconds → d h m
-               $us = (int)($r['uptime_sec'] ?? 0);
-               $ud = intdiv($us, 86400);
-               $uh = intdiv($us % 86400, 3600);
-               $um = intdiv($us % 3600, 60);
-               $uptime_str = $ud > 0 ? "{$ud}d {$uh}h {$um}m" : ($uh > 0 ? "{$uh}h {$um}m" : "{$um}m");
-               ?>
-               <tr data-original-index="<?= $row_idx ?>"
-                   data-name="<?= htmlspecialchars(strtolower($r['name']), ENT_QUOTES, 'UTF-8') ?>"
-                   data-type="<?= $r['type'] === 'Phone' ? 1 : 0 ?>"
-                   data-model="<?= htmlspecialchars(strtolower($r['model'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                   data-network="<?= htmlspecialchars(strtolower($r['network_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                   data-status="<?= $r['online'] ? 0 : 1 ?>"
-                   data-clients="<?= (int)($r['clients'] ?? 0) ?>"
-                   data-avail="<?= (float)($r['uptime'] ?? 0) ?>"
-                   data-sla="<?= (int)($r['sla_rank'] ?? 3) ?>">
-                  <td class="ps-3">
-                     <?php if (!empty($r['asset_url'])): ?>
-                     <a href="<?= $r['asset_url'] ?>" target="_blank" rel="noopener" class="fw-semibold text-decoration-none">
-                        <?= $r['name'] ?>
-                        <i class="ti ti-external-link ms-1 small opacity-50"></i>
-                     </a>
-                     <?php else: ?>
-                     <span class="fw-semibold"><?= $r['name'] ?></span>
-                     <?php endif; ?>
-                  </td>
-                  <td>
-                     <?php if ($r['type'] === 'Phone'): ?>
-                     <span class="badge border border-primary text-primary"><?= __('Phone', 'gdmsintegration') ?></span>
-                     <?php else: ?>
-                     <span class="badge border border-secondary" style="color:inherit"><?= __('Network', 'gdmsintegration') ?></span>
-                     <?php endif; ?>
-                  </td>
-                  <td><small class="text-muted font-monospace gdms-copy" style="cursor:pointer;" data-copy="<?= htmlspecialchars($r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(__('Copy model', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?: '—' ?></small></td>
-                  <td>
-                  <?php
-                  $rnet  = $r['network_name'] ?: '';
-                  $rstat = $net_stats[$rnet] ?? null;
-                  if ($rnet !== '' && $rstat !== null):
-                      $netData = json_encode([
-                          'name'       => $rnet,
-                          'router_on'  => $rstat['router_on'],
-                          'router_off' => $rstat['router_off'],
-                          'switch_on'  => $rstat['switch_on'],
-                          'switch_off' => $rstat['switch_off'],
-                          'ap_on'      => $rstat['ap_on'],
-                          'ap_off'     => $rstat['ap_off'],
-                          'phone_on'   => $rstat['phone_on'],
-                          'phone_off'  => $rstat['phone_off'],
-                          'clients'    => $rstat['clients'],
-                          'upload_bytes'   => $rstat['upload_bytes'],
-                          'download_bytes' => $rstat['download_bytes'],
-                      ]);
-                  ?>
-                  <small class="gdms-net-link"
-                      data-net="<?= htmlspecialchars($netData, ENT_QUOTES, 'UTF-8') ?>"
-                      style="cursor:pointer;color:inherit;border-bottom:1px dashed rgba(128,128,128,.5);"
-                      title="<?= htmlspecialchars(__('Click for network details', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>">
-                      <?= htmlspecialchars($rnet, ENT_QUOTES, 'UTF-8') ?>
-                      <i class="ti ti-info-circle ms-1 opacity-50" style="font-size:.7em;"></i>
-                  </small>
-                  <?php else: ?>
-                  <small><?= $rnet ?: '—' ?></small>
-                  <?php endif; ?>
-                  </td>
-                  <td><small class="font-monospace">
-                     <?php if (!empty($r['ip'])): ?>
-                     <a href="https://www.whois.com/whois/<?= urlencode($r['ip']) ?>" target="_blank" rel="noopener" class="text-decoration-none" title="<?= htmlspecialchars(__('Public IP', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>">
-                        <?= $r['ip'] ?> <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i>
-                     </a>
-                     <?php else: ?>—<?php endif; ?>
-                     <?php
-                     // Pick preferred IP based on config, fallback to the other
-                     $_pref_ip = $ip_version === 'ipv6'
-                         ? (!empty($r['ipv6'])       ? $r['ipv6']       : $r['private_ip'])
-                         : (!empty($r['private_ip']) ? $r['private_ip'] : $r['ipv6']);
-                     $_sec_ip  = $ip_version === 'ipv6'
-                         ? (!empty($r['ipv6']) && !empty($r['private_ip']) ? $r['private_ip'] : '')
-                         : (!empty($r['private_ip']) && !empty($r['ipv6']) ? $r['ipv6'] : '');
-                     // Build href: IPv6 needs brackets
-                     $__ip_href = function(string $ip): string {
-                         return 'http://' . (strpos($ip, ':') !== false ? '[' . $ip . ']' : urlencode($ip));
-                     };
-                     ?>
-                     <?php if (!empty($_pref_ip)): ?>
-                     <br><a href="<?= $__ip_href($_pref_ip) ?>" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.85em;" title="<?= htmlspecialchars(__('Private IP', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $_pref_ip ?> <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
-                     <?php endif; ?>
-                     <?php if (!empty($_sec_ip)): ?>
-                     <br><a href="<?= $__ip_href($_sec_ip) ?>" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.75em;word-break:break-all;" title="<?= strpos($_sec_ip, ':') !== false ? 'IPv6' : htmlspecialchars(__('Private IP', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $_sec_ip ?> <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
-                     <?php endif; ?>
-                  </small></td>
-                  <td><code class="small gdms-copy" style="cursor:pointer;" data-copy="<?= htmlspecialchars($r['mac'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(__('Copy MAC', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $r['mac'] ?></code></td>
-                  <td><small class="text-muted gdms-copy" style="cursor:pointer;" data-copy="<?= htmlspecialchars($r['serial'] ?? '', ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(__('Copy serial', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>"><?= $r['serial'] ?: '—' ?></small></td>
-                  <td class="text-nowrap">
-                     <?php if (!empty($r['firmware'])): ?>
-                     <?php
-                     // Show badge immediately when stored firmware_latest differs (GWN sync data).
-                     // Also kept hidden for the async Grandstream.com scraper check (UC/phones).
-                     $fw_badge_shown = !empty($r['firmware_latest']) && $r['firmware_latest'] !== $r['firmware'];
-                     ?>
-                     <small class="font-monospace text-muted gdms-fw-badge" style="cursor:pointer;"
-                            data-mac="<?= htmlspecialchars(strtolower($r['mac'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                            data-current="<?= htmlspecialchars($r['firmware'], ENT_QUOTES, 'UTF-8') ?>"
-                            data-model="<?= htmlspecialchars($r['raw_model'] ?? $r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                            data-name="<?= htmlspecialchars(html_entity_decode($r['name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                            data-ip="<?= htmlspecialchars($r['private_ip'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                            title="<?= __('Click to check firmware', 'gdmsintegration') ?>"><?= $r['firmware'] ?></small>
-                     <span class="gdms-fw-badge" style="<?= $fw_badge_shown ? '' : 'display:none; ' ?>cursor:pointer;"
-                           data-mac="<?= htmlspecialchars(strtolower($r['mac'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                           data-current="<?= htmlspecialchars($r['firmware'], ENT_QUOTES, 'UTF-8') ?>"
-                           data-model="<?= htmlspecialchars($r['raw_model'] ?? $r['model'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-name="<?= htmlspecialchars(html_entity_decode($r['name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                           data-ip="<?= htmlspecialchars($r['private_ip'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           title="<?= __('Firmware update available', 'gdmsintegration') ?>">
-                        <i class="ti ti-arrow-up-circle text-warning ms-1"></i>
-                     </span>
-                     <?php else: ?>
-                     <small class="font-monospace text-muted">—</small>
-                     <?php endif; ?>
-                  </td>
-                  <td>
-                     <?php if (!($r['type'] === 'Phone' || $isPhoneModel($r['raw_model'] ?? '')) && !empty($r['mac'])): ?>
-                     <span class="gdms-wan-ports d-flex gap-1 align-items-center flex-nowrap"
-                           data-mac="<?= htmlspecialchars(strtolower($r['mac']), ENT_QUOTES, 'UTF-8') ?>"
-                           data-upload="<?= (int)($r['upload_bytes']   ?? 0) ?>"
-                           data-download="<?= (int)($r['download_bytes'] ?? 0) ?>"
-                           data-first-seen="<?= htmlspecialchars($r['first_seen'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-last-seen="<?= htmlspecialchars($r['last_seen']  ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                        <span class="text-muted small">—</span>
-                     </span>
-                     <?php elseif (($r['type'] === 'Phone' || $isPhoneModel($r['raw_model'] ?? '')) && !empty($r['sip_status'])): ?>
-                     <?php
-                     $_sip_tip = $r['sip_status'] === 'registered' ? __('SIP Registered', 'gdmsintegration') : __('SIP Unregistered', 'gdmsintegration');
-                     if (!empty($r['sip_extension'])) $_sip_tip .= ' · ' . __('Ext', 'gdmsintegration') . ': ' . $r['sip_extension'];
-                     if (!empty($r['dnd']))            $_sip_tip .= ' · ' . __('Do Not Disturb', 'gdmsintegration');
-                     $_pbx_net = strtolower($r['network_name'] ?? '');
-                     $_pbx     = $pbx_by_network[$_pbx_net] ?? null;
-                     ?>
-                     <span class="gdms-sip-dot" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;"
-                           title="<?= htmlspecialchars($_sip_tip, ENT_QUOTES, 'UTF-8') ?>"
-                           data-pbx-name="<?= htmlspecialchars($_pbx['name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-pbx-ip="<?= htmlspecialchars($_pbx['ip'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-pbx-url="<?= htmlspecialchars($_pbx['url'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-mac="<?= htmlspecialchars($r['mac'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-sip="<?= htmlspecialchars($r['sip_status'], ENT_QUOTES, 'UTF-8') ?>"
-                           data-dnd="<?= (int)($r['dnd'] ?? 0) ?>"
-                           data-sync="<?= (int)($r['is_synchronized'] ?? 0) ?>"
-                           data-sync-msg="<?= htmlspecialchars($r['sync_failure_msg'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-task="<?= (int)($r['scheduled_task'] ?? 0) ?>"
-                           data-extension="<?= htmlspecialchars($r['sip_extension'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-last-seen="<?= htmlspecialchars($r['last_seen'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-private-ip="<?= htmlspecialchars($r['private_ip'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-public-ip="<?= htmlspecialchars($r['ip'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-site="<?= htmlspecialchars($r['network_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                           data-name="<?= htmlspecialchars($r['name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:<?= $r['sip_status'] === 'registered' ? '#28a745' : '#dc3545' ?>;outline:1px solid rgba(128,128,128,.3);<?= !$r['online'] ? 'opacity:.4;' : '' ?>flex-shrink:0;"></span>
-                        <?php if (!empty($r['dnd'])): ?>
-                        <small class="text-danger" style="font-size:.65em;line-height:1;" title="<?= __('Do Not Disturb', 'gdmsintegration') ?>">DND</small>
-                        <?php endif; ?>
-                     </span>
-                     <?php endif; ?>
-                  </td>
-                  <td>
-                  <?php
-                  $uptime_display = $us > 0 ? $uptime_str : '—';
-                  $ul  = $r['upload_bytes']   ?? 0;
-                  $dl  = $r['download_bytes'] ?? 0;
-                  $ch2 = (int)($r['channel_2g'] ?? 0);
-                  $ch5 = (int)($r['channel_5g'] ?? 0);
-                  $ls  = $r['last_seen'] ?? '';
-                  $fmt = function(int $b): string {
-                      if ($b >= 1073741824) return round($b/1073741824,1).' GB';
-                      if ($b >= 1048576)    return round($b/1048576,1).' MB';
-                      return round($b/1024,0).' KB';
-                  };
-                  $tip_lines = [];
-                  if ($ul > 0 || $dl > 0) {
-                      $tip_lines[] = __('Network usage','gdmsintegration');
-                      $tip_lines[] = __('Upload','gdmsintegration').': ↑ '.$fmt($ul).'  '.__('Download','gdmsintegration').': ↓ '.$fmt($dl);
-                  }
-                  if ($ch2 > 0 || $ch5 > 0) {
-                      $ch_parts = [];
-                      if ($ch2 > 0) $ch_parts[] = '2.4GHz ch'.$ch2;
-                      if ($ch5 > 0) $ch_parts[] = '5GHz ch'.$ch5;
-                      $tip_lines[] = implode('  ', $ch_parts);
-                  }
-                  if (!empty($r['location']))   $tip_lines[] = __('Location',  'gdmsintegration').': '.$r['location'];
-                  if (!empty($r['first_seen'])) $tip_lines[] = __('First seen','gdmsintegration').': '.substr($r['first_seen'],0,16);
-                  if ($ls)                      $tip_lines[] = __('Last seen', 'gdmsintegration').': '.substr($ls,0,16);
-                  $tip = htmlspecialchars(implode("
-", $tip_lines), ENT_QUOTES, 'UTF-8');
-                  ?>
-                  <?php if ($tip): ?>
-                  <small title="<?= $tip ?>" style="cursor:default;border-bottom:1px dotted rgba(128,128,128,.4);"><?= $uptime_display ?></small>
-                  <?php else: ?>
-                  <small><?= $uptime_display ?></small>
-                  <?php endif; ?>
-                  </td>
-                  <td class="text-nowrap">
-                     <span class="badge <?= $r['online'] ? 'bg-success' : 'bg-danger' ?> text-white">
-                        <?= $r['online'] ? __('Online', 'gdmsintegration') : __('Offline', 'gdmsintegration') ?>
-                     </span>
-                     <?php if (!empty($r['sip_extension'])): ?>
-                     <br><span class="badge bg-light text-dark border mt-1" style="font-size:.68em;" title="<?= htmlspecialchars(__('SIP Extension', 'gdmsintegration'), ENT_QUOTES, 'UTF-8') ?>">
-                        <?= htmlspecialchars($r['sip_extension'], ENT_QUOTES, 'UTF-8') ?>
-                     </span>
-                     <?php endif; ?>
-                  </td>
-                  <?php
-                  // Traffic column — format upload + download per device
-                  $fmtB = function(int $b): string {
-                      if ($b >= 1073741824) return round($b/1073741824,1).' GB';
-                      if ($b >= 1048576)    return round($b/1048576,1).' MB';
-                      if ($b >= 1024)       return round($b/1024,0).' KB';
-                      return $b.' B';
-                  };
-                  // Prefer WAN port aggregate (router WAN total) over ap/list usage (wireless client traffic)
-                  $wan_tx = (int)($r['wan_tx_bytes'] ?? 0);
-                  $wan_rx = (int)($r['wan_rx_bytes'] ?? 0);
-                  $ul_val = $wan_tx > 0 ? $wan_tx : (int)($r['upload_bytes']   ?? 0);
-                  $dl_val = $wan_rx > 0 ? $wan_rx : (int)($r['download_bytes'] ?? 0);
-                  $traffic_src = $wan_tx > 0
-                      ? __('WAN port aggregate (sum of all WAN ports since last router reboot)', 'gdmsintegration')
-                      : __('Device-reported traffic (wireless client usage)', 'gdmsintegration');
-                  ?>
-                  <?php
-                  // Traffic tooltip: show period (first_seen → now) and note cumulative
-                  $fs_raw = $r['first_seen'] ?? '';
-                  if ($fs_raw) {
-                      $fs_fmt   = substr($fs_raw, 0, 10);
-                      $fs_diff  = max(1, (int)((time() - strtotime($fs_raw)) / 86400));
-                      $tip_traffic = sprintf(
-                          __('%s — since first seen in cloud (%s, ~%d days)', 'gdmsintegration'),
-                          $traffic_src, $fs_fmt, $fs_diff
-                      );
-                  } else {
-                      $tip_traffic = $traffic_src;
-                  }
-                  ?>
-                  <td class="text-nowrap">
-                     <?php if ($ul_val > 0 || $dl_val > 0): ?>
-                     <small class="d-block"
-                            title="<?= htmlspecialchars($tip_traffic, ENT_QUOTES, 'UTF-8') ?>"
-                            style="font-size:.72em;cursor:default;border-bottom:1px dotted rgba(128,128,128,.4);">
-                        <span class="text-success">↑<?= $fmtB($ul_val) ?></span>
-                        <span class="ms-1 text-info">↓<?= $fmtB($dl_val) ?></span>
-                     </small>
-                     <?php else: ?><small class="text-muted">—</small><?php endif; ?>
-                  </td>
-                  <td class="text-center">
-                     <?php $cli = (int)($r['clients'] ?? 0); ?>
-                     <?php if ($cli > 0 && (int)($r['network_id'] ?? 0) > 0): ?>
-                     <span class="badge text-bg-info fw-bold gdms-clients-badge"
-                           style="cursor:pointer;"
-                           data-mac="<?= htmlspecialchars($r['mac'], ENT_QUOTES, 'UTF-8') ?>"
-                           data-network-id="<?= (int)($r['network_id'] ?? 0) ?>"
-                           data-name="<?= htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8') ?>"
-                           title="<?= __('Click to see connected clients', 'gdmsintegration') ?>"><?= $cli ?></span>
-                     <?php elseif ($cli > 0): ?>
-                     <span class="badge text-bg-info fw-bold"><?= $cli ?></span>
-                     <?php else: ?><small class="text-muted">—</small><?php endif; ?>
-                  </td>
-                  <td><?= $r['uptime'] ?>%</td>
-                  <td><?= $r['sla'] ?></td>
-               </tr>
-               <?php endforeach; ?>
-               <?php if (empty($rows)): ?>
-               <tr><td colspan="15" class="text-center text-muted py-3">
-                  <?= __('No GDMS devices found. Run a sync first.', 'gdmsintegration') ?>
-               </td></tr>
-               <?php endif; ?>
-            </tbody>
-         </table>
-      </div>
-   </div>
-
-   <?php // Topology ?>
-   <?php if (!empty($chart_datasets)): ?>
-   <div class="card mb-4">
-      <div class="card-header d-flex align-items-center gap-2">
-         <i class="ti ti-chart-line"></i>
-         <h5 class="mb-0 me-auto"><?= sprintf(__('Online %% — last %d days', 'gdmsintegration'), $chart_days) ?></h5>
-         <a href="<?= ($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/history_export.php?entities_id=' . $entities_id ?>"
-            class="btn btn-sm btn-outline-secondary"
-            title="<?= __('Export to Excel', 'gdmsintegration') ?>">
-            <i class="ti ti-file-spreadsheet me-1"></i><?= __('Export', 'gdmsintegration') ?>
-         </a>
-      </div>
-      <div class="card-body p-0">
-         <div id="gdms-history-chart" style="height:280px;"></div>
-      </div>
-   </div>
-   <?php endif; ?>
-
-   <?php if ($show_topology): ?>
-   <div class="card mb-4">
-      <div class="card-header d-flex align-items-center gap-2">
-         <i class="ti ti-hierarchy"></i>
-         <h5 class="mb-0"><?= __('Network Topology', 'gdmsintegration') ?></h5>
-      </div>
-      <div id="gdms-network" style="height:450px; border-radius:0 0 .375rem .375rem; overflow:hidden;"></div>
-   </div>
-   <?php endif; ?>
-
-</div>
-
-<?php if ($show_topology): ?>
-<script src="<?= ($CFG_GLPI['root_doc'] ?? '') ?>/plugins/gdmsintegration/front/visnetwork.php"></script>
-<?php endif; ?>
-
-<style>
-@keyframes spin { to { transform: rotate(360deg); } }
-</style>
-<script>
-(function () {
-    'use strict';
-
-    // All translated strings safely encoded — apostrophes in translations won't break JS
-    var STR = {
-        syncing:       <?= json_encode(__('Syncing…',                                                              'gdmsintegration')) ?>,
-        rebootWarning: <?= json_encode(__('The device will reboot during the update. Schedule during a maintenance window.', 'gdmsintegration')) ?>,
-        reqFailed:     <?= json_encode(__('Request failed. Check connection.',                                           'gdmsintegration')) ?>,
-        schedOk:       <?= json_encode(__('Update scheduled successfully. The device will update shortly.',              'gdmsintegration')) ?>,
-        applyAsap:     <?= json_encode(__('Apply now (ASAP)',                                                            'gdmsintegration')) ?>,
-        schedUpdate:   <?= json_encode(__('Schedule update',                                                             'gdmsintegration')) ?>,
-        scheduling:    <?= json_encode(__('Scheduling…',                                                            'gdmsintegration')) ?>,
-        linkDown:      <?= json_encode(__('Link down',                                                                   'gdmsintegration')) ?>,
-        linkUp:        <?= json_encode(__('Link up',                                                                     'gdmsintegration')) ?>,
-        online:        <?= json_encode(__('Online',                                                                      'gdmsintegration')) ?>,
-        noInternet:    <?= json_encode(__('No internet',                                                                 'gdmsintegration')) ?>,
-        noPorts:       <?= json_encode(__('No ports found',                                                              'gdmsintegration')) ?>,
-        netUsage:      <?= json_encode(__('Network usage',                                                               'gdmsintegration')) ?>,
-        netTraffic:    <?= json_encode(__('Network traffic',                                                             'gdmsintegration')) ?>,
-        upload:        <?= json_encode(__('Upload',                                                                      'gdmsintegration')) ?>,
-        download:      <?= json_encode(__('Download',                                                                    'gdmsintegration')) ?>,
-        firstSeen:     <?= json_encode(__('First seen',                                                                  'gdmsintegration')) ?>,
-        lastSeen:      <?= json_encode(__('Last seen',                                                                   'gdmsintegration')) ?>,
-        wanOnline:     <?= json_encode(__('WAN online',                                                                  'gdmsintegration')) ?>,
-        wanNoInet:     <?= json_encode(__('WAN up, no internet',                                                         'gdmsintegration')) ?>,
-        wanUnknown:    <?= json_encode(__('WAN up, unknown',                                                             'gdmsintegration')) ?>,
-        lanUp:         <?= json_encode(__('LAN up',                                                                      'gdmsintegration')) ?>,
-        connection:    <?= json_encode(__('Connection',                                                                  'gdmsintegration')) ?>,
-        ipAddress:     <?= json_encode(__('IP Address',                                                                  'gdmsintegration')) ?>,
-        wanTypeLbl:    <?= json_encode(__('Type',                                                                        'gdmsintegration')) ?>,
-        connectedFor:  <?= json_encode(__('Connected for',                                                               'gdmsintegration')) ?>,
-        statusLbl:     <?= json_encode(__('Status',                                                                      'gdmsintegration')) ?>,
-        linkSpeed:     <?= json_encode(__('Link speed',                                                                  'gdmsintegration')) ?>,
-        portType:      <?= json_encode(__('Port type',                                                                   'gdmsintegration')) ?>,
-        negotiatedSpeed: <?= json_encode(__('Negotiated speed',                                                          'gdmsintegration')) ?>,
-        portLabel:     <?= json_encode(__('Port label',                                                                  'gdmsintegration')) ?>,
-        description:   <?= json_encode(__('Description',                                                                 'gdmsintegration')) ?>,
-        unknown:       <?= json_encode(__('Unknown',                                                                     'gdmsintegration')) ?>,
-        official:      <?= json_encode(__('Official',                                                                    'gdmsintegration')) ?>,
-        officialFw:    <?= json_encode(__('Official firmware',                                                              'gdmsintegration')) ?>,
-        betaFw:        <?= json_encode(__('Beta firmware',                                                                  'gdmsintegration')) ?>,
-        gdmsManaged:   <?= json_encode(__('GDMS managed',                                                                   'gdmsintegration')) ?>,
-        gdmsVersionNote: <?= json_encode(__('GDMS applies the latest firmware available in its repository. The selected version is informational only.', 'gdmsintegration')) ?>,
-        selectVersion: <?= json_encode(__('Select version',                                                                 'gdmsintegration')) ?>,
-        curFw:         <?= json_encode(__('Current firmware',                                                            'gdmsintegration')) ?>,
-        latestFw:      <?= json_encode(__('Latest stable firmware',                                                      'gdmsintegration')) ?>,
-        deviceMac:     <?= json_encode(__('Device MAC',                                                                  'gdmsintegration')) ?>,
-        hdx:           <?= json_encode(__('HDX',                                                                         'gdmsintegration')) ?>,
-        fdx:           <?= json_encode(__('FDX',                                                                         'gdmsintegration')) ?>,
-        disconnected:  <?= json_encode(__('Disconnected',                                                                'gdmsintegration')) ?>,
-        lbl_online:    <?= json_encode(__('online',                                                                      'gdmsintegration')) ?>,
-        lbl_offline:   <?= json_encode(__('offline',                                                                     'gdmsintegration')) ?>,
-        lbl_total:     <?= json_encode(__('Total',                                                                       'gdmsintegration')) ?>,
-        lbl_router:    <?= json_encode(__('Router',                                                                      'gdmsintegration')) ?>,
-        lbl_switch:    <?= json_encode(__('Switch',                                                                      'gdmsintegration')) ?>,
-        lbl_ap:        <?= json_encode(__('AP',                                                                          'gdmsintegration')) ?>,
-        lbl_phones:    <?= json_encode(__('Phones & PBX',                                                                'gdmsintegration')) ?>,
-        lbl_clients:   <?= json_encode(__('Clients',                                                                     'gdmsintegration')) ?>,
-        noClients:     <?= json_encode(__('No clients connected',                                                          'gdmsintegration')) ?>,
-        noAlerts:      <?= json_encode(__('No recent alerts',                                                              'gdmsintegration')) ?>,
-        alertsError:   <?= json_encode(__('Could not load alerts',                                                        'gdmsintegration')) ?>,
-        alertTime:     <?= json_encode(__('Time',                                                                         'gdmsintegration')) ?>,
-        alertSev:      <?= json_encode(__('Severity',                                                                     'gdmsintegration')) ?>,
-        alertDevice:   <?= json_encode(__('Device',                                                                       'gdmsintegration')) ?>,
-        alertMsg:      <?= json_encode(__('Alert',                                                                        'gdmsintegration')) ?>,
-        alertDismiss:  <?= json_encode(__('Dismiss',                                                                      'gdmsintegration')) ?>,
-        hostname:      <?= json_encode(__('Hostname',                                                                     'gdmsintegration')) ?>,
-        band:          <?= json_encode(__('Band',                                                                         'gdmsintegration')) ?>,
-        signal:        <?= json_encode(__('Signal',                                                                       'gdmsintegration')) ?>,
-        txrx:          <?= json_encode(__('TX / RX',                                                                      'gdmsintegration')) ?>,
-        gateway:       <?= json_encode(__('Gateway',                                                                      'gdmsintegration')) ?>,
-        dns:           <?= json_encode(__('DNS',                                                                          'gdmsintegration')) ?>,
-        wanMac:        <?= json_encode(__('WAN MAC',                                                                      'gdmsintegration')) ?>,
-        txrxPkts:      <?= json_encode(__('Packets ↑↓',                                                                  'gdmsintegration')) ?>,
-        alertCategory: <?= json_encode(__('Category',                                                                     'gdmsintegration')) ?>,
-        alertDevice:   <?= json_encode(__('Device',                                                                       'gdmsintegration')) ?>,
-        alertReason:   <?= json_encode(__('Reason',                                                                       'gdmsintegration')) ?>,
-        wanDhcp:       <?= json_encode(__('DHCP',                                                                         'gdmsintegration')) ?>,
-        wanStatic:     <?= json_encode(__('Static',                                                                       'gdmsintegration')) ?>,
-        wanPppoe:      <?= json_encode(__('PPPoE',                                                                        'gdmsintegration')) ?>,
-        wanPptp:       <?= json_encode(__('PPTP',                                                                         'gdmsintegration')) ?>,
-        wanL2tp:       <?= json_encode(__('L2TP',                                                                         'gdmsintegration')) ?>,
-        upgrading:     <?= json_encode(__('Updating…',                                                                   'gdmsintegration')) ?>,
-        deviceName:    <?= json_encode(__('Device',                                                                      'gdmsintegration')) ?>,
-        fwPrivateIp:   <?= json_encode(__('Private IP',                                                                  'gdmsintegration')) ?>,
-        fwMacCopied:   <?= json_encode(__('Copied!',                                                                     'gdmsintegration')) ?>,
-        fwPageLbl:     <?= json_encode(__('Firmware downloads',                                                          'gdmsintegration')) ?>,
-    };
-
-
-    // Byte formatter — used in port modal and network modal
-    function fmtBytes(b) {
-        if (b >= 1073741824) return (b/1073741824).toFixed(1)+' GB';
-        if (b >= 1048576)    return (b/1048576).toFixed(1)+' MB';
-        if (b >= 1024)       return Math.round(b/1024)+' KB';
-        return b+' B';
-    }
-
-    // Dark theme detection — check actual computed background color
-    var _bg    = window.getComputedStyle(document.body).backgroundColor;
-    var _rgb   = _bg.match(/\d+/g);
-    var isDark = (_rgb && parseInt(_rgb[0]) < 100)
-              || document.documentElement.getAttribute('data-bs-theme') === 'dark';
-    var netBg  = isDark ? '#1e2433' : '#f8f9fa';
-
-    // History chart rendered via <script type="module"> below (ensures echarts is loaded)
-
-    // Export handled server-side by history_export.php
-
-    <?php if ($show_topology): ?>
-    // vis-network topology
-    var container = document.getElementById('gdms-network');
-    if (container) {
-        container.style.backgroundColor = netBg;
-        var nodes = new vis.DataSet(<?= json_encode(array_values($nodes)) ?>);
-        var edges = new vis.DataSet(<?= json_encode(array_values($edges)) ?>);
-        new vis.Network(container, { nodes:nodes, edges:edges }, {
-            physics: { stabilization:{ iterations:150 } },
-            edges:   { arrows:'to', color:'#888' },
-            nodes:   { shape:'dot', size:18 }
-        });
-    }
-    <?php endif; ?>
-
-    // Non-blocking sync: fires request then reloads after 2s regardless
-    // PHP sets ignore_user_abort so it keeps running even after reload
-    var AJAX_URL       = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/sync.ajax.php?entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
-    var AJAX_URL_BTN   = AJAX_URL + '&source=button';
-    var AJAX_URL_AUTO  = AJAX_URL + '&source=auto-refresh';
-    var REFRESH_S      = <?= (int)$refresh_interval ?>;
-    var gdmsCountdown  = REFRESH_S;
-    var gdmsSyncing    = false;
-    var countEl        = document.getElementById('gdms-refresh-countdown');
-    var btn            = document.getElementById('gdms-refresh-btn');
-    var icon           = document.getElementById('gdms-refresh-icon');
-
-    function fmtTime(s) { return s >= 60 ? Math.floor(s/60)+'m '+(s%60)+'s' : s+'s'; }
-
-    function doSync(source) {
-        if (gdmsSyncing) return;
-        gdmsSyncing = source || 'auto';
-        if (icon) icon.className = 'ti ti-refresh me-1';
-        if (icon) icon.style.cssText = 'animation:spin .8s linear infinite;display:inline-block;';
-        if (btn)  btn.disabled = true;
-        if (countEl) countEl.textContent = STR.syncing;
-        var syncUrl = (gdmsSyncing === 'btn') ? AJAX_URL_BTN : AJAX_URL_AUTO;
-        fetch(syncUrl, { credentials:'same-origin' })
-            .then(function(r){ return r.json(); })
-            .then(function(){ location.reload(); })
-            .catch(function(){ location.reload(); });
-    }
-
-    if (btn) btn.addEventListener('click', function(){ gdmsCountdown = REFRESH_S; doSync('btn'); });
-
-    setInterval(function() {
-        if (gdmsSyncing) return;
-        if (countEl) countEl.textContent = fmtTime(gdmsCountdown);
-        if (--gdmsCountdown < 0) { gdmsCountdown = REFRESH_S; doSync(); }
-    }, 1000);
-
-    // ── Firmware update check ─────────────────────────────────────────────────
-    var FW_URL             = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/firmware.ajax.php?action=check&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
-    var FW_UPGRADE_URL     = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/firmware.ajax.php?action=upgrade&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
-    var FW_CHECK_ALL_URL   = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/firmware.ajax.php?action=check_all&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
-    var FW_UPGRADE_GDMS_URL= '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/firmware.ajax.php?action=upgrade_gdms&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
-
-    // Inject modal HTML once
-    var modalHtml = `
-<div class="modal fade" id="gdmsFwModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:min(540px,94vw);">
-    <div class="modal-content">
-      <div class="modal-header py-3">
-        <h5 class="modal-title">
-          <i class="ti ti-arrow-up-circle text-warning me-2"></i>
-          <?= __('Firmware Update Available', 'gdmsintegration') ?>
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body" id="gdmsFwModalBody">
-        <div class="d-flex align-items-center gap-2">
-          <div class="spinner-border spinner-border-sm" role="status"></div>
-          <span><?= __('Checking firmware…', 'gdmsintegration') ?></span>
-        </div>
-      </div>
-      <div class="modal-footer flex-column align-items-stretch gap-2 pt-2">
-        <div id="gdmsFwScheduleRow" style="display:none;">
-          <div class="d-flex align-items-center gap-2">
-            <label class="form-label mb-0 text-nowrap small fw-semibold"><?= __('Schedule for', 'gdmsintegration') ?>:</label>
-            <div class="btn-group flex-grow-1 flatpickr" id="gdmsFwFlatpickrWrap">
-              <input type="text" class="form-control form-control-sm rounded-start ps-2"
-                     id="gdmsFwDatetime" data-input placeholder="dd/mm/yyyy hh:mm" autocomplete="off">
-              <button type="button" class="btn btn-outline-secondary btn-sm" data-toggle
-                      title="<?= __('Show date picker', 'gdmsintegration') ?>">
-                <i class="ti ti-calendar-time"></i>
-              </button>
-            </div>
-          </div>
-          <small class="text-muted d-block mt-1"><?= __('Leave empty to apply as soon as possible', 'gdmsintegration') ?></small>
-        </div>
-        <div class="d-flex flex-column gap-2 w-100">
-          <button type="button" class="btn btn-success text-white w-100" id="gdmsFwAsapBtn" style="display:none;">
-            <i class="ti ti-bolt me-1"></i><?= __('Apply now (ASAP)', 'gdmsintegration') ?>
-          </button>
-          <button type="button" class="btn btn-warning text-dark w-100" id="gdmsFwScheduleBtn" style="display:none;">
-            <i class="ti ti-calendar-check me-1"></i><?= __('Schedule update', 'gdmsintegration') ?>
-          </button>
-          <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">
-            <?= __('Close', 'gdmsintegration') ?>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-    var fwData = {};  // mac → {currentVersion, latestVersion, hasUpdate}
-
-    // Fetch firmware info for ALL devices 2s after page load (non-blocking)
-    setTimeout(function() {
-        fetch(FW_CHECK_ALL_URL, { credentials: 'same-origin' })
-            .then(function(r) { return r.json(); })
-            .then(function(list) {
-                if (!Array.isArray(list)) return;
-                list.forEach(function(item) {
-                    fwData[item.mac] = item; // store always, badge shown only if hasUpdate
-                    if (!item.hasUpdate) return;
-                    document.querySelectorAll('.gdms-fw-badge[data-mac="' + item.mac + '"]')
-                        .forEach(function(el) { el.style.display = 'inline'; });
-                });
-            })
-            .catch(function() { /* silently ignore if APIs not configured */ });
-    }, 2000);
-
-    // Click on badge → open modal with details
-    document.addEventListener('click', function(e) {
-        var badge = e.target.closest('.gdms-fw-badge');
-        if (!badge) return;
-        var mac     = badge.getAttribute('data-mac');
-        var current = badge.getAttribute('data-current');
-        var model   = badge.getAttribute('data-model') || '';
-        var devName = badge.getAttribute('data-name') || '';
-        var devIp   = badge.getAttribute('data-ip')   || '';
-        var info    = fwData[mac] || {};
-        var isGwn   = info.isGwn || /^GWN|^GSS/i.test(model);
-        var official= info.official || null;
-        var beta    = info.beta     || null;
-        // For GWN: official comes from GWN Cloud API (no beta available via API)
-        // For UC/phones: both official and beta come from grandstream.com scraper
-        var latestFw = info.latestVersion || official || beta || null; // legacy fallback
-
-        var body     = document.getElementById('gdmsFwModalBody');
-        var schedBtn = document.getElementById('gdmsFwScheduleBtn');
-        var asapBtn  = document.getElementById('gdmsFwAsapBtn');
-        var schedRow = document.getElementById('gdmsFwScheduleRow');
-        var dtInput  = document.getElementById('gdmsFwDatetime');
-        var fpWrap   = document.getElementById('gdmsFwFlatpickrWrap');
-
-        var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; };
-
-        // Build version selector rows
-        var versionRows = '';
-        if (official) {
-            versionRows += '<tr>'
-              + '<td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
-              + '<input type="radio" name="gdmsFwVersion" value="' + esc(official) + '" class="form-check-input mt-0"' + (official ? ' checked' : '') + '>'
-              + '<code class="text-warning">' + esc(official) + '</code>'
-              + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
-              + '</label></td></tr>';
-        }
-        if (beta && beta !== official && isGwn) {
-            // Beta only shown for GWN devices — GDMS ignores fwVersion for UCM/phones
-            versionRows += '<tr>'
-              + '<td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
-              + '<input type="radio" name="gdmsFwVersion" value="' + esc(beta) + '" class="form-check-input mt-0"' + (!official ? ' checked' : '') + '>'
-              + '<code class="fw-semibold" style="color:var(--bs-warning-text,var(--bs-warning,#fd7e14));">' + esc(beta) + '</code>'
-              + ' <span class="badge bg-warning text-dark ms-1">' + STR.betaFw + '</span>'
-              + '</label></td></tr>';
-        } else if (beta && beta !== official && !isGwn) {
-            // For GDMS-managed devices: show beta as a selectable radio so version is clear
-            versionRows += '<tr>'
-              + '<td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
-              + '<input type="radio" name="gdmsFwVersion" value="' + esc(beta) + '" class="form-check-input mt-0" checked>'
-              + '<code class="text-warning">' + esc(beta) + '</code>'
-              + ' <span class="badge ms-1" style="background:var(--bs-primary,#006eca);color:#fff;">' + STR.gdmsManaged + '</span>'
-              + '</label></td></tr>';
-        }
-        if (!official && !beta && latestFw) {
-            // Legacy: GWN check action only returned latestVersion
-            versionRows += '<tr><td><code class="text-warning">' + esc(latestFw) + '</code>'
-              + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span></td></tr>';
-        }
-
-        var macUpper  = mac.toUpperCase();
-        var macIpRow  = devName
-            ? '<tr><th class="text-muted fw-normal">' + STR.deviceName + '</th>'
-              + '<td>' + esc(devName) + '</td></tr>'
-            : '';
-        if (devIp) {
-            macIpRow += '<tr><th class="text-muted fw-normal">' + STR.fwPrivateIp + '</th>'
-              + '<td><a href="http://' + esc(devIp) + '/" target="_blank" rel="noopener" class="font-monospace">' + esc(devIp) + '</a></td></tr>';
-        }
-        var macCell = '<code id="gdmsFwMacCode" style="cursor:pointer;" title="' + STR.deviceMac + '">'
-                    + esc(macUpper) + '</code>';
-        body.innerHTML = '<table class="table table-sm mb-0">'
-          + macIpRow
-          + '<tr><th class="text-muted fw-normal w-50">' + STR.curFw + '</th>'
-          + '<td><code>' + esc(current) + '</code></td></tr>'
-          + '<tr><th class="text-muted fw-normal align-top pt-2">' + STR.selectVersion + '</th>'
-          + '<td>' + (versionRows ? '<table class="mb-0">' + versionRows + '</table>' : '<span class="text-muted">—</span>') + '</td></tr>'
-          + '<tr><th class="text-muted fw-normal">' + STR.deviceMac + '</th>'
-          + '<td>' + macCell + ' <small class="text-muted ms-1" id="gdmsFwMacCopiedMsg" style="display:none;">' + STR.fwMacCopied + '</small></td></tr>'
-          + '</table>'
-          + '<div class="alert alert-warning mt-3 mb-0 py-2 small">'
-          + '<i class="ti ti-alert-triangle me-1"></i>'
-          + STR.rebootWarning
-          + '</div>'
-          + (!isGwn ? '<div class="alert alert-info mt-2 mb-0 py-2 small">'
-            + '<i class="ti ti-info-circle me-1"></i>'
-            + STR.gdmsVersionNote
-            + ' <a href="https://www.grandstream.com/support/firmware" target="_blank" rel="noopener" class="ms-1">'
-            + STR.fwPageLbl + ' <i class="ti ti-external-link" style="font-size:.8em;"></i></a>'
-            + '</div>' : '');
-        // MAC copy-on-click
-        var _macEl = document.getElementById('gdmsFwMacCode');
-        if (_macEl) {
-            _macEl.addEventListener('click', function() {
-                navigator.clipboard && navigator.clipboard.writeText(macUpper).then(function() {
-                    var _msg = document.getElementById('gdmsFwMacCopiedMsg');
-                    if (_msg) { _msg.style.display = 'inline'; setTimeout(function(){ _msg.style.display = 'none'; }, 1500); }
-                });
-            });
-        }
-
-        // Init / reset flatpickr — GLPI native pattern (wrap:true, CustomFlatpickrButtons)
-        if (!fpWrap._fp) {
-            var _fpNow = new Date();
-            fpWrap._fp = flatpickr(fpWrap, {
-                wrap:          true,
-                enableTime:    true,
-                dateFormat:    'Y-m-d H:i:S',
-                altInput:      true,
-                altFormat:     'd/m/Y H:i',
-                time_24hr:     true,
-                minDate:       new Date(Date.now() + 5 * 60 * 1000),
-                defaultHour:   _fpNow.getHours(),
-                defaultMinute: _fpNow.getMinutes(),
-                defaultSeconds: 0,
-                locale: typeof getFlatPickerLocale === 'function'
-                    ? getFlatPickerLocale(
-                        '<?= htmlspecialchars($_fp_lang, ENT_QUOTES) ?>',
-                        '<?= htmlspecialchars($_fp_region, ENT_QUOTES) ?>'
-                      )
-                    : { firstDayOfWeek: 1 },
-                plugins: typeof CustomFlatpickrButtons === 'function'
-                    ? [CustomFlatpickrButtons()] : []
-            });
-        } else {
-            var _fpNow2 = new Date();
-            fpWrap._fp.set('defaultHour',   _fpNow2.getHours());
-            fpWrap._fp.set('defaultMinute', _fpNow2.getMinutes());
-            fpWrap._fp.set('minDate', new Date(Date.now() + 5 * 60 * 1000));
-            fpWrap._fp.clear();
-        }
-        schedRow.style.display = '';
-        asapBtn.style.display  = 'inline-block';
-        schedBtn.style.display = 'inline-block';
-        asapBtn.disabled  = false;
-        schedBtn.disabled = false;
-        asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i>' + STR.applyAsap;
-        schedBtn.innerHTML = '<i class="ti ti-calendar-check me-1"></i>' + STR.schedUpdate;
-
-        function getSelectedVersion() {
-            var radio = body.querySelector('input[name="gdmsFwVersion"]:checked');
-            return radio ? radio.value : (latestFw || '');
-        }
-
-        function doUpgrade(scheduleMs) {
-            var version = getSelectedVersion();
-            if (!version) return;
-            var activeBtn = scheduleMs > 0 ? schedBtn : asapBtn;
-            asapBtn.disabled = true; schedBtn.disabled = true;
-            activeBtn.innerHTML = '<i class="ti ti-loader me-1" style="animation:spin .8s linear infinite;display:inline-block;"></i>' + STR.scheduling;
-
-            // GLPI 11: use X-Glpi-Csrf-Token header so token is preserved (preserve_token=true).
-            // FormData body token is single-use — second upgrade fails without this fix.
-            var csrfValue = (typeof window.glpiGetNewCSRFToken === 'function')
-                ? window.glpiGetNewCSRFToken()
-                : (document.querySelector('meta[property="glpi:csrf_token"]') || {}).getAttribute('content') || '';
-
-            var fetchUrl, fetchBody;
-            var fetchHeaders = {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-Glpi-Csrf-Token': csrfValue,
-            };
-
-            if (isGwn) {
-                // GWN: POST to upgrade action with macs array (existing path)
-                var formData = new FormData();
-                formData.append('macs', JSON.stringify([mac.replace(/:/g, '').toUpperCase()]));
-                if (scheduleMs > 0) formData.append('scheduleTimeMs', scheduleMs);
-                fetchUrl  = FW_UPGRADE_URL;
-                fetchBody = formData;
-            } else {
-                // UC/phones: POST to upgrade_gdms with mac + version
-                var formData2 = new FormData();
-                formData2.append('mac', mac);
-                formData2.append('version', version);
-                if (scheduleMs > 0) formData2.append('scheduleMs', scheduleMs);
-                fetchUrl  = FW_UPGRADE_GDMS_URL;
-                fetchBody = formData2;
-            }
-
-            fetch(fetchUrl, { method: 'POST', credentials: 'same-origin', headers: fetchHeaders, body: fetchBody })
-                .then(function(r) { return r.json(); })
-                .then(function(resp) {
-                    if (resp.error) {
-                        var errDiv = document.createElement('div');
-                        errDiv.className = 'alert alert-danger mt-2 mb-0 py-2 small';
-                        errDiv.textContent = resp.error;
-                        errDiv.insertAdjacentHTML('afterbegin', '<i class="ti ti-circle-x me-1"></i> ');
-                        body.appendChild(errDiv);
-                        asapBtn.disabled = false; schedBtn.disabled = false;
-                        asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i>' + STR.applyAsap;
-                        schedBtn.innerHTML = '<i class="ti ti-calendar-check me-1"></i>' + STR.schedUpdate;
-                    } else {
-                        var ok = document.createElement('div');
-                        ok.className = 'alert alert-success mt-2 mb-0 py-2 small';
-                        ok.innerHTML = '<i class="ti ti-check-circle me-1"></i>' + STR.schedOk;
-                        body.appendChild(ok);
-                        asapBtn.style.display = 'none'; schedBtn.style.display = 'none';
-                        schedRow.style.display = 'none';
-                        // Replace firmware version text with "Updating…"; hide the arrow badge
-                        document.querySelectorAll('small.gdms-fw-badge[data-mac="' + mac + '"]')
-                            .forEach(function(el) {
-                                el.textContent = STR.upgrading;
-                                el.style.cursor = 'default';
-                                el.classList.remove('gdms-fw-badge');
-                            });
-                        document.querySelectorAll('span.gdms-fw-badge[data-mac="' + mac + '"]')
-                            .forEach(function(el) { el.style.display = 'none'; });
-                    }
-                })
-                .catch(function() {
-                    var connErr = document.createElement('div');
-                    connErr.className = 'alert alert-danger mt-2 mb-0 py-2 small';
-                    connErr.textContent = STR.reqFailed;
-                    body.appendChild(connErr);
-                    asapBtn.disabled = false; schedBtn.disabled = false;
-                    asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i>' + STR.applyAsap;
-                    schedBtn.innerHTML = '<i class="ti ti-calendar-check me-1"></i>' + STR.schedUpdate;
-                });
-        }
-
-        asapBtn.onclick  = function() { doUpgrade(0); };
-        schedBtn.onclick = function() {
-            var sel = fpWrap._fp && fpWrap._fp.selectedDates[0];
-            if (!sel || sel.getTime() <= Date.now()) { doUpgrade(0); return; }
-            doUpgrade(sel.getTime());
-        };
-
-        var modalEl = document.getElementById('gdmsFwModal');
-        if (typeof bootstrap !== 'undefined') {
-            new bootstrap.Modal(modalEl).show();
-        } else if (typeof $ !== 'undefined') {
-            $(modalEl).modal('show');
-        }
-    });
-
-    // ── WAN port status ─────────────────────────────────────────────────────
-    var PORTS_URL = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/ports.ajax.php?action=status&entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
-
-    // Port speed map
-    // portSpeed encoding per GWN API: 0=no link, 1=10M HDX, 2=10M FDX, 3=100M HDX,
-    // 4=100M FDX, 5=1G FDX, 6=2.5G FDX, 7=10G FDX.
-    // If the API returns an unexpected value, enable verbose debug logging to see raw portInfo.
-    var portSpeeds = {0:'—', 1:'10M '+STR.hdx, 2:'10M '+STR.fdx, 3:'100M '+STR.hdx, 4:'100M '+STR.fdx, 5:'1G '+STR.fdx, 6:'1G '+STR.fdx, 7:'10G '+STR.fdx};
-    var wanTypeNames = {0:STR.wanDhcp, 1:STR.wanStatic, 2:STR.wanPppoe, 3:STR.wanPptp, 4:STR.wanL2tp};
-    var connectNames = {0:STR.disconnected, 1:STR.online};
-
-    function fmtDuration(secs) {
-        if (!secs) return '—';
-        var d = Math.floor(secs / 86400), h = Math.floor((secs % 86400) / 3600), m = Math.floor((secs % 3600) / 60);
-        var r = '';
-        if (d) r += d + 'd ';
-        if (h) r += h + 'h ';
-        r += m + 'm';
-        return r.trim() || '<1m';
-    }
-
-    var portModal = document.createElement('div');
-    portModal.className = 'modal fade';
-    portModal.id = 'gdmsPortModal';
-    portModal.setAttribute('tabindex', '-1');
-    portModal.setAttribute('aria-hidden', 'true');
-    portModal.innerHTML =
-      '<div class="modal-dialog modal-dialog-centered modal-lg">' +
-      '<div class="modal-content">' +
-      '<div class="modal-header">' +
-      '<h5 class="modal-title"><i class="ti ti-network me-2 text-primary"></i> ' +
-      <?= json_encode(__('Port Status', 'gdmsintegration')) ?> +
-      ' <small class="text-muted ms-2" id="gdmsPortModalDevice"></small></h5>' +
-      '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
-      '</div>' +
-      '<div class="modal-body" id="gdmsPortModalBody">' +
-      '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>' +
-      '</div>' +
-      '<div class="modal-footer">' +
-      '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' +
-      <?= json_encode(__('Close', 'gdmsintegration')) ?> +
-      '</button></div></div></div>';
-    document.body.appendChild(portModal);
-
-    var portData = {}; // mac → [{id, silk, link, speed, wanName, ip, connectStatus, connectDuration}]
-
-    // Fetch port status 3s after load
-    setTimeout(function() {
-        fetch(PORTS_URL, { credentials: 'same-origin' })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                portData = data || {};
-                Object.keys(portData).forEach(function(mac) {
-                    var ports = portData[mac];
-                    if (!Array.isArray(ports) || !ports.length) return;
-                    var container = document.querySelector('.gdms-wan-ports[data-mac="' + mac + '"]');
-                    if (!container) return;
-                    container.innerHTML = '';
-                    ports.forEach(function(p) {
-                        var isWan = p.role == 1;
-                        var linkUp = p.link == 1;
-                        // Color logic:
-                        // WAN: green=up+internet, amber=up+no-internet or unknown, gray=down
-                        // LAN: teal=up, gray=down
-                        var color;
-                        if (isWan) {
-                            if (!linkUp)       color = '#6c757d'; // gray = link down
-                            else if (p.connectStatus === 1) color = '#28a745'; // green = internet confirmed
-                            else if (p.connectStatus === 0) color = '#fd7e14'; // orange = up, no internet
-                            else               color = '#ffc107'; // amber = up, status unknown
-                        } else {
-                            color = linkUp ? '#20c997' : '#6c757d'; // teal=up, gray=down
-                        }
-                        var label = p.silk || p.name || (isWan ? 'WAN' : 'LAN');
-                        var wanLabel = p.wanName ? ' — ' + p.wanName : '';
-                        var portLabel = p.name && p.name !== p.silk ? ' (' + p.name + ')' : '';
-                        var dot = document.createElement('span');
-                        var dotStatus;
-                        if (!linkUp) {
-                            dotStatus = ' — ' + STR.linkDown;
-                        } else if (isWan) {
-                            dotStatus = p.connectStatus === 1 ? ' — ' + STR.online
-                                      : p.connectStatus === 0 ? ' — ' + STR.noInternet
-                                      : ' — ' + STR.linkUp;
-                        } else {
-                            dotStatus = ' — ' + STR.linkUp; // LAN active
-                        }
-                        dot.title = label + portLabel + wanLabel + dotStatus;
-                        dot.style.cssText = 'display:inline-block;width:9px;height:9px;border-radius:50%;background:' + color + ';cursor:pointer;flex-shrink:0' + (isWan ? ';outline:1px solid rgba(255,255,255,.3)' : '');
-                        container.appendChild(dot);
-                    });
-                });
-            })
-            .catch(function() {});
-    }, 3000);
-
-    // Click on port container → open modal
-    document.addEventListener('click', function(e) {
-        var container = e.target.closest('.gdms-wan-ports');
-        if (!container) return;
-        var mac   = container.getAttribute('data-mac');
-        var ports = portData[mac];
-        if (!ports) return;
-
-        // Find device name
-        var row   = container.closest('tr');
-        var dName = row ? (row.querySelector('td a') || row.querySelector('td')).textContent.trim() : mac;
-        document.getElementById('gdmsPortModalDevice').textContent = dName;
-
-        var body  = document.getElementById('gdmsPortModalBody');
-        if (!ports.length) { body.innerHTML = '<p class="text-muted text-center">' + STR.noPorts + '</p>'; }
-        else {
-            // Device info block: traffic + timestamps above legend
-            var ulBytes   = parseInt(container.getAttribute('data-upload')    || '0', 10);
-            var dlBytes   = parseInt(container.getAttribute('data-download')   || '0', 10);
-            var firstSeen = container.getAttribute('data-first-seen') || '';
-            var lastSeen  = container.getAttribute('data-last-seen')  || '';
-            var infoHtml = '';
-            if (ulBytes > 0 || dlBytes > 0 || firstSeen || lastSeen) {
-                infoHtml = '<div class="border-bottom pb-2 mb-3 small">';
-                if (ulBytes > 0 || dlBytes > 0) {
-                    infoHtml += '<div class="fw-semibold text-muted mb-1"><i class="ti ti-chart-bar me-1"></i>' + STR.netUsage + '</div>';
-                    infoHtml += '<div class="d-flex gap-4 mb-2">';
-                    infoHtml += '<span><span class="text-muted me-1">' + STR.upload + ':</span><span class="text-success fw-semibold"> ↑ ' + fmtBytes(ulBytes) + '</span></span>';
-                    infoHtml += '<span><span class="text-muted me-1">' + STR.download + ':</span><span class="text-info fw-semibold"> ↓ ' + fmtBytes(dlBytes) + '</span></span>';
-                    infoHtml += '</div>';
-                }
-                if (firstSeen || lastSeen) {
-                    infoHtml += '<div class="d-flex flex-wrap gap-3 text-muted">';
-                    if (firstSeen) infoHtml += '<span><i class="ti ti-calendar-plus me-1"></i><span class="me-1">' + STR.firstSeen + ':</span>' + firstSeen.slice(0,16) + '</span>';
-                    if (lastSeen)  infoHtml += '<span><i class="ti ti-calendar-check me-1"></i><span class="me-1">' + STR.lastSeen + ':</span>' + lastSeen.slice(0,16) + '</span>';
-                    infoHtml += '</div>';
-                }
-                infoHtml += '</div>';
-            }
-
-            // Legend
-            // Legend — strings rendered by PHP through gettext, assembled in JS
-            var legendItems = [
-                {color:'#28a745', label:STR.wanOnline},
-                {color:'#fd7e14', label:STR.wanNoInet},
-                {color:'#ffc107', label:STR.wanUnknown},
-                {color:'#20c997', label:STR.lanUp},
-                {color:'#6c757d', label:STR.linkDown},
-            ];
-            var legend = '<div class="d-flex flex-wrap gap-3 mb-3 small border-bottom pb-2">';
-            legendItems.forEach(function(li) {
-                legend += '<span style="display:inline-flex;align-items:center;gap:5px">'
-                        + '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + li.color + ';outline:1px solid rgba(128,128,128,.35);flex-shrink:0"></span>'
-                        + '<span>' + li.label + '</span>'
-                        + '</span>';
-            });
-            legend += '</div>';
-            var html = infoHtml + legend + '<div class="row g-2">';
-            ports.forEach(function(p) {
-                var isWan  = p.role == 1;
-                var linkUp = p.link == 1;
-                var cs     = (p.connectStatus !== undefined) ? p.connectStatus : -1;
-                var statusColor, statusIcon, statusText;
-                if (isWan) {
-                    if (!linkUp)  { statusColor='secondary'; statusIcon='circle-x';       statusText=STR.linkDown; }
-                    else if(cs==1){ statusColor='success';   statusIcon='circle-check';   statusText=STR.online; }
-                    else if(cs==0){ statusColor='warning';   statusIcon='alert-circle';   statusText=STR.noInternet; }
-                    else          { statusColor='warning';   statusIcon='alert-circle';   statusText=STR.linkUp; }
-                } else {
-                    statusColor = linkUp ? 'info'  : 'secondary';
-                    statusIcon  = linkUp ? 'circle-check' : 'circle-x';
-                    statusText  = linkUp ? STR.linkUp : STR.linkDown;
-                }
-                var label    = p.silk  || (isWan ? 'WAN' : 'LAN');
-                var portName = (p.name && p.name !== p.silk) ? p.name : '';
-                html += '<div class="col-md-6"><div class="card border-' + statusColor + ' h-100">';
-                html += '<div class="card-header bg-transparent border-' + statusColor + ' d-flex justify-content-between align-items-center py-2">';
-                html += '<strong class="text-' + statusColor + '"><i class="ti ti-' + statusIcon + ' me-1"></i>' + label;
-                if (portName) html += ' <small class="fw-normal opacity-75">(' + portName + ')</small>';
-                html += '</strong>';
-                if (p.wanName) html += '<small class="text-muted ms-2">' + p.wanName + '</small>';
-                html += '</div><div class="card-body py-2 small"><dl class="row mb-0">';
-                if (isWan) {
-                    html += '<dt class="col-5 text-muted fw-normal">' + STR.connection + '</dt><dd class="col-7">' + statusText + '</dd>';
-                    if (p.ip) html += '<dt class="col-5 text-muted fw-normal">' + STR.ipAddress + '</dt><dd class="col-7"><code>' + p.ip + '</code></dd>';
-                    if (p.wanType !== undefined && p.wanType >= 0) html += '<dt class="col-5 text-muted fw-normal">' + STR.wanTypeLbl + '</dt><dd class="col-7">' + (wanTypeNames[p.wanType] || '—') + '</dd>';
-                    if (p.gateway) html += '<dt class="col-5 text-muted fw-normal">' + STR.gateway + '</dt><dd class="col-7"><code>' + p.gateway + '</code></dd>';
-                    if (p.firstDns || p.secondDns) {
-                        var dnsVal = [p.firstDns, p.secondDns].filter(Boolean).join(' / ');
-                        html += '<dt class="col-5 text-muted fw-normal">' + STR.dns + '</dt><dd class="col-7"><code>' + dnsVal + '</code></dd>';
-                    }
-                    if (p.wamMac) html += '<dt class="col-5 text-muted fw-normal">' + STR.wanMac + '</dt><dd class="col-7"><code>' + p.wamMac + '</code></dd>';
-                    if (p.portIpv6) html += '<dt class="col-5 text-muted fw-normal">IPv6</dt><dd class="col-7"><code style="font-size:.8em;word-break:break-all;">' + p.portIpv6 + '</code></dd>';
-                    if (p.connectDuration) html += '<dt class="col-5 text-muted fw-normal">' + STR.connectedFor + '</dt><dd class="col-7">' + fmtDuration(p.connectDuration) + '</dd>';
-                    // Per-port traffic (v1.2.5)
-                    if (p.txBytes || p.rxBytes) {
-                        html += '<dt class="col-5 text-muted fw-normal">↑ Upload</dt><dd class="col-7 text-success">' + fmtBytes(p.txBytes || 0) + '</dd>';
-                        html += '<dt class="col-5 text-muted fw-normal">↓ Download</dt><dd class="col-7 text-info">' + fmtBytes(p.rxBytes || 0) + '</dd>';
-                    }
-                    if (p.txPackets || p.rxPackets) {
-                        html += '<dt class="col-5 text-muted fw-normal">' + STR.txrxPkts + '</dt>'
-                             + '<dd class="col-7 small text-nowrap">'
-                             + '<span class="text-success">↑' + (p.txPackets || 0).toLocaleString() + '</span>'
-                             + ' <span class="text-info">↓' + (p.rxPackets || 0).toLocaleString() + '</span>'
-                             + '</dd>';
-                    }
-                } else {
-                    // LAN port
-                    html += '<dt class="col-5 text-muted fw-normal">' + STR.statusLbl + '</dt><dd class="col-7">' + statusText + '</dd>';
-                    if (linkUp) {
-                        // Active LAN port — show negotiated speed prominently
-                        var spStr = portSpeeds[p.speed] || '—';
-                        html += '<dt class="col-5 text-muted fw-normal">' + STR.negotiatedSpeed + '</dt><dd class="col-7 fw-semibold text-success">' + spStr + '</dd>';
-                    }
-                    if (p.customName) html += '<dt class="col-5 text-muted fw-normal">' + STR.portLabel + '</dt><dd class="col-7">' + p.customName + '</dd>';
-                    if (p.desc)       html += '<dt class="col-5 text-muted fw-normal">' + STR.description + '</dt><dd class="col-7">' + p.desc + '</dd>';
-                }
-                html += '<dt class="col-5 text-muted fw-normal">' + STR.linkSpeed + '</dt><dd class="col-7">' + (portSpeeds[p.speed] || '—') + '</dd>';
-                if (p.type) html += '<dt class="col-5 text-muted fw-normal">' + STR.portType + '</dt><dd class="col-7">' + p.type + '</dd>';
-                html += '</dl></div></div></div>';
-            });
-            html += '</div>';
-            body.innerHTML = html;
-        }
-
-        var bsModal = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(portModal) : null;
-        if (bsModal) bsModal.show();
-        else if (typeof $ !== 'undefined') $(portModal).modal('show');
-    });
-
-    // ── Network stats modal ────────────────────────────────────────────────
-    var netModal = document.createElement('div');
-    netModal.className = 'modal fade';
-    netModal.id = 'gdmsNetModal';
-    netModal.setAttribute('tabindex', '-1');
-    netModal.setAttribute('aria-hidden', 'true');
-        netModal.innerHTML =
-      '<div class="modal-dialog modal-sm"><div class="modal-content">' +
-      '<div class="modal-header py-2">' +
-      '<i class="ti ti-network me-2 text-primary"></i>' +
-      '<h6 class="modal-title mb-0 fw-semibold" id="gdmsNetModalTitle"></h6>' +
-      '<button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button>' +
-      '</div>' +
-      '<div class="modal-body p-0" id="gdmsNetModalBody"></div>' +
-      '<div class="modal-footer py-2 justify-content-end">' +
-      '<button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">' +
-      <?= json_encode(__('Close', 'gdmsintegration')) ?> + '</button>' +
-      '</div></div></div>';
-    document.body.appendChild(netModal);
-
-    var LBL_ONLINE  = STR.lbl_online;
-    var LBL_OFFLINE = STR.lbl_offline;
-    var LBL_TOTAL   = STR.lbl_total;
-    var LBL_ROUTER  = STR.lbl_router;
-    var LBL_SWITCH  = STR.lbl_switch;
-    var LBL_AP      = STR.lbl_ap;
-    var LBL_CLIENTS = STR.lbl_clients;
-    var LBL_PHONES  = STR.lbl_phones;
-
-    document.addEventListener('click', function(e) {
-        var link = e.target.closest('.gdms-net-link');
-        if (!link) return;
-        var raw = link.getAttribute('data-net');
-        if (!raw) return;
-        var nd;
-        try { nd = JSON.parse(raw); } catch(ex) { return; }
-
-        document.getElementById('gdmsNetModalTitle').textContent = nd.name;
-
-        var rows = [
-            { icon: 'ti ti-sitemap', label: LBL_ROUTER, on: nd.router_on, off: nd.router_off },
-            { icon: 'ti ti-server',  label: LBL_SWITCH, on: nd.switch_on, off: nd.switch_off },
-            { icon: 'ti ti-wifi',    label: LBL_AP,     on: nd.ap_on,     off: nd.ap_off     },
-            { icon: 'ti ti-phone',   label: LBL_PHONES, on: nd.phone_on,  off: nd.phone_off  },
-        ];
-        rows = rows.filter(function(r){ return (r.on + r.off) > 0; });
-
-        var html = '<ul class="list-group list-group-flush">';
-        rows.forEach(function(r) {
-            var total = r.on + r.off;
-            var pct   = total > 0 ? Math.round(r.on / total * 100) : null;
-            var barClass = (pct === null) ? 'bg-secondary' : (pct >= 80 ? 'bg-success' : (pct >= 50 ? 'bg-warning' : 'bg-danger'));
-            html += '<li class="list-group-item px-3 py-2">';
-            html += '<div class="d-flex align-items-center justify-content-between mb-1">';
-            html += '<span><i class="' + r.icon + ' me-2 text-primary" style="width:14px;"></i>'
-                  + '<strong>' + r.label + '</strong></span>';
-            html += '<span class="small text-muted">';
-            if (total === 0) {
-                html += '<span class="badge text-bg-secondary opacity-50">0</span>';
-            } else {
-                html += '<span class="badge bg-success me-1">' + r.on + ' ' + LBL_ONLINE + '</span>';
-                if (r.off > 0) html += '<span class="badge bg-danger">' + r.off + ' ' + LBL_OFFLINE + '</span>';
-            }
-            html += '</span></div>';
-            if (total > 0) {
-                html += '<div class="progress" style="height:4px;border-radius:2px;">';
-                html += '<div class="progress-bar ' + barClass + '" style="width:' + (pct||0) + '%;"></div>';
-                html += '</div>';
-                html += '<div class="text-end text-muted" style="font-size:.7rem;margin-top:2px;">' + LBL_TOTAL + ': ' + total + '</div>';
-            }
-            html += '</li>';
-        });
-
-        // Clients row
-        html += '<li class="list-group-item px-3 py-2 d-flex align-items-center justify-content-between">';
-        html += '<span><i class="ti ti-users me-2 text-warning" style="width:14px;"></i><strong>' + LBL_CLIENTS + '</strong></span>';
-        html += '<span class="badge bg-warning text-dark fs-6">' + nd.clients + '</span>';
-        html += '</li>';
-
-        if (nd.upload_bytes > 0 || nd.download_bytes > 0) {
-            html += '<li class="list-group-item px-3 py-2">';
-            html += '<div class="fw-semibold text-muted mb-1 small"><i class="ti ti-chart-bar me-1"></i>' + STR.netTraffic + '</div>';
-            html += '<div class="d-flex gap-3 small">';
-            html += '<span class="text-success">↑ ' + fmtBytes(nd.upload_bytes) + '</span>';
-            html += '<span class="text-info">↓ ' + fmtBytes(nd.download_bytes) + '</span>';
-            html += '</div></li>';
-        }
-
-        html += '</ul>';
-        document.getElementById('gdmsNetModalBody').innerHTML = html;
-
-        var bsNet = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(netModal) : null;
-        if (bsNet) bsNet.show();
-        else if (typeof $ !== 'undefined') $(netModal).modal('show');
-    });
-
-    // ── WiFi Clients modal ───────────────────────────────────────────────────
-    var CLIENTS_URL = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/clients.ajax.php?entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
-
-    var clientModal = document.createElement('div');
-    clientModal.className = 'modal fade';
-    clientModal.id = 'gdmsClientModal';
-    clientModal.setAttribute('tabindex', '-1');
-    clientModal.setAttribute('aria-hidden', 'true');
-    clientModal.innerHTML =
-      '<div class="modal-dialog modal-dialog-centered modal-lg">' +
-      '<div class="modal-content">' +
-      '<div class="modal-header"><h5 class="modal-title"><i class="ti ti-users me-2 text-info"></i>' +
-      <?= json_encode(__('Connected Clients', 'gdmsintegration')) ?> +
-      ' <small class="text-muted ms-2" id="gdmsClientModalDevice"></small></h5>' +
-      '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
-      '</div>' +
-      '<div class="modal-body p-0" id="gdmsClientModalBody">' +
-      '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>' +
-      '</div>' +
-      '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' +
-      <?= json_encode(__('Close', 'gdmsintegration')) ?> +
-      '</button></div></div></div>';
-    document.body.appendChild(clientModal);
-
-    document.addEventListener('click', function(e) {
-        var badge = e.target.closest('.gdms-clients-badge');
-        if (!badge) return;
-        var networkId = badge.getAttribute('data-network-id');
-        var apMac     = badge.getAttribute('data-mac') || '';
-        var devName   = badge.getAttribute('data-name') || apMac;
-        document.getElementById('gdmsClientModalDevice').textContent = devName;
-        var body = document.getElementById('gdmsClientModalBody');
-        body.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></div>';
-
-        var bsCli = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(clientModal) : null;
-        if (bsCli) bsCli.show(); else if (typeof $ !== 'undefined') $(clientModal).modal('show');
-
-        var url = CLIENTS_URL + '&network_id=' + encodeURIComponent(networkId) + '&mac=' + encodeURIComponent(apMac);
-        fetch(url, { credentials: 'same-origin' })
-            .then(function(r) { return r.json(); })
-            .then(function(list) {
-                if (!Array.isArray(list) || !list.length) {
-                    body.innerHTML = '<p class="text-muted text-center py-3">' + STR.noClients + '</p>';
-                    return;
-                }
-                var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || '—'))); return d.innerHTML; };
-                var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead><tr>' +
-                    '<th class="ps-3">' + STR.hostname + '</th>' +
-                    '<th>IP</th><th>MAC</th>' +
-                    '<th>' + STR.band + ' / SSID</th>' +
-                    '<th>' + STR.signal + '</th>' +
-                    '<th>' + STR.txrx + '</th>' +
-                    '</tr></thead><tbody>';
-                list.forEach(function(c) {
-                    var rssiColor = c.rssi <= -76 ? 'text-danger' : (c.rssi <= -60 ? 'text-warning' : 'text-success');
-                    html += '<tr>' +
-                        '<td class="ps-3 fw-semibold">' + esc(c.hostname || c.mac) + '</td>' +
-                        '<td><code class="small">' + esc(c.ip) + '</code></td>' +
-                        '<td><code class="small">' + esc(c.mac) + '</code></td>' +
-                        '<td><small>' + esc(c.band) + (c.ssid ? ' — ' + esc(c.ssid) : '') + '</small></td>' +
-                        '<td class="' + rssiColor + ' fw-semibold">' + (c.rssi ? c.rssi + ' dBm' : '—') + '</td>' +
-                        '<td class="small text-nowrap">' +
-                            (c.txRate ? '<span class="text-success">↑' + c.txRate + 'M</span> ' : '') +
-                            (c.rxRate ? '<span class="text-info">↓' + c.rxRate + 'M</span>' : '') +
-                        '</td></tr>';
-                });
-                html += '</tbody></table></div>';
-                body.innerHTML = html;
-            })
-            .catch(function() {
-                body.innerHTML = '<p class="text-danger text-center py-3">' + STR.reqFailed + '</p>';
-            });
-    });
-
-    // ── SIP Phone detail modal ───────────────────────────────────────────────
-    var sipModal = document.createElement('div');
-    sipModal.className = 'modal fade';
-    sipModal.id = 'gdmsSipModal';
-    sipModal.setAttribute('tabindex', '-1');
-    sipModal.setAttribute('aria-hidden', 'true');
-    sipModal.innerHTML =
-      '<div class="modal-dialog modal-dialog-centered">' +
-      '<div class="modal-content">' +
-      '<div class="modal-header py-2">' +
-      '<h5 class="modal-title"><i class="ti ti-phone me-2 text-primary"></i>' +
-      '<span id="gdmsSipModalTitle"></span></h5>' +
-      '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
-      '</div>' +
-      '<div class="modal-body" id="gdmsSipModalBody"></div>' +
-      '<div class="modal-footer py-2"><button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">' +
-      <?= json_encode(__('Close', 'gdmsintegration')) ?> +
-      '</button></div></div></div>';
-    document.body.appendChild(sipModal);
-
-    document.addEventListener('click', function(e) {
-        var dot = e.target.closest('.gdms-sip-dot');
-        if (!dot) return;
-        var sip       = dot.getAttribute('data-sip')      || '';
-        var dnd       = parseInt(dot.getAttribute('data-dnd')   || '0', 10);
-        var sync      = parseInt(dot.getAttribute('data-sync')  || '0', 10);
-        var syncMsg   = dot.getAttribute('data-sync-msg') || '';
-        var task      = parseInt(dot.getAttribute('data-task')  || '0', 10);
-        var ext       = dot.getAttribute('data-extension')|| '';
-        var lastSeen  = dot.getAttribute('data-last-seen')|| '';
-        var privIp    = dot.getAttribute('data-private-ip')|| '';
-        var pubIp     = dot.getAttribute('data-public-ip') || '';
-        var site      = dot.getAttribute('data-site')     || '';
-        var devName   = dot.getAttribute('data-name')     || '';
-        var pbxName   = dot.getAttribute('data-pbx-name') || '';
-        var pbxIp     = dot.getAttribute('data-pbx-ip')   || '';
-        var pbxUrl    = dot.getAttribute('data-pbx-url')  || '';
-        var mac       = dot.getAttribute('data-mac')       || '';
-
-        document.getElementById('gdmsSipModalTitle').textContent = devName;
-
-        var registered = sip === 'registered';
-        var sipColor   = registered ? '#28a745' : '#dc3545';
-        var sipLabel   = registered
-            ? <?= json_encode(__('Registered', 'gdmsintegration')) ?>
-            : <?= json_encode(__('Unregistered', 'gdmsintegration')) ?>;
-
-        var esc = function(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || '—'))); return d.innerHTML; };
-
-        var rows = [];
-        rows.push(['<i class="ti ti-phone-call me-1"></i>' + <?= json_encode(__('SIP Status', 'gdmsintegration')) ?>,
-            '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + sipColor + ';outline:1px solid rgba(128,128,128,.3);margin-right:5px;"></span><strong style="color:' + sipColor + '">' + esc(sipLabel) + '</strong>']);
-        if (ext)      rows.push(['<i class="ti ti-hash me-1"></i>' + <?= json_encode(__('Extension', 'gdmsintegration')) ?>, '<code>' + esc(ext) + '</code>']);
-        if (site)     rows.push(['<i class="ti ti-building me-1"></i>' + <?= json_encode(__('Site', 'gdmsintegration')) ?>, esc(site)]);
-        if (mac)      rows.push(['<i class="ti ti-fingerprint me-1"></i>' + <?= json_encode(__('MAC', 'gdmsintegration')) ?>,
-            '<code class="gdms-copy" style="cursor:pointer;" data-copy="' + esc(mac) + '" title="' + <?= json_encode(__('Copy MAC', 'gdmsintegration')) ?> + '">' + esc(mac) + '</code>']);
-        if (privIp)   rows.push(['<i class="ti ti-network me-1"></i>' + <?= json_encode(__('Private IP', 'gdmsintegration')) ?>,
-            '<a href="http://' + esc(privIp) + '" target="_blank" rel="noopener"><code>' + esc(privIp) + '</code></a>']);
-        if (pubIp)    rows.push(['<i class="ti ti-world me-1"></i>' + <?= json_encode(__('Public IP', 'gdmsintegration')) ?>,
-            '<a href="https://www.whois.com/whois/' + esc(pubIp) + '" target="_blank" rel="noopener"><code>' + esc(pubIp) + '</code></a>']);
-        if (lastSeen) rows.push(['<i class="ti ti-clock me-1"></i>' + <?= json_encode(__('Last Seen', 'gdmsintegration')) ?>, esc(lastSeen)]);
-        if (pbxIp)    rows.push(['<i class="ti ti-cpu me-1"></i>' + <?= json_encode(__('PBX / UCM', 'gdmsintegration')) ?>,
-            '<a href="http://' + esc(pbxIp) + '" target="_blank" rel="noopener"><code>' + esc(pbxIp) + '</code></a>'
-            + (pbxName ? ' ' + (pbxUrl ? '<a href="' + esc(pbxUrl) + '" target="_blank" rel="noopener" class="text-muted small text-decoration-none">(' + esc(pbxName) + ' <i class="ti ti-external-link opacity-50" style="font-size:.8em;"></i>)</a>' : '<span class="text-muted small">(' + esc(pbxName) + ')</span>') : '')]);
-        rows.push(['<i class="ti ti-bell-off me-1"></i>' + <?= json_encode(__('Do Not Disturb', 'gdmsintegration')) ?>,
-            dnd ? '<span class="badge text-bg-danger">' + <?= json_encode(__('Active', 'gdmsintegration')) ?> + '</span>'
-                : '<span class="badge border" style="color:inherit;background:transparent">' + <?= json_encode(__('Off', 'gdmsintegration')) ?> + '</span>']);
-        rows.push(['<i class="ti ti-refresh me-1"></i>' + <?= json_encode(__('Synchronized', 'gdmsintegration')) ?>,
-            sync ? '<span class="badge text-bg-success">' + <?= json_encode(__('Yes', 'gdmsintegration')) ?> + '</span>'
-                 : '<span class="badge text-bg-warning">' + <?= json_encode(__('No', 'gdmsintegration')) ?> + '</span>']);
-        if (!sync && syncMsg) rows.push(['<i class="ti ti-alert-triangle me-1 text-warning"></i>' + <?= json_encode(__('Sync Error', 'gdmsintegration')) ?>, '<small class="text-danger">' + esc(syncMsg) + '</small>']);
-        rows.push(['<i class="ti ti-calendar me-1"></i>' + <?= json_encode(__('Scheduled Task', 'gdmsintegration')) ?>,
-            task ? '<span class="badge text-bg-primary">' + <?= json_encode(__('Pending', 'gdmsintegration')) ?> + '</span>'
-                 : '<span class="badge border" style="color:inherit;background:transparent">' + <?= json_encode(__('None', 'gdmsintegration')) ?> + '</span>']);
-
-        var html = '<dl class="row mb-0 small">';
-        rows.forEach(function(r) {
-            html += '<dt class="col-sm-5 text-muted fw-normal">' + r[0] + '</dt><dd class="col-sm-7 mb-1">' + r[1] + '</dd>';
-        });
-        html += '</dl>';
-        document.getElementById('gdmsSipModalBody').innerHTML = html;
-
-        var bsSip = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(sipModal) : null;
-        if (bsSip) bsSip.show();
-        else if (typeof $ !== 'undefined') $(sipModal).modal('show');
-    });
-
-    // ── Cloud Alerts panel ────────────────────────────────────────────────────
-    var ALERTS_URL  = '<?= htmlspecialchars(($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration/front/alerts.ajax.php?entities_id=' . $entities_id, ENT_QUOTES, 'UTF-8') ?>';
-    var alertsBody = document.getElementById('gdms-alerts-body');
-    var alertsMeta = document.getElementById('gdms-alerts-meta');
-
-    if (alertsBody) {
-        // Dismiss click — hides row locally only; GWN Cloud has no working dismiss API
-        alertsBody.addEventListener('click', function(e) {
-            var btn = e.target.closest('.gdms-alert-dismiss');
-            if (!btn) return;
-            e.preventDefault();
-            var row = btn.closest('tr');
-            if (row) row.style.display = 'none';
-        });
-
-        setTimeout(function() {
-            fetch(ALERTS_URL, { credentials: 'same-origin' })
-                .then(function(r) { return r.json(); })
-                .then(function(list) {
-                    if (!Array.isArray(list) || !list.length) {
-                        alertsBody.innerHTML = '<p class="text-muted text-center py-2 small mb-0">' + STR.noAlerts + '</p>';
-                        return;
-                    }
-                    if (typeof console !== 'undefined') console.log('GDMS alert[0]:', list[0]);
-                    var sevColor = {'critical':'danger','warning':'warning','medium':'warning','info':'info','low':'secondary','error':'danger'};
-                    var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || ''))); return d.innerHTML; };
-                    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle"><thead><tr>' +
-                        '<th class="ps-3" style="white-space:nowrap">' + STR.alertTime + '</th>' +
-                        '<th>' + STR.alertSev + '</th>' +
-                        '<th>' + STR.alertDevice + '</th>' +
-                        '<th>' + STR.alertMsg + '</th>' +
-                        '<th></th>' +
-                        '</tr></thead><tbody>';
-                    list.slice(0, 50).forEach(function(a) {
-                        var sev = String(a.severity || 'info').toLowerCase();
-                        var cls = sevColor[sev] || 'secondary';
-                        var ct  = parseInt(a.createTime || 0);
-                        var ts  = ct ? new Date(ct).toLocaleString() : '—';
-                        var desc = String(a.description || a.alertType || '');
-                        // Enrich description with reason and category if available
-                        var extras = [];
-                        if (a.category)  extras.push(STR.alertCategory + ': ' + a.category);
-                        if (a.reason)    extras.push(STR.alertReason   + ': ' + a.reason);
-                        if (a.port_id)   extras.push('Port: ' + a.port_id);
-                        var extraHtml = extras.length
-                            ? '<br><span class="text-muted" style="font-size:.8em;">' + extras.map(esc).join(' · ') + '</span>'
-                            : '';
-                        var devName = String(a.deviceName || a.deviceMac || '—');
-                        html += '<tr data-alert-id="' + esc(a.id) + '">'
-                            + '<td class="ps-3 text-nowrap small text-muted">' + esc(ts) + '</td>'
-                            + '<td><span class="badge bg-' + cls + ' text-' + (cls === 'warning' ? 'dark' : 'white') + '">' + esc(sev) + '</span></td>'
-                            + '<td class="small text-nowrap">' + esc(devName) + '</td>'
-                            + '<td class="small">' + esc(desc) + extraHtml + '</td>'
-                            + '<td class="text-end pe-2"><button type="button" class="btn btn-sm btn-link p-0 text-muted gdms-alert-dismiss" data-alert-id="' + esc(a.id) + '" title="' + esc(STR.alertDismiss) + '"><i class="ti ti-x"></i></button></td>'
-                            + '</tr>';
-                    });
-                    html += '</tbody></table></div>';
-                    alertsBody.innerHTML = html;
-                })
-                .catch(function() {
-                    alertsBody.innerHTML = '<p class="text-muted text-center py-2 small mb-0">' + STR.alertsError + '</p>';
-                });
-        }, 4500);
-    }
-
-    // Copy-to-clipboard for model, MAC, serial cells
-    document.addEventListener('click', function(e) {
-        var el = e.target.closest('.gdms-copy');
-        if (!el || !el.dataset.copy) return;
-        var val = el.dataset.copy;
-        if (!val) return;
-        navigator.clipboard.writeText(val).then(function() {
-            var prev = el.innerHTML;
-            el.innerHTML = '<span style="color:var(--bs-success,#198754)">✓</span>';
-            setTimeout(function() { el.innerHTML = prev; }, 900);
-        });
-    });
-
-    // Chevron rotation for alerts collapse
-    var alertsCollapse = document.getElementById('gdms-alerts-collapse');
-    if (alertsCollapse) {
-        alertsCollapse.addEventListener('show.bs.collapse', function() {
-            var ch = document.querySelector('.gdms-alerts-chevron');
-            if (ch) ch.style.transform = 'rotate(180deg)';
-        });
-        alertsCollapse.addEventListener('hide.bs.collapse', function() {
-            var ch = document.querySelector('.gdms-alerts-chevron');
-            if (ch) ch.style.transform = 'rotate(0deg)';
-        });
-    }
-
-})();
-</script>
-
-<?php if (!empty($chart_datasets)): ?>
-<script type="module">
-/* ECharts 5 — <script type="module"> defers until after all regular footer scripts,
-   so echarts global is guaranteed to be available */
-(function() {
-    var hc = document.getElementById('gdms-history-chart');
-    if (!hc || typeof echarts === 'undefined') return;
-
-    var _bg   = window.getComputedStyle(document.body).backgroundColor;
-    var _rgb  = _bg.match(/\d+/g);
-    var dark  = (_rgb && parseInt(_rgb[0]) < 100)
-             || document.documentElement.getAttribute('data-bs-theme') === 'dark';
-
-    var chartLabels   = <?= json_encode($chart_labels) ?>;
-    var chartDatasets = <?= json_encode(array_values($chart_datasets)) ?>;
-
-    var ec = echarts.init(hc, dark ? 'dark' : null, { renderer: 'svg' });
-    ec.setOption({
-        backgroundColor: 'transparent',
-        tooltip: {
-            trigger: 'axis',
-            formatter: function(params) {
-                var s = '<b>' + params[0].axisValue + '</b><br/>';
-                params.forEach(function(p) {
-                    if (p.value === null || p.value === undefined) return;
-                    s += '<span style="display:inline-block;width:10px;height:10px;'
-                       + 'border-radius:50%;background:' + p.color
-                       + ';margin-right:5px;"></span>'
-                       + p.seriesName + ': ' + p.value + '%<br/>';
-                });
-                return s;
-            }
-        },
-        legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 11 } },
-        grid: { top: 12, right: 16, bottom: 40, left: 48, containLabel: false },
-        xAxis: {
-            type: 'category',
-            data: chartLabels,
-            axisLabel: { fontSize: 11 },
-            axisLine: { lineStyle: { opacity: .3 } },
-            splitLine: { show: false }
-        },
-        yAxis: {
-            type: 'value', min: 0, max: 100,
-            axisLabel: { formatter: '{value}%', fontSize: 11 },
-            splitLine: { lineStyle: { opacity: .15 } }
-        },
-        series: chartDatasets.map(function(ds) {
-            return {
-                name: ds.label, type: 'line', data: ds.data,
-                smooth: true, connectNulls: true, symbolSize: 4,
-                lineStyle: { color: ds.borderColor, width: 2 },
-                itemStyle: { color: ds.borderColor },
-                areaStyle: { color: ds.borderColor, opacity: .08 }
-            };
-        })
-    });
-    window.addEventListener('resize', function() { ec.resize(); });
-})();
-</script>
-<?php endif; ?>
-
-<script>
-(function () {
-    var tbl = document.getElementById('gdms-device-table');
-    if (!tbl) return;
-    var tbody   = tbl.querySelector('tbody');
-    var resetBtn = document.getElementById('gdms-sort-reset');
-    var sortCol = null;
-    var sortAsc = true;
-    var numCols = ['type', 'status', 'clients', 'avail', 'sla'];
-
-    function applySort(col, asc) {
-        sortCol = col; sortAsc = asc;
-        tbl.querySelectorAll('th.gdms-sortable .gdms-sort-icon').forEach(function (ic) {
-            ic.textContent = '⇅'; ic.className = 'gdms-sort-icon opacity-40';
-        });
-        var activeTh = tbl.querySelector('th[data-col="' + col + '"]');
-        if (activeTh) {
-            var icon = activeTh.querySelector('.gdms-sort-icon');
-            if (icon) { icon.textContent = asc ? '↑' : '↓'; icon.className = 'gdms-sort-icon'; }
-        }
-        var rows = Array.from(tbody.querySelectorAll('tr[data-original-index]'));
-        rows.sort(function (a, b) {
-            var av = a.dataset[col] || '', bv = b.dataset[col] || '', cmp;
-            cmp = numCols.indexOf(col) !== -1 ? parseFloat(av) - parseFloat(bv) : av.localeCompare(bv);
-            return asc ? cmp : -cmp;
-        });
-        rows.forEach(function (r) { tbody.appendChild(r); });
-        if (resetBtn) resetBtn.style.display = '';
-    }
-
-    // Restore sort from URL on load
-    (function () {
-        var p = new URLSearchParams(location.search);
-        var c = p.get('sort'), d = p.get('dir');
-        if (c && tbl.querySelector('th[data-col="' + c + '"]')) applySort(c, d !== 'desc');
-    })();
-
-    tbl.querySelectorAll('th.gdms-sortable').forEach(function (th) {
-        th.addEventListener('click', function () {
-            var col = th.dataset.col;
-            var asc = sortCol === col ? !sortAsc : true;
-            applySort(col, asc);
-            var url = new URL(location.href);
-            url.searchParams.set('sort', col);
-            url.searchParams.set('dir', asc ? 'asc' : 'desc');
-            history.replaceState(null, '', url);
-        });
-    });
-
-    if (resetBtn) {
-        resetBtn.addEventListener('click', function () {
-            sortCol = null;
-            tbl.querySelectorAll('th.gdms-sortable .gdms-sort-icon').forEach(function (ic) {
-                ic.textContent = '⇅'; ic.className = 'gdms-sort-icon opacity-40';
-            });
-            var rows = Array.from(tbody.querySelectorAll('tr[data-original-index]'));
-            rows.sort(function (a, b) { return +a.dataset.originalIndex - +b.dataset.originalIndex; });
-            rows.forEach(function (r) { tbody.appendChild(r); });
-            resetBtn.style.display = 'none';
-            var url = new URL(location.href);
-            url.searchParams.delete('sort'); url.searchParams.delete('dir');
-            history.replaceState(null, '', url);
-        });
-    }
-})();
-</script>
-
-<?php Html::footer(); ?>

@@ -4,7 +4,6 @@
  */
 class PluginGdmsintegrationMenu extends PluginGdmsintegrationBaseGLPI {
 
-
     public static function getTypeName($nb = 0): string {
         return __('GDMS Integration', 'gdmsintegration');
     }
@@ -13,16 +12,19 @@ class PluginGdmsintegrationMenu extends PluginGdmsintegrationBaseGLPI {
         $menu = [];
 
         if (Session::haveRight('config', READ)) {
+            global $CFG_GLPI;
+            $_web = ($CFG_GLPI['root_doc'] ?? '') . substr(dirname(__DIR__), strlen(GLPI_ROOT));
+
             $menu['title'] = __('GDMS Integration', 'gdmsintegration');
-            $menu['page']  = '/plugins/gdmsintegration/front/dashboard.php';
+            $menu['page']  = $_web . '/front/dashboard.php';
             $menu['icon']  = 'ti ti-network';
 
             $menu['options']['dashboard']['title'] = __('GDMS Dashboard', 'gdmsintegration');
-            $menu['options']['dashboard']['page']  = '/plugins/gdmsintegration/front/dashboard.php';
+            $menu['options']['dashboard']['page']  = $_web . '/front/dashboard.php';
             $menu['options']['dashboard']['icon']  = 'ti ti-dashboard';
 
             $menu['options']['config']['title'] = __('GDMS Configuration', 'gdmsintegration');
-            $menu['options']['config']['page']  = '/plugins/gdmsintegration/front/config.form.php';
+            $menu['options']['config']['page']  = $_web . '/front/config.form.php';
             $menu['options']['config']['icon']  = 'ti ti-settings';
         }
 

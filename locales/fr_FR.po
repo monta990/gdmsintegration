@@ -1255,3 +1255,30 @@ msgstr "Configuration importée. Les identifiants API n'ont pas été modifiés 
 #: front/config.form.php
 msgid "Include API credentials (username, keys, secrets)"
 msgstr "Inclure les identifiants API (utilisateur, clés, secrets)"
+
+#: front/dashboard.php
+msgid "MAC"
+msgstr "MAC"
+
+msgid "Reboot"
+msgstr "Redémarrer"
+
+#: front/dashboard.php
+msgid "Reboot this device?"
+msgstr "Redémarrer cet appareil ?"
+
+#: front/dashboard.php
+msgid "Reboot task created. Device will restart shortly."
+msgstr "Tâche de redémarrage créée. L'appareil va redémarrer sous peu."
+
+#: front/dashboard.php
+msgid "Rebooting…"
+msgstr "Redémarrage en cours…"
+
+#: front/dashboard.php
+msgid "Confirm"
+msgstr "Confirmer"
+
+#: front/dashboard.php
+msgid "Cancel"
+msgstr "Annuler"
