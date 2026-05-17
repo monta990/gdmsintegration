@@ -537,7 +537,6 @@ $js_strings = [
     'portLabel'       => __('Port label',                                                            'gdmsintegration'),
     'unknown'         => __('Unknown',                                                               'gdmsintegration'),
     'officialFw'      => __('Official firmware',                                                     'gdmsintegration'),
-    'betaFw'          => __('Beta firmware',                                                         'gdmsintegration'),
     'gdmsManaged'     => __('GDMS managed',                                                          'gdmsintegration'),
     'gdmsVersionNote' => __('GDMS applies the latest firmware available in its repository. The selected version is informational only.', 'gdmsintegration'),
     'selectVersion'   => __('Select version',                                                        'gdmsintegration'),

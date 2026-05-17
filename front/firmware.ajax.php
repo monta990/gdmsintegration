@@ -8,8 +8,8 @@
  *
  * GET  ?action=check_all
  *      Calls grandstream.com/support/firmware scraper for every device family.
- *      Returns {mac, type, currentVersion, official, beta, hasUpdate} for all devices.
- *      Used by the dashboard firmware modal to show official + beta options.
+ *      Returns {mac, model, currentVersion, official, officialUrl, hasUpdate} for all devices.
+ *      Used by the dashboard firmware modal to show available official updates.
  *
  * POST ?action=upgrade
  *      GWN devices only. Body: {macs: [...], scheduleTimeMs?}
@@ -35,53 +35,28 @@ $config_obj = new PluginGdmsintegrationConfig();
 $config     = $config_obj->getConfigByEntity($entities_id);
 
 // ── MODEL → FIRMWARE PAGE SLUG MAP ───────────────────────────────────────────
-// Maps model prefix (uppercase) to grandstream.com firmware page slug.
-// A model matches if its uppercase name starts with any key in this map.
-// Keys are ordered longest-first so more specific prefixes match first.
-//
-// Rules discovered from grandstream.com/support/firmware:
-//   • UCM630x (x=0/1/2/4/8, A suffix) → ucm6300  (official + beta pages exist)
-//   • UCM62xx → ucm62xx                            (official page only)
-//   • UCM61xx → ucm61xx                            (official page only)
-//   • UCM6510 → ucm6510                            (official page only)
-//   • GCC601x → gcc601x                            (beta page only)
-//   • GCC602x → gcc602x                            (beta page only)
-//   • GRP260x (2601/2602/2603/2604) → grp260x      (beta page only = latest)
-//   • GXV34xx → gxv34xx                            (official + beta pages exist)
-//   • WP8x6 (816/826/836/856) → wp8x6              (beta page only = latest)
-//   • HT8xxV2 (812/813/814/818) → ht8xxv2          (beta page only = latest)
-//   • GWN700x (routers) — firmware from GWN Cloud API, not grandstream.com
-//   • GWN78xx/GSS (switches) — firmware from GWN Cloud API
-//   • Other GWN (APs) — firmware from GWN Cloud API
-//
-// For entries with only a beta page, 'official' field will be null and 'beta'
-// will carry the latest available version (which is the authoritative version
-// for that model family).
+// Maps model prefix (uppercase) to grandstream.com official firmware page slug.
+// Only models with a grandstream.com official firmware page are listed.
+// GWN devices use the GWN Cloud API instead.
 
 function gdmsFirmwareSlug(string $model): ?array {
-    // Returns ['slug' => '...', 'hasOfficialPage' => bool] or null if not supported
     $m = strtoupper($model);
 
-    // GWN devices use GWN Cloud API — not scraped from grandstream.com
     if (preg_match('/^GWN|^GSS/', $m)) return null;
 
     $map = [
         // PBX
-        'UCM6300' => ['slug' => 'ucm6300',  'official' => true,  'beta' => true],
-        'UCM6301' => ['slug' => 'ucm6300',  'official' => true,  'beta' => true],
-        'UCM6302' => ['slug' => 'ucm6300',  'official' => true,  'beta' => true],
-        'UCM6304' => ['slug' => 'ucm6300',  'official' => true,  'beta' => true],
-        'UCM6308' => ['slug' => 'ucm6300',  'official' => true,  'beta' => true],
-        'UCM62'   => ['slug' => 'ucm62xx',  'official' => true,  'beta' => false],
-        'UCM61'   => ['slug' => 'ucm61xx',  'official' => true,  'beta' => false],
-        'UCM6510' => ['slug' => 'ucm6510',  'official' => true,  'beta' => false],
-        'GCC602'  => ['slug' => 'gcc602x',  'official' => false, 'beta' => true],
-        'GCC601'  => ['slug' => 'gcc601x',  'official' => false, 'beta' => true],
+        'UCM6300' => ['slug' => 'ucm6300'],
+        'UCM6301' => ['slug' => 'ucm6300'],
+        'UCM6302' => ['slug' => 'ucm6300'],
+        'UCM6304' => ['slug' => 'ucm6300'],
+        'UCM6308' => ['slug' => 'ucm6300'],
+        'UCM62'   => ['slug' => 'ucm62xx'],
+        'UCM61'   => ['slug' => 'ucm61xx'],
+        'UCM6510' => ['slug' => 'ucm6510'],
         // IP Phones
-        'GRP260'  => ['slug' => 'grp260x',  'official' => true,  'beta' => true],
-        'GXV34'   => ['slug' => 'gxv34xx',  'official' => true,  'beta' => true],
-        'WP8'     => ['slug' => 'wp8x6',    'official' => false, 'beta' => true],
-        'HT8'     => ['slug' => 'ht8xxv2',  'official' => false, 'beta' => true],
+        'GRP260'  => ['slug' => 'grp260x'],
+        'GXV34'   => ['slug' => 'gxv34xx'],
     ];
 
     // Longest-prefix match
@@ -179,7 +154,7 @@ if ($action === 'check_all') {
     if (empty($all)) { echo json_encode([]); return; }
 
     // Cache slug → versions to avoid duplicate HTTP requests for same model family
-    $slug_cache = []; // slug → ['official' => '...', 'beta' => '...']
+    $slug_cache = []; // slug → ['official' => '...', 'officialUrl' => '...']
 
     // GWN official versions from GWN Cloud API (same as check action)
     $gwn_official = [];
@@ -195,10 +170,7 @@ if ($action === 'check_all') {
             foreach ($versions as $v) {
                 $apiMac = strtolower(str_replace(['-',' '], ':', trim($v['mac'] ?? '')));
                 if ($apiMac) {
-                    $gwn_official[$apiMac] = [
-                        'official' => trim($v['lastVersion'] ?? '') ?: null,
-                        'beta'     => null, // GWN Cloud API only returns official
-                    ];
+                    $gwn_official[$apiMac] = trim($v['lastVersion'] ?? '') ?: null;
                 }
             }
         }
@@ -211,17 +183,14 @@ if ($action === 'check_all') {
         $model   = trim($row['model'] ?? '');
         if (!$mac || !$current) continue;
 
-        $official         = null;
-        $beta             = null;
-        $promotedFromBeta = false;
+        $official = null;
+        $beta     = null;
 
         // GWN devices: use GWN Cloud API result
         if (preg_match('/^GWN|^GSS/i', $model)) {
-            $gwn = $gwn_official[$mac] ?? null;
-            $official = $gwn['official'] ?? null;
-            $beta     = null; // GWN Cloud API doesn't expose beta firmware
+            $official = $gwn_official[$mac] ?? null;
         } else {
-            // UC/phone devices: scrape grandstream.com
+            // UC/phone devices: scrape official firmware page only
             $slugInfo = gdmsFirmwareSlug($model);
             if ($slugInfo) {
                 $slug = $slugInfo['slug'];
@@ -230,12 +199,7 @@ if ($action === 'check_all') {
                     PluginGdmsintegrationUtils::debug("Scraped firmware for slug '{$slug}': " . json_encode($slug_cache[$slug]));
                 }
                 $versions = $slug_cache[$slug];
-                // For beta-only families (official=false), promote beta as the upgrade version
-                $promotedFromBeta = !$slugInfo['official'] && $slugInfo['beta'];
-                $official = $slugInfo['official']
-                    ? ($versions['official'] ?? null)
-                    : ($slugInfo['beta'] ? ($versions['beta'] ?? null) : null);
-                $beta     = null; // never shown separately
+                $official = $versions['official'] ?? null;
             }
         }
 
@@ -249,12 +213,8 @@ if ($action === 'check_all') {
             'model'          => $model,
             'currentVersion' => $current,
             'official'       => $official,
-            'officialUrl'    => isset($slugInfo['slug'])
-                ? (($promotedFromBeta ?? false)
-                    ? ($slug_cache[$slugInfo['slug']]['betaUrl']     ?? null)
-                    : ($slug_cache[$slugInfo['slug']]['officialUrl'] ?? null))
-                : null,
-            'beta'           => $beta,
+            'officialUrl'    => isset($slugInfo['slug']) ? ($slug_cache[$slugInfo['slug']]['officialUrl'] ?? null) : null,
+            'beta'           => null,
             'betaUrl'        => null,
             'hasUpdate'      => $hasUpdate,
             'network_id'     => (int)($row['network_id'] ?? 0),
