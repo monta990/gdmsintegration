@@ -229,17 +229,13 @@ An amber **⬆** icon appears next to the firmware version when an update is ava
 - Current version installed on the device.
 - Available versions with radio buttons (hidden when no version data is available):
   - **Official firmware** (green badge) — stable release.
-  - **Beta firmware** (yellow badge) — shown only when the scraper detects an active beta; disappears automatically when Grandstream removes the beta release.
 - Reboot warning (the device will restart during the upgrade).
 - Two action buttons:
   - **Apply now (ASAP)** — sends the upgrade command immediately.
     - GWN devices: calls GWN Cloud `/upgrade/add`.
-    - GDMS UC devices (UCM/GCC/GRP/WP/HT): creates a GDMS `task/add` (taskType 3) with a direct Grandstream CDN URL derived from the device model (e.g. `firmware.grandstream.com/grp2600fw.bin` for GRP2600–GRP2604). Beta selection passes the scraped URL instead.
+    - GDMS UC devices (UCM/GCC/GRP/WP/HT): creates a GDMS `task/add` (taskType 3) with a direct Grandstream CDN URL derived from the device model (e.g. `firmware.grandstream.com/grp2600fw.bin` for GRP2600–GRP2604).
   - **Schedule update** — date/time picker pre-filled to now +5 min; value sent as milliseconds epoch.
 - Success or error shown inline without closing the modal. CSRF token refreshed between requests.
-
-> GWN devices do not expose beta firmware via the GWN Cloud API — only the official stable version is available for them.
-
 
 ---
 
