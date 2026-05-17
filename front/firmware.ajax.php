@@ -230,14 +230,12 @@ if ($action === 'check_all') {
                 }
                 $versions = $slug_cache[$slug];
                 $official = $slugInfo['official'] ? ($versions['official'] ?? null) : null;
-                $beta     = $slugInfo['beta']     ? ($versions['beta']     ?? null) : null;
+                $beta     = null; // beta upgrades not supported
             }
         }
 
         // Determine if an update is available
-        $hasUpdate = false;
-        if ($official && version_compare($official, $current, '>')) $hasUpdate = true;
-        if ($beta     && version_compare($beta,     $current, '>')) $hasUpdate = true;
+        $hasUpdate = $official !== null && version_compare($official, $current, '>');
 
         PluginGdmsintegrationUtils::debug("FW_ALL {$mac} ({$model}): current={$current} official=" . ($official ?? 'n/a') . " beta=" . ($beta ?? 'n/a') . " hasUpdate=" . ($hasUpdate?'YES':'no'));
 
