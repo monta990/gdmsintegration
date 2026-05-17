@@ -13,7 +13,7 @@ class PluginGdmsintegrationMenu extends PluginGdmsintegrationBaseGLPI {
 
         if (Session::haveRight('config', READ)) {
             global $CFG_GLPI;
-            $_web = ($CFG_GLPI['root_doc'] ?? '') . substr(dirname(__DIR__), strlen(GLPI_ROOT));
+            $_web = ($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration';
 
             $menu['title'] = __('GDMS Integration', 'gdmsintegration');
             $menu['page']  = $_web . '/front/dashboard.php';

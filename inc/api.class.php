@@ -947,9 +947,10 @@ class PluginGdmsintegrationAPI {
         $clientId = $tokenData['client_id']    ?? ($config['client_id'] ?? '');
         $secret   = $config['client_secret'] ?? '';
 
+        $glpiVer = 'GLPI' . ((int) explode('.', GLPI_VERSION)[0]);
         $ts0     = (int)(microtime(true) * 1000);
         $payload = [
-            'taskName'  => 'GLPI_UPG_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts0,
+            'taskName'  => $glpiVer . '_UPG_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts0,
             'taskType'  => 3,
             'macList'   => [$mac],
             'execType'  => $scheduleMs > 0 ? 2 : 1,
@@ -994,9 +995,10 @@ class PluginGdmsintegrationAPI {
         $clientId = $tokenData['client_id']    ?? ($config['client_id'] ?? '');
         $secret   = $config['client_secret'] ?? '';
 
+        $glpiVer = 'GLPI' . ((int) explode('.', GLPI_VERSION)[0]);
         $ts_r    = (int)(microtime(true) * 1000);
         $payload = [
-            'taskName' => 'GLPI_RBT_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts_r,
+            'taskName' => $glpiVer . '_RBT_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts_r,
             'taskType' => 1,
             'macList'  => [$mac],
             'execType' => 1,

@@ -239,7 +239,7 @@ $tickets_switch = (int)($cur['tickets_switch'] ?? 1);
 $tickets_ap     = (int)($cur['tickets_ap']     ?? 1);
 $tickets_pbx    = (int)($cur['tickets_pbx']    ?? 1);
 
-$_plugin_web = ($CFG_GLPI['root_doc'] ?? '') . '/' . basename(dirname(__DIR__, 2)) . '/gdmsintegration';
+$_plugin_web = ($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration';
 $webhook_url = rtrim($CFG_GLPI['url_base'] ?? '', '/') . $_plugin_web . '/front/webhook.php?entities_id=' . $entities_id;
 
 Html::header(

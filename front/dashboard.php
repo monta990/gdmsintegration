@@ -51,7 +51,7 @@ if (!empty($_SESSION['glpilanguage'])) {
     $_fp_region = strtoupper($_fp_parts[1] ?? '');
 }
 
-$_plugin_web = ($CFG_GLPI['root_doc'] ?? '') . '/' . basename(dirname(__DIR__, 2)) . '/gdmsintegration';
+$_plugin_web = ($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration';
 
 if (!$is_configured) {
     echo PluginGdmsintegrationTwig::get()->render('dashboard.html.twig', [
