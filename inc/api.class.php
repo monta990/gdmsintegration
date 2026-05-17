@@ -949,10 +949,11 @@ class PluginGdmsintegrationAPI {
 
         $ts0     = (int)(microtime(true) * 1000);
         $payload = [
-            'taskName' => 'GLPI_UPG_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts0,
-            'taskType' => 3,
-            'macList'  => [$mac],
-            'execType' => $scheduleMs > 0 ? 2 : 1,
+            'taskName'  => 'GLPI_UPG_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts0,
+            'taskType'  => 3,
+            'macList'   => [$mac],
+            'execType'  => $scheduleMs > 0 ? 2 : 1,
+            'fwVersion' => $version,
         ];
         if ($downloadUrl !== '') {
             $payload['firmwareDownloadUrl'] = $downloadUrl;
