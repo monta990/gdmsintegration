@@ -1019,12 +1019,12 @@ class PluginGdmsintegrationAPI {
 
     // -----------------------------------------------------------------------
     // Grandstream firmware page scraper
-    // Returns ['official' => 'x.x.x.x', 'beta' => 'x.x.x.x'|null]
-    // $slug — URL slug e.g. 'ucm6300', 'grp260x', 'gwn7001-gwn7002-gwn7003'
+    // Returns ['official' => 'x.x.x.x'|null, 'officialUrl' => '...'|null]
+    // $slug — URL slug e.g. 'ucm6300', 'grp260x'
     // -----------------------------------------------------------------------
     public static function scrapeFirmwareVersions(string $slug): array {
         $base   = 'https://www.grandstream.com/support/firmware/';
-        $result = ['official' => null, 'officialUrl' => null, 'beta' => null, 'betaUrl' => null];
+        $result = ['official' => null, 'officialUrl' => null];
 
         $html = self::curlGet($base . $slug . '-official-firmware');
         if ($html && preg_match('/(\d+\.\d+\.\d+\.\d+)/', $html, $m)) {
@@ -1032,15 +1032,6 @@ class PluginGdmsintegrationAPI {
             if (preg_match('/href=["\']([^"\']+\.(?:zip|bin))["\']/', $html, $um)) {
                 $fn = preg_replace('/fw[\d.]+\.bin$/i', 'fw.bin', basename($um[1]));
                 $result['officialUrl'] = 'https://firmware.grandstream.com/' . $fn;
-            }
-        }
-
-        $html = self::curlGet($base . $slug . '-beta-firmware');
-        if ($html && preg_match('/(\d+\.\d+\.\d+\.\d+)/', $html, $m)) {
-            $result['beta'] = $m[1];
-            if (preg_match('/href=["\']([^"\']+\.(?:zip|bin))["\']/', $html, $um)) {
-                $fn = preg_replace('/fw[\d.]+\.bin$/i', 'fw.bin', basename($um[1]));
-                $result['betaUrl'] = 'https://firmware.grandstream.com/BETA/' . $fn;
             }
         }
 

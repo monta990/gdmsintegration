@@ -545,9 +545,7 @@
         var isGwn   = info.isGwn || /^GWN|^GSS/i.test(model);
         var official    = info.official    || null;
         var officialUrl = info.officialUrl || '';
-        var beta        = info.beta        || null;
-        var betaUrl     = info.betaUrl     || '';
-        var latestFw = info.latestVersion || official || beta || null;
+        var latestFw = info.latestVersion || official || null;
 
         var body     = document.getElementById('gdmsFwModalBody');
         var schedBtn = document.getElementById('gdmsFwScheduleBtn');
@@ -566,7 +564,7 @@
               + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
               + '</label></td></tr>';
         }
-        if (!official && !beta && latestFw) {
+        if (!official && latestFw) {
             versionRows += '<tr><td><code class="text-warning">' + esc(latestFw) + '</code>'
               + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span></td></tr>';
         }
