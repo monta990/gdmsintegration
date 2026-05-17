@@ -574,7 +574,7 @@
               + '</label></td></tr>';
         } else if (beta && beta !== official && !isGwn) {
             versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
-              + '<input type="radio" name="gdmsFwVersion" value="' + esc(beta) + '" data-url="' + esc(betaUrl) + '" class="form-check-input mt-0" checked>'
+              + '<input type="radio" name="gdmsFwVersion" value="' + esc(beta) + '" data-url="' + esc(betaUrl) + '" class="form-check-input mt-0"' + (!official ? ' checked' : '') + '>'
               + '<code class="text-warning">' + esc(beta) + '</code>'
               + ' <span class="badge ms-1" style="background:var(--bs-primary,#006eca);color:#fff;">' + STR.gdmsManaged + '</span>'
               + '</label></td></tr>';
