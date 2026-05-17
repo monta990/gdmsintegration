@@ -8,14 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - **Firmware scheduler date/time picker did not update the field after selection** — `altInput: true` combined with `wrap: true` caused flatpickr to insert a hidden secondary input inside the Bootstrap `btn-group`, leaving the visible field blank after picking a date or time. Removed `altInput`/`altFormat`; the original `data-input` field now updates directly with `d/m/Y H:i` format. Schedule submission is unaffected (reads `selectedDates[0]`) - BETA - THIS FEATURE MAY FAIL.
 - **GWN device disappears intermittently** — when the GWN Cloud ap/list request for one network timed out, the plugin treated that network as having zero devices and deleted their state records, causing devices to vanish from the dashboard until the next successful sync. `gwnGetDevices()` now returns `false` on any per-network failure, which triggers the existing removal guard so no state is deleted during a partial API failure.
-- **Beta firmware URL sent to GDMS when user selects official** — official radio button now passes an empty `data-url` so the PHP backend always constructs the model CDN URL for official upgrades; the scraped beta URL is only passed when the user explicitly selects the beta radio -BETA - THIS FEATURE MAY FAIL.
 - **Restart devices** — an immediate execution task is scheduled to restart the device. -BETA - THIS FEATURE MAY FAIL.
 - **JSON Export** — now export and import correctly.
 
 
 ### Improved
 - **Twig + Vue 3 frontend** — `front/dashboard.php` and `front/config.form.php` converted to standalone Twig templates (`templates/dashboard.html.twig`, `templates/config_form.html.twig`). PHP data layer and HTML presentation fully separated. Vue 3 filter bar replaces inline JS DOM manipulation. Compatible with GLPI 11 and GLPI 12.
-- **Beta firmware shown only when available** — the beta radio button appears only when the scraper detects a live beta firmware page; when Grandstream removes the beta release the option disappears automatically without any code change.
 
 ---
 

@@ -561,7 +561,7 @@
         var versionRows = '';
         if (official) {
             versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
-              + '<input type="radio" name="gdmsFwVersion" value="' + esc(official) + '" data-url="" class="form-check-input mt-0"' + (official ? ' checked' : '') + '>'
+              + '<input type="radio" name="gdmsFwVersion" value="' + esc(official) + '" data-url="' + esc(officialUrl || '') + '" class="form-check-input mt-0"' + (official ? ' checked' : '') + '>'
               + '<code class="text-warning">' + esc(official) + '</code>'
               + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
               + '</label></td></tr>';
