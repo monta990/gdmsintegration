@@ -566,19 +566,6 @@
               + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
               + '</label></td></tr>';
         }
-        if (beta && beta !== official && isGwn) {
-            versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
-              + '<input type="radio" name="gdmsFwVersion" value="' + esc(beta) + '" data-url="' + esc(betaUrl) + '" class="form-check-input mt-0"' + (!official ? ' checked' : '') + '>'
-              + '<code class="fw-semibold" style="color:var(--bs-warning-text,var(--bs-warning,#fd7e14));">' + esc(beta) + '</code>'
-              + ' <span class="badge bg-warning text-dark ms-1">' + STR.betaFw + '</span>'
-              + '</label></td></tr>';
-        } else if (beta && beta !== official && !isGwn) {
-            versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
-              + '<input type="radio" name="gdmsFwVersion" value="' + esc(beta) + '" data-url="' + esc(betaUrl) + '" class="form-check-input mt-0"' + (!official ? ' checked' : '') + '>'
-              + '<code class="text-warning">' + esc(beta) + '</code>'
-              + ' <span class="badge ms-1" style="background:var(--bs-primary,#006eca);color:#fff;">' + STR.gdmsManaged + '</span>'
-              + '</label></td></tr>';
-        }
         if (!official && !beta && latestFw) {
             versionRows += '<tr><td><code class="text-warning">' + esc(latestFw) + '</code>'
               + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span></td></tr>';
