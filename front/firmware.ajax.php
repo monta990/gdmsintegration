@@ -229,8 +229,11 @@ if ($action === 'check_all') {
                     PluginGdmsintegrationUtils::debug("Scraped firmware for slug '{$slug}': " . json_encode($slug_cache[$slug]));
                 }
                 $versions = $slug_cache[$slug];
-                $official = $slugInfo['official'] ? ($versions['official'] ?? null) : null;
-                $beta     = null; // beta upgrades not supported
+                // For beta-only families (official=false), promote beta as the upgrade version
+                $official = $slugInfo['official']
+                    ? ($versions['official'] ?? null)
+                    : ($slugInfo['beta'] ? ($versions['beta'] ?? null) : null);
+                $beta     = null; // never shown separately
             }
         }
 
