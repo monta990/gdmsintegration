@@ -320,9 +320,9 @@ if ($action === 'upgrade_gdms') {
         $mac = implode(':', str_split($mac, 2));
     }
 
-    // If no URL (official radio), construct from device model; beta radio sends scraped URL
-    $state_obj = new PluginGdmsintegrationDevice();
+    // Construct CDN URL from model when not supplied by caller
     if ($downloadUrl === '') {
+        $state_obj = new PluginGdmsintegrationDevice();
         $rows   = $state_obj->find(['mac' => strtolower($mac)]);
         $devRow = !empty($rows) ? reset($rows) : null;
         if ($devRow && !empty($devRow['model'])) {

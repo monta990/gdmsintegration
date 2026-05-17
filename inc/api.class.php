@@ -131,9 +131,7 @@ class PluginGdmsintegrationAPI {
             $toSign   = '&' . $sortedStr . '&';
         }
 
-        PluginGdmsintegrationUtils::debug("GDMS sign input: {$toSign}");
         $sig = hash('sha256', $toSign);
-        PluginGdmsintegrationUtils::debug("GDMS signature:  {$sig}");
         return $sig;
     }
 
@@ -267,9 +265,7 @@ class PluginGdmsintegrationAPI {
             $toSign   = '&' . $paramStr . '&';
         }
 
-        PluginGdmsintegrationUtils::debug("GWN sign input:  {$toSign}");
         $sig = hash('sha256', $toSign);
-        PluginGdmsintegrationUtils::debug("GWN signature:   {$sig}");
         return $sig;
     }
 
@@ -920,9 +916,7 @@ class PluginGdmsintegrationAPI {
                   . '&client_secret=' . $clientSecret
                   . '&timestamp='     . $timestamp
                   . '&' . $bodyHash . '&';
-        PluginGdmsintegrationUtils::debug("GDMS task sign input: {$toSign}");
         $sig = hash('sha256', $toSign);
-        PluginGdmsintegrationUtils::debug("GDMS task signature:  {$sig}");
         return $sig;
     }
 
