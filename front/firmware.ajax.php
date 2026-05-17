@@ -211,8 +211,9 @@ if ($action === 'check_all') {
         $model   = trim($row['model'] ?? '');
         if (!$mac || !$current) continue;
 
-        $official = null;
-        $beta     = null;
+        $official         = null;
+        $beta             = null;
+        $promotedFromBeta = false;
 
         // GWN devices: use GWN Cloud API result
         if (preg_match('/^GWN|^GSS/i', $model)) {
@@ -230,6 +231,7 @@ if ($action === 'check_all') {
                 }
                 $versions = $slug_cache[$slug];
                 // For beta-only families (official=false), promote beta as the upgrade version
+                $promotedFromBeta = !$slugInfo['official'] && $slugInfo['beta'];
                 $official = $slugInfo['official']
                     ? ($versions['official'] ?? null)
                     : ($slugInfo['beta'] ? ($versions['beta'] ?? null) : null);
@@ -247,9 +249,13 @@ if ($action === 'check_all') {
             'model'          => $model,
             'currentVersion' => $current,
             'official'       => $official,
-            'officialUrl'    => isset($slugInfo['slug']) ? ($slug_cache[$slugInfo['slug']]['officialUrl'] ?? null) : null,
+            'officialUrl'    => isset($slugInfo['slug'])
+                ? (($promotedFromBeta ?? false)
+                    ? ($slug_cache[$slugInfo['slug']]['betaUrl']     ?? null)
+                    : ($slug_cache[$slugInfo['slug']]['officialUrl'] ?? null))
+                : null,
             'beta'           => $beta,
-            'betaUrl'        => isset($slugInfo['slug']) ? ($slug_cache[$slugInfo['slug']]['betaUrl']     ?? null) : null,
+            'betaUrl'        => null,
             'hasUpdate'      => $hasUpdate,
             'network_id'     => (int)($row['network_id'] ?? 0),
             'isGwn'          => (bool)preg_match('/^GWN|^GSS/i', $model),
