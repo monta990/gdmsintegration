@@ -570,6 +570,10 @@ msgstr "Officiel"
 msgid "Official firmware"
 msgstr "Firmware officiel"
 
+#: front/dashboard.php:540
+msgid "Latest available"
+msgstr "Dernière disponible"
+
 #: front/dashboard.php:375 front/dashboard.php:383 front/dashboard.php:391
 #: front/dashboard.php:399 front/dashboard.php:670
 msgid "Offline"
@@ -1262,6 +1266,30 @@ msgstr "MAC"
 
 msgid "Reboot"
 msgstr "Redémarrer"
+
+#: front/dashboard.php
+msgid "Yes, reboot now"
+msgstr "Oui, redémarrer maintenant"
+
+#: front/dashboard.php
+msgid "Factory Reset"
+msgstr "Réinitialisation d'usine"
+
+#: front/dashboard.php
+msgid "WARNING: Factory reset will permanently erase ALL device configuration, SIP accounts, contacts, and customizations. The device will restart and return to factory defaults. This action cannot be undone."
+msgstr "AVERTISSEMENT : La réinitialisation d'usine effacera définitivement TOUTE la configuration de l'appareil, les comptes SIP, les contacts et les personnalisations. L'appareil redémarrera et reviendra aux paramètres d'usine. Cette action est irréversible."
+
+#: front/dashboard.php
+msgid "I understand — Reset now"
+msgstr "Je comprends — Réinitialiser maintenant"
+
+#: front/dashboard.php
+msgid "Factory reset task created. Device will restart and restore factory defaults."
+msgstr "Tâche de réinitialisation créée. L'appareil va redémarrer et restaurer les paramètres d'usine."
+
+#: front/dashboard.php
+msgid "Resetting…"
+msgstr "Réinitialisation…"
 
 #: front/dashboard.php
 msgid "Reboot this device?"

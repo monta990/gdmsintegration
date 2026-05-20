@@ -21,7 +21,7 @@
  */
 
 $_action_early = $_GET['action'] ?? 'check';
-if (in_array($_action_early, ['upgrade', 'upgrade_gdms', 'reboot_gdms'], true)) {
+if (in_array($_action_early, ['upgrade', 'upgrade_gdms', 'reboot_gdms', 'factory_reset_gdms'], true)) {
     Session::checkRight('config', UPDATE);
 } else {
     Session::checkRight('config', READ);
@@ -34,6 +34,40 @@ $action      = $_GET['action'] ?? 'check';
 $config_obj = new PluginGdmsintegrationConfig();
 $config     = $config_obj->getConfigByEntity($entities_id);
 
+// ── CDN URL HELPER ───────────────────────────────────────────────────────────
+// Returns https://firmware.grandstream.com/{base}fw.bin for any UC/phone model.
+// GWN/GSS devices return ''.
+function gdmsCdnUrl(string $model): string {
+    $m = strtoupper(preg_replace('/[\s\-_]+/', '', trim($model)));
+    if (preg_match('/^GWN|^GSS/', $m)) return '';
+    $isV2 = str_contains($m, 'V2');
+    if     (str_starts_with($m, 'GRP260'))           $b = 'grp2600';
+    elseif (str_starts_with($m, 'GRP26'))            $b = 'grp2610';
+    elseif ($m === 'HT841' || $m === 'HT881')        $b = 'ht8x1';
+    elseif ($isV2 && preg_match('/^HT80[12]/', $m))  $b = 'ht80xv2';
+    elseif ($isV2 && preg_match('/^HT81[248]/', $m)) $b = 'ht81xv2';
+    elseif ($m === 'HT801')                          $b = 'ht801';
+    elseif ($m === 'HT802')                          $b = 'ht802';
+    elseif (preg_match('/^HT81[24]/', $m))           $b = 'ht81x';
+    elseif ($m === 'HT818')                          $b = 'ht818';
+    elseif ($m === 'HT813')                          $b = 'ht813';
+    elseif ($m === 'GAC2570')                        $b = 'gac2570';
+    elseif ($m === 'GAC2500')                        $b = 'gac2500';
+    elseif ($m === 'GBX20')                          $b = 'gbx20';
+    elseif ($m === 'GSC3574' || $m === 'GSC3575')    $b = 'gsc3575';
+    elseif ($m === 'GSC3570')                        $b = 'gsc3570';
+    elseif (str_starts_with($m, 'GSC3518'))          $b = 'gsc3518';
+    elseif ($m === 'GSC3505')                        $b = 'gsc3505';
+    elseif ($m === 'GSC3510')                        $b = 'gsc3510';
+    elseif ($m === 'GSC3506' || $m === 'GSC3516')    $b = 'gsc35x6';
+    elseif ($m === 'GDS3702')                        $b = 'gds3702';
+    elseif ($m === 'GDS3705')                        $b = 'gds3705';
+    elseif ($m === 'GDS3710' || $m === 'GDS3712')    $b = 'gds37xx_';
+    elseif (preg_match('/^GDS372[567]/', $m))        $b = 'gds372x';
+    else                                             $b = strtolower($m);
+    return 'https://firmware.grandstream.com/' . $b . 'fw.bin';
+}
+
 // ── MODEL → FIRMWARE PAGE SLUG MAP ───────────────────────────────────────────
 // Maps model prefix (uppercase) to grandstream.com official firmware page slug.
 // Only models with a grandstream.com official firmware page are listed.
@@ -44,19 +78,19 @@ function gdmsFirmwareSlug(string $model): ?array {
 
     if (preg_match('/^GWN|^GSS/', $m)) return null;
 
+    // Only models with a working grandstream.com firmware page (version scraping).
+    // Phones use CDN URL only — no firmware page exists to scrape.
     $map = [
-        // PBX
-        'UCM6300' => ['slug' => 'ucm6300'],
-        'UCM6301' => ['slug' => 'ucm6300'],
-        'UCM6302' => ['slug' => 'ucm6300'],
-        'UCM6304' => ['slug' => 'ucm6300'],
-        'UCM6308' => ['slug' => 'ucm6300'],
-        'UCM62'   => ['slug' => 'ucm62xx'],
-        'UCM61'   => ['slug' => 'ucm61xx'],
-        'UCM6510' => ['slug' => 'ucm6510'],
-        // IP Phones
-        'GRP260'  => ['slug' => 'grp260x'],
-        'GXV34'   => ['slug' => 'gxv34xx'],
+        'UCM6300'  => ['slug' => 'ucm6300',  'official' => true],
+        'UCM6301'  => ['slug' => 'ucm6300',  'official' => true],
+        'UCM6302'  => ['slug' => 'ucm6300',  'official' => true],
+        'UCM6304'  => ['slug' => 'ucm6300',  'official' => true],
+        'UCM6300A' => ['slug' => 'ucm6300', 'official' => true],
+        'UCM6302A' => ['slug' => 'ucm6300', 'official' => true],
+        'UCM6304A' => ['slug' => 'ucm6300', 'official' => true],
+        'UCM6308A' => ['slug' => 'ucm6300', 'official' => true],
+        'UCM6308'  => ['slug' => 'ucm6300',  'official' => true],
+        'UCM6510'  => ['slug' => 'ucm6510',  'official' => true],
     ];
 
     // Longest-prefix match
@@ -165,8 +199,8 @@ if ($action === 'check_all') {
             $nid = (int)($row['network_id'] ?? 0);
             if ($mac && $nid) $by_network[$nid][] = $mac;
         }
-        foreach ($by_network as $network_id => $macs) {
-            $versions = PluginGdmsintegrationAPI::gwnGetFirmwareVersions($config, $network_id);
+        $allVersions = PluginGdmsintegrationAPI::gwnGetFirmwareVersionsBatch($config, array_keys($by_network));
+        foreach ($allVersions as $versions) {
             foreach ($versions as $v) {
                 $apiMac = strtolower(str_replace(['-',' '], ':', trim($v['mac'] ?? '')));
                 if ($apiMac) {
@@ -185,6 +219,7 @@ if ($action === 'check_all') {
 
         $official = null;
         $beta     = null;
+        $slugInfo = null;
 
         // GWN devices: use GWN Cloud API result
         if (preg_match('/^GWN|^GSS/i', $model)) {
@@ -192,7 +227,7 @@ if ($action === 'check_all') {
         } else {
             // UC/phone devices: scrape official firmware page only
             $slugInfo = gdmsFirmwareSlug($model);
-            if ($slugInfo) {
+            if ($slugInfo && !empty($slugInfo['official'])) {
                 $slug = $slugInfo['slug'];
                 if (!isset($slug_cache[$slug])) {
                     $slug_cache[$slug] = PluginGdmsintegrationAPI::scrapeFirmwareVersions($slug);
@@ -208,14 +243,16 @@ if ($action === 'check_all') {
 
         PluginGdmsintegrationUtils::debug("FW_ALL {$mac} ({$model}): current={$current} official=" . ($official ?? 'n/a') . " beta=" . ($beta ?? 'n/a') . " hasUpdate=" . ($hasUpdate?'YES':'no'));
 
+        // officialUrl: scraped URL for UCM, else CDN URL for all UC/phone models
+        $scrapedUrl = isset($slugInfo['slug']) ? ($slug_cache[$slugInfo['slug']]['officialUrl'] ?? null) : null;
+        $officialUrl = $scrapedUrl ?: (preg_match('/^GWN|^GSS/i', $model) ? null : gdmsCdnUrl($model)) ?: null;
+
         $result[] = [
             'mac'            => $mac,
             'model'          => $model,
             'currentVersion' => $current,
             'official'       => $official,
-            'officialUrl'    => isset($slugInfo['slug']) ? ($slug_cache[$slugInfo['slug']]['officialUrl'] ?? null) : null,
-            'beta'           => null,
-            'betaUrl'        => null,
+            'officialUrl'    => $officialUrl,
             'hasUpdate'      => $hasUpdate,
             'network_id'     => (int)($row['network_id'] ?? 0),
             'isGwn'          => (bool)preg_match('/^GWN|^GSS/i', $model),
@@ -276,8 +313,8 @@ if ($action === 'upgrade_gdms') {
     $mac     = strtoupper(trim($mac));
     $version = trim($version);
 
-    if (!$mac || !$version) {
-        echo json_encode(['error' => 'mac and version are required']);
+    if (!$mac || (!$version && !$downloadUrl)) {
+        echo json_encode(['error' => 'mac and version (or downloadUrl) required']);
         return;
     }
 
@@ -293,33 +330,7 @@ if ($action === 'upgrade_gdms') {
         $rows   = $state_obj->find(['mac' => strtolower($mac)]);
         $devRow = !empty($rows) ? reset($rows) : null;
         if ($devRow && !empty($devRow['model'])) {
-            $m    = strtoupper(preg_replace('/[\s\-_]+/', '', trim($devRow['model'])));
-            $isV2 = str_contains($m, 'V2');
-            if     (str_starts_with($m, 'GRP260'))           $cdnBase = 'grp2600';
-            elseif (str_starts_with($m, 'GRP26'))            $cdnBase = 'grp2610';
-            elseif ($m === 'HT841' || $m === 'HT881')        $cdnBase = 'ht8x1';
-            elseif ($isV2 && preg_match('/^HT80[12]/', $m))  $cdnBase = 'ht80xv2';
-            elseif ($isV2 && preg_match('/^HT81[248]/', $m)) $cdnBase = 'ht81xv2';
-            elseif ($m === 'HT801')                          $cdnBase = 'ht801';
-            elseif ($m === 'HT802')                          $cdnBase = 'ht802';
-            elseif (preg_match('/^HT81[24]/', $m))           $cdnBase = 'ht81x';
-            elseif ($m === 'HT818')                          $cdnBase = 'ht818';
-            elseif ($m === 'HT813')                          $cdnBase = 'ht813';
-            elseif ($m === 'GAC2570')                        $cdnBase = 'gac2570';
-            elseif ($m === 'GAC2500')                        $cdnBase = 'gac2500';
-            elseif ($m === 'GBX20')                          $cdnBase = 'gbx20';
-            elseif ($m === 'GSC3574' || $m === 'GSC3575')    $cdnBase = 'gsc3575';
-            elseif ($m === 'GSC3570')                        $cdnBase = 'gsc3570';
-            elseif (str_starts_with($m, 'GSC3518'))          $cdnBase = 'gsc3518';
-            elseif ($m === 'GSC3505')                        $cdnBase = 'gsc3505';
-            elseif ($m === 'GSC3510')                        $cdnBase = 'gsc3510';
-            elseif ($m === 'GSC3506' || $m === 'GSC3516')    $cdnBase = 'gsc35x6';
-            elseif ($m === 'GDS3702')                        $cdnBase = 'gds3702';
-            elseif ($m === 'GDS3705')                        $cdnBase = 'gds3705';
-            elseif ($m === 'GDS3710' || $m === 'GDS3712')    $cdnBase = 'gds37xx_';
-            elseif (preg_match('/^GDS372[567]/', $m))        $cdnBase = 'gds372x';
-            else                                             $cdnBase = strtolower($m);
-            $downloadUrl = 'https://firmware.grandstream.com/' . $cdnBase . 'fw.bin';
+            $downloadUrl = gdmsCdnUrl($devRow['model']);
         }
     }
 
@@ -348,6 +359,26 @@ if ($action === 'reboot_gdms') {
     $result = PluginGdmsintegrationAPI::gdmsCreateRebootTask($config, $mac);
     if (!empty($result['error'])) {
         PluginGdmsintegrationUtils::log("Reboot (GDMS task) FAILED — " . $result['error']);
+    }
+    echo json_encode($result);
+    return;
+}
+
+// ── FACTORY_RESET_GDMS — UC devices via task/add taskType=2 ───────────────────
+if ($action === 'factory_reset_gdms') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['error' => 'POST required']); return; }
+    if (empty($config['client_id']) || empty($config['client_secret'])) { echo json_encode(['error' => 'GDMS UC not configured']); return; }
+
+    $mac = strtoupper(trim($_POST['mac'] ?? ''));
+    if (!$mac) { echo json_encode(['error' => 'mac is required']); return; }
+    if (!str_contains($mac, ':')) {
+        $mac = implode(':', str_split($mac, 2));
+    }
+
+    PluginGdmsintegrationUtils::log("Factory reset (GDMS task) requested — MAC: {$mac}");
+    $result = PluginGdmsintegrationAPI::gdmsCreateFactoryResetTask($config, $mac);
+    if (!empty($result['error'])) {
+        PluginGdmsintegrationUtils::log("Factory reset (GDMS task) FAILED — " . $result['error']);
     }
     echo json_encode($result);
     return;

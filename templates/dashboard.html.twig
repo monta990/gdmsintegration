@@ -559,14 +559,16 @@
         var versionRows = '';
         if (official) {
             versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
-              + '<input type="radio" name="gdmsFwVersion" value="' + esc(official) + '" data-url="' + esc(officialUrl || '') + '" class="form-check-input mt-0"' + (official ? ' checked' : '') + '>'
+              + '<input type="radio" name="gdmsFwVersion" value="' + esc(official) + '" data-url="' + esc(officialUrl || '') + '" class="form-check-input mt-0" checked>'
               + '<code class="text-warning">' + esc(official) + '</code>'
               + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
               + '</label></td></tr>';
-        }
-        if (!official && latestFw) {
-            versionRows += '<tr><td><code class="text-warning">' + esc(latestFw) + '</code>'
-              + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span></td></tr>';
+        } else if (officialUrl || isGwn) {
+            versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
+              + '<input type="radio" name="gdmsFwVersion" value="" data-url="' + esc(officialUrl || '') + '" class="form-check-input mt-0" checked>'
+              + '<span class="text-warning fw-semibold">' + esc(STR.latestAvail) + '</span>'
+              + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
+              + '</label></td></tr>';
         }
 
         var macUpper  = mac.toUpperCase();
@@ -626,7 +628,7 @@
             fpWrap._fp.set('minDate', new Date(Date.now() + 5 * 60 * 1000));
             fpWrap._fp.clear();
         }
-        var hasVersion = !!(versionRows || latestFw);
+        var hasVersion = !!(versionRows || latestFw || officialUrl);
         schedRow.style.display = hasVersion ? '' : 'none';
         asapBtn.style.display  = hasVersion ? 'inline-block' : 'none';
         schedBtn.style.display = hasVersion ? 'inline-block' : 'none';
@@ -637,7 +639,8 @@
 
         function getSelectedVersion() {
             var radio = body.querySelector('input[name="gdmsFwVersion"]:checked');
-            return radio ? radio.value : (latestFw || '');
+            if (!radio) return (latestFw || current || '');
+            return radio.value || '';
         }
         function getSelectedUrl() {
             var radio = body.querySelector('input[name="gdmsFwVersion"]:checked');
@@ -645,7 +648,8 @@
         }
         function doUpgrade(scheduleMs) {
             var version = getSelectedVersion();
-            if (!version) return;
+            var selUrl  = getSelectedUrl();
+            if (!version && !selUrl) return;
             var activeBtn = scheduleMs > 0 ? schedBtn : asapBtn;
             asapBtn.disabled = true; schedBtn.disabled = true;
             activeBtn.innerHTML = '<i class="ti ti-loader me-1" style="animation:spin .8s linear infinite;display:inline-block;"></i>' + STR.scheduling;
@@ -1144,9 +1148,15 @@
             html += '<dt class="col-sm-5 text-muted fw-normal">' + r[0] + '</dt><dd class="col-sm-7 mb-1">' + r[1] + '</dd>';
         });
         html += '</dl>';
-        html += '<div class="d-flex align-items-center gap-2 border-top pt-2 mt-1">' +
+        html += '<div class="border-top pt-2 mt-1">' +
+            '<div class="alert alert-danger py-2 px-3 mb-2 small"><i class="ti ti-alert-octagon me-1"></i><strong>' + esc(STR.factoryResetBtn) + ':</strong> ' + esc(STR.factoryResetWarning) + '</div>' +
+            '<div class="d-flex justify-content-end mb-2">' +
+            '<button type="button" class="btn btn-danger btn-sm" id="gdmsSipFactoryResetBtn"><i class="ti ti-trash me-1"></i>' + STR.factoryResetBtn + '</button>' +
+            '</div>' +
+            '<div class="d-flex align-items-center gap-2 border-top pt-2">' +
             '<span class="me-auto small"><i class="ti ti-alert-triangle text-warning me-1"></i>' + STR.rebootConfirm + '</span>' +
             '<button type="button" class="btn btn-danger btn-sm" id="gdmsSipRebootBtn"><i class="ti ti-refresh me-1"></i>' + STR.rebootBtn + '</button>' +
+            '</div>' +
             '</div>';
         document.getElementById('gdmsSipModalBody').innerHTML = html;
 
@@ -1157,7 +1167,22 @@
         _rb.disabled = false;
 
         _rb.onclick = function() {
-            if (_rb._rs !== 'idle') return;
+            if (_rb._rs === 'loading') return;
+            if (_rb._rs === 'idle') {
+                _rb._rs = 'confirm';
+                _rb.className = 'btn btn-warning btn-sm';
+                _rb.innerHTML = '<i class="ti ti-alert-triangle me-1"></i>' + esc(STR.rebootConfirmYes);
+                var _t = setTimeout(function() {
+                    if (_rb._rs === 'confirm') {
+                        _rb._rs = 'idle';
+                        _rb.className = 'btn btn-danger btn-sm';
+                        _rb.innerHTML = '<i class="ti ti-refresh me-1"></i>' + STR.rebootBtn;
+                    }
+                }, 4000);
+                _rb._cancelTimer = _t;
+                return;
+            }
+            clearTimeout(_rb._cancelTimer);
             _rb._rs = 'loading';
             _rb.disabled = true;
             _rb.innerHTML = '<i class="ti ti-loader" style="animation:spin .8s linear infinite;display:inline-block;"></i> ' + STR.rebooting;
@@ -1181,13 +1206,57 @@
                 });
         };
 
+        var _fr = document.getElementById('gdmsSipFactoryResetBtn');
+        if (_fr) {
+            _fr._rs = 'idle';
+            _fr.onclick = function() {
+                if (_fr._rs === 'loading') return;
+                if (_fr._rs === 'idle') {
+                    _fr._rs = 'confirm';
+                    _fr.className = 'btn btn-warning btn-sm';
+                    _fr.innerHTML = '<i class="ti ti-alert-triangle me-1"></i>' + esc(STR.factoryResetConfirmYes);
+                    _fr._t = setTimeout(function() {
+                        if (_fr._rs === 'confirm') {
+                            _fr._rs = 'idle';
+                            _fr.className = 'btn btn-danger btn-sm';
+                            _fr.innerHTML = '<i class="ti ti-trash me-1"></i>' + STR.factoryResetBtn;
+                        }
+                    }, 6000);
+                    return;
+                }
+                clearTimeout(_fr._t);
+                _fr._rs = 'loading';
+                _fr.disabled = true;
+                _fr.innerHTML = '<i class="ti ti-loader" style="animation:spin .8s linear infinite;display:inline-block;"></i> ' + STR.factoryResetting;
+                var _csrf2 = typeof window.glpiGetNewCSRFToken === 'function'
+                    ? window.glpiGetNewCSRFToken()
+                    : (document.querySelector('meta[property="glpi:csrf_token"]') || document.createElement('meta')).getAttribute('content') || '';
+                var _fd2 = new FormData(); _fd2.append('mac', mac);
+                fetch(FACTORY_RESET_GDMS_URL, { method:'POST', credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest','X-Glpi-Csrf-Token':_csrf2}, body:_fd2 })
+                    .then(function(r) { return r.json(); })
+                    .then(function(resp) {
+                        _fr._rs = 'idle'; _fr.className = 'btn btn-danger btn-sm';
+                        _fr.innerHTML = '<i class="ti ti-trash me-1"></i>' + STR.factoryResetBtn; _fr.disabled = false;
+                        var badge = document.createElement('div');
+                        badge.className = 'alert ' + (resp.error ? 'alert-danger' : 'alert-success') + ' py-1 px-2 mb-2 small';
+                        badge.textContent = resp.error || STR.factoryResetOk;
+                        document.getElementById('gdmsSipModalBody').prepend(badge);
+                    })
+                    .catch(function() {
+                        _fr._rs = 'idle'; _fr.className = 'btn btn-danger btn-sm';
+                        _fr.innerHTML = '<i class="ti ti-trash me-1"></i>' + STR.factoryResetBtn; _fr.disabled = false;
+                    });
+            };
+        }
+
         var bsSip = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(sipModal) : null;
         if (bsSip) bsSip.show();
         else if (typeof $ !== 'undefined') $(sipModal).modal('show');
     });
 
     // ── Cloud Alerts panel ────────────────────────────────────────────────────
-    var REBOOT_GDMS_URL = '{{ urls.reboot_gdms|raw }}';
+    var REBOOT_GDMS_URL        = '{{ urls.reboot_gdms|raw }}';
+    var FACTORY_RESET_GDMS_URL = '{{ urls.factory_reset_gdms|raw }}';
     var ALERTS_URL  = '{{ urls.alerts|raw }}';
     var alertsBody = document.getElementById('gdms-alerts-body');
     if (alertsBody) {
