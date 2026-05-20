@@ -160,6 +160,7 @@ This dot also appears for ATA devices (HT series) regardless of whether they are
 - Provisioning sync status and last sync error (when present).
 - Scheduled task badge.
 - Restart device - BETA - THIS FEATURE MAY FAIL.
+- Factory Reset — erases all device configuration, SIP accounts, contacts, and customizations; device restarts to factory defaults. Requires two-click confirmation to prevent accidental execution. GDMS UC phones/ATAs only (`taskType=2`). - BETA - THIS FEATURE MAY FAIL.
 
 ---
 

@@ -1017,6 +1017,45 @@ class PluginGdmsintegrationAPI {
         return ['success' => true, 'mac' => $mac];
     }
 
+    // GDMS — Factory reset task for UC devices
+    // POST /oapi/v1.0.0/task/add  taskType=2
+    // -----------------------------------------------------------------------
+    public static function gdmsCreateFactoryResetTask(array $config, string $mac): array {
+        $tokenData = self::gdmsGetToken($config);
+        if (!$tokenData) return ['error' => 'Cannot obtain GDMS token'];
+
+        $token    = $tokenData['access_token'] ?? '';
+        $clientId = $tokenData['client_id']    ?? ($config['client_id'] ?? '');
+        $secret   = $config['client_secret'] ?? '';
+
+        $glpiVer = 'GLPI' . ((int) explode('.', GLPI_VERSION)[0]);
+        $ts_r    = (int)(microtime(true) * 1000);
+        $payload = [
+            'taskName' => $glpiVer . '_RST_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts_r,
+            'taskType' => 2,
+            'macList'  => [$mac],
+            'execType' => 1,
+        ];
+
+        $body = json_encode($payload);
+        $ts   = $ts_r;
+        $sig  = self::gdmsBuildTaskSignature($token, $clientId, $secret, $ts, $body);
+
+        $url = self::GDMS_BASE . '/v1.0.0/task/add'
+             . '?access_token=' . urlencode($token)
+             . '&signature='    . $sig
+             . "&timestamp={$ts}";
+
+        $data = self::curl($url, ['Content-Type: application/json'], $body);
+        if (!is_array($data) || ($data['retCode'] ?? -1) != 0) {
+            $err = $data['msg'] ?? json_encode($data);
+            PluginGdmsintegrationUtils::log("GDMS task/add FACTORY RESET error for {$mac}: {$err}");
+            return ['error' => $err];
+        }
+        PluginGdmsintegrationUtils::log("GDMS factory reset task created for {$mac}");
+        return ['success' => true, 'mac' => $mac];
+    }
+
     // -----------------------------------------------------------------------
     // Grandstream firmware page scraper
     // Returns ['official' => 'x.x.x.x'|null, 'officialUrl' => '...'|null]
@@ -1029,7 +1068,7 @@ class PluginGdmsintegrationAPI {
         $html = self::curlGet($base . $slug . '-official-firmware');
         if ($html && preg_match('/(\d+\.\d+\.\d+\.\d+)/', $html, $m)) {
             $result['official'] = $m[1];
-            if (preg_match('/href=["\']([^"\']+\.(?:zip|bin))["\']/', $html, $um)) {
+            if (preg_match('/href=["\']([^"\']+\.bin)["\']/', $html, $um)) {
                 $fn = preg_replace('/fw[\d.]+\.bin$/i', 'fw.bin', basename($um[1]));
                 $result['officialUrl'] = 'https://firmware.grandstream.com/' . $fn;
             }
@@ -1045,7 +1084,7 @@ class PluginGdmsintegrationAPI {
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => $timeout,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; GLPIPlugin/1.0)',
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; GDMSintegration/1.0)',
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
         ]);

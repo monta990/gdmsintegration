@@ -5,6 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.4.2] — 2026-05-16
 
+### Added
+- **Factory reset for UC phones/ATAs** — the phone SIP detail modal now includes a Factory Reset button (before the Reboot button) with a prominent danger alert explaining the consequences. The button requires two clicks (second click turns yellow "I understand — Reset now", auto-reverts in 6 s) to prevent accidental execution. Calls GDMS `task/add` with `taskType=2`. Requires `config:UPDATE` permission. -BETA - THIS FEATURE MAY FAIL.
+
 ### Fixed
 - **Firmware scheduler date/time picker did not update the field after selection** — `altInput: true` combined with `wrap: true` caused flatpickr to insert a hidden secondary input inside the Bootstrap `btn-group`, leaving the visible field blank after picking a date or time. Removed `altInput`/`altFormat`; the original `data-input` field now updates directly with `d/m/Y H:i` format. Schedule submission is unaffected (reads `selectedDates[0]`) - BETA - THIS FEATURE MAY FAIL.
 - **GWN device disappears intermittently** — when the GWN Cloud ap/list request for one network timed out, the plugin treated that network as having zero devices and deleted their state records, causing devices to vanish from the dashboard until the next successful sync. `gwnGetDevices()` now returns `false` on any per-network failure, which triggers the existing removal guard so no state is deleted during a partial API failure.
@@ -13,6 +16,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 
 ### Improved
+- **Firmware modal — CDN-only devices show "Latest available"** — phones/ATAs (GRP, HT, WP, etc.) have no firmware version page on grandstream.com; the modal now displays "Latest available" instead of the raw CDN filename. Version sent to GDMS task is left blank when only a download URL is known, avoiding the previous incorrect behaviour of sending the current firmware version as the target.
+- **Firmware check_all — parallel GWN version fetch** — `check_all` now fetches firmware versions for all GWN networks in a single parallelised `curl_multi` batch instead of one sequential HTTP call per network, matching the behaviour of the existing `check` action. Reduces latency proportionally to the number of configured networks.
 - **Twig + Vue 3 frontend** — `front/dashboard.php` and `front/config.form.php` converted to standalone Twig templates (`templates/dashboard.html.twig`, `templates/config_form.html.twig`). PHP data layer and HTML presentation fully separated. Vue 3 filter bar replaces inline JS DOM manipulation. Compatible with GLPI 11 and GLPI 12.
 
 ---
