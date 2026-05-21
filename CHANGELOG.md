@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.3] — 2026-05-21
+
+### Fixed
+- **Missing imputs id/names ** — in dashboard page..
+
+### Improved
+- **vis-network updated to 10.1.o**.
+
+---
+
 ## [1.4.2] — 2026-05-16
 
 ### Added
