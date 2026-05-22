@@ -24,7 +24,7 @@
    {# ── Entity ──────────────────────────────────────────────────── #}
    <div class="row mb-4">
       <div class="col-md-4">
-         <label class="form-label fw-semibold">{{ __('Entity', 'gdmsintegration') }}</label>
+         <p class="form-label fw-semibold mb-1">{{ __('Entity', 'gdmsintegration') }}</p>
          {{ entity_dropdown|raw }}
          <small class="text-muted d-block mt-1">{{ __('GLPI entity this configuration applies to.', 'gdmsintegration') }}</small>
       </div>
@@ -40,14 +40,14 @@
          <p class="text-muted mb-3">{{ __('Your gdms.cloud login credentials. Used to authenticate against the GDMS API.', 'gdmsintegration') }}</p>
          <div class="row g-3">
             <div class="col-md-6">
-               <label class="form-label fw-semibold">{{ __('GDMS Username', 'gdmsintegration') }}</label>
-               <input type="text" class="form-control" name="username"
+               <label class="form-label fw-semibold" for="gdms_username">{{ __('GDMS Username', 'gdmsintegration') }}</label>
+               <input type="text" class="form-control" name="username" id="gdms_username"
                   value="{{ cur.username ?? '' }}" autocomplete="off"
                   placeholder="{{ __('Your gdms.cloud username', 'gdmsintegration') }}">
                <small class="text-muted d-block mt-1">{{ __('Username (not email) to sign in to gdms.cloud.', 'gdmsintegration') }}</small>
             </div>
             <div class="col-md-6">
-               <label class="form-label fw-semibold">{{ __('GDMS Password', 'gdmsintegration') }}</label>
+               <label class="form-label fw-semibold" for="gdms_pw_password">{{ __('GDMS Password', 'gdmsintegration') }}</label>
                {{ pw_field('password', __('Your gdms.cloud password', 'gdmsintegration'), cur.password is not empty) }}
                <small class="text-muted d-block mt-1">{{ __('Your gdms.cloud login password. Stored encrypted.', 'gdmsintegration') }}</small>
             </div>
@@ -75,14 +75,14 @@
          </div>
          <div class="row g-3">
             <div class="col-md-6">
-               <label class="form-label fw-semibold">{{ __('API ID', 'gdmsintegration') }}</label>
-               <input type="text" class="form-control" name="gwn_client_id"
+               <label class="form-label fw-semibold" for="gdms_gwn_client_id">{{ __('API ID', 'gdmsintegration') }}</label>
+               <input type="text" class="form-control" name="gwn_client_id" id="gdms_gwn_client_id"
                   value="{{ cur.gwn_client_id ?? '' }}" autocomplete="off"
                   placeholder="{{ __('API ID from GWN developer page', 'gdmsintegration') }}">
                <small class="text-muted d-block mt-1">{{ __('API ID from gdms.cloud → GDMS Networking → API Developer.', 'gdmsintegration') }}</small>
             </div>
             <div class="col-md-6">
-               <label class="form-label fw-semibold">{{ __('API Secret Key', 'gdmsintegration') }}</label>
+               <label class="form-label fw-semibold" for="gdms_pw_gwn_client_secret">{{ __('API Secret Key', 'gdmsintegration') }}</label>
                {{ pw_field('gwn_client_secret', __('Secret Key from GWN developer page', 'gdmsintegration'), cur.gwn_client_secret is not empty) }}
                <small class="text-muted d-block mt-1">{{ __('API Secret Key from gdms.cloud → GDMS Networking → API Developer. Stored encrypted.', 'gdmsintegration') }}</small>
             </div>
@@ -110,14 +110,14 @@
          </div>
          <div class="row g-3">
             <div class="col-md-6">
-               <label class="form-label fw-semibold">{{ __('API ID', 'gdmsintegration') }}</label>
-               <input type="text" class="form-control" name="client_id"
+               <label class="form-label fw-semibold" for="gdms_client_id">{{ __('API ID', 'gdmsintegration') }}</label>
+               <input type="text" class="form-control" name="client_id" id="gdms_client_id"
                   value="{{ cur.client_id ?? '' }}" autocomplete="off"
                   placeholder="{{ __('API ID from GDMS developer page', 'gdmsintegration') }}">
                <small class="text-muted d-block mt-1">{{ __('API ID shown in GDMS → System → API Development.', 'gdmsintegration') }}</small>
             </div>
             <div class="col-md-6">
-               <label class="form-label fw-semibold">{{ __('API Secret Key', 'gdmsintegration') }}</label>
+               <label class="form-label fw-semibold" for="gdms_pw_client_secret">{{ __('API Secret Key', 'gdmsintegration') }}</label>
                {{ pw_field('client_secret', __('Secret Key from GDMS developer page', 'gdmsintegration'), cur.client_secret is not empty) }}
                <small class="text-muted d-block mt-1">{{ __('API Secret Key from GDMS → System → API Development. Stored encrypted.', 'gdmsintegration') }}</small>
             </div>
@@ -135,14 +135,14 @@
          <p class="text-muted mb-3">{{ __('A webhook lets GDMS notify GLPI immediately when a device goes offline, instead of waiting for the next scheduled sync. If you configure it in GDMS, paste the URL below into GDMS → System → Alerts → Webhook.', 'gdmsintegration') }}</p>
          <div class="row g-3">
             <div class="col-md-6">
-               <label class="form-label fw-semibold">{{ __('Webhook Secret', 'gdmsintegration') }}</label>
-               <input type="text" class="form-control" name="webhook_secret"
+               <label class="form-label fw-semibold" for="gdms_webhook_secret">{{ __('Webhook Secret', 'gdmsintegration') }}</label>
+               <input type="text" class="form-control" name="webhook_secret" id="gdms_webhook_secret"
                   value="{{ cur.webhook_secret ?? '' }}" autocomplete="off"
                   placeholder="{{ __('Optional — leave empty to skip validation', 'gdmsintegration') }}">
                <small class="text-muted d-block mt-1">{{ __('If set, GDMS must sign each request with this secret. Recommended for security.', 'gdmsintegration') }}</small>
             </div>
             <div class="col-md-6">
-               <label class="form-label fw-semibold">{{ __('Your Webhook URL', 'gdmsintegration') }}</label>
+               <label class="form-label fw-semibold" for="gdms-webhook-url">{{ __('Your Webhook URL', 'gdmsintegration') }}</label>
                <div class="input-group">
                   <input type="text" class="form-control font-monospace"
                      value="{{ webhook_url }}" readonly id="gdms-webhook-url">
@@ -159,13 +159,13 @@
       <div class="card-body border-top py-3">
          <div class="row g-3">
             <div class="col-md-4">
-               <label class="form-label fw-semibold">{{ __('Dashboard auto-refresh (seconds)', 'gdmsintegration') }}</label>
-               <input type="number" class="form-control" name="refresh_interval"
+               <label class="form-label fw-semibold" for="gdms_refresh_interval">{{ __('Dashboard auto-refresh (seconds)', 'gdmsintegration') }}</label>
+               <input type="number" class="form-control" name="refresh_interval" id="gdms_refresh_interval"
                   min="30" max="3600" value="{{ refresh_interval }}">
                <small class="text-muted d-block mt-1">{{ __('How often the dashboard syncs from the cloud. Minimum 30s, default 300s (5 min).', 'gdmsintegration') }}</small>
             </div>
             <div class="mb-3">
-               <label class="form-label fw-semibold">{{ __('Debug logging', 'gdmsintegration') }}</label>
+               <label class="form-label fw-semibold" for="gdms_debug_logging">{{ __('Debug logging', 'gdmsintegration') }}</label>
                <div class="form-check form-switch mt-1">
                   <input class="form-check-input" type="checkbox" name="debug_logging"
                          id="gdms_debug_logging" value="1"
@@ -190,14 +190,14 @@
       <div class="card-body">
          <div class="row g-3">
             <div class="col-md-4">
-               <label class="form-label fw-semibold">{{ __('Availability chart — days to display', 'gdmsintegration') }}</label>
-               <input type="number" class="form-control" name="chart_days"
+               <label class="form-label fw-semibold" for="gdms_chart_days">{{ __('Availability chart — days to display', 'gdmsintegration') }}</label>
+               <input type="number" class="form-control" name="chart_days" id="gdms_chart_days"
                   min="7" max="365" value="{{ chart_days }}">
                <small class="text-muted d-block mt-1">{{ __('Recommended: 60 days. Values above 90 days may slow down the dashboard due to larger history queries.', 'gdmsintegration') }}</small>
             </div>
             <div class="col-md-4">
-               <label class="form-label fw-semibold">{{ __('Ticket requester (user)', 'gdmsintegration') }}</label>
-               <select class="form-select" name="ticket_requester_id">
+               <label class="form-label fw-semibold" for="gdms_ticket_requester_id">{{ __('Ticket requester (user)', 'gdmsintegration') }}</label>
+               <select class="form-select" name="ticket_requester_id" id="gdms_ticket_requester_id">
                   <option value="0">{{ __('System / cron user (default)', 'gdmsintegration') }}</option>
                   {% for user in users_options %}
                   <option value="{{ user.id }}"{% if user.selected %} selected{% endif %}>{{ user.label }}</option>
@@ -206,7 +206,7 @@
                <small class="text-muted d-block mt-1">{{ __('This user will be set as the requester on automatically generated incident tickets.', 'gdmsintegration') }}</small>
             </div>
             <div class="col-md-4">
-               <label class="form-label fw-semibold d-block">{{ __('Network topology card', 'gdmsintegration') }}</label>
+               <label class="form-label fw-semibold d-block" for="gdms_show_topology">{{ __('Network topology card', 'gdmsintegration') }}</label>
                <div class="form-check form-switch mt-2">
                   <input class="form-check-input" type="checkbox" name="show_topology"
                          id="gdms_show_topology" value="1"
@@ -228,13 +228,13 @@
          </div>
          <div class="row g-3 mt-1">
             <div class="col-md-4">
-               <label class="form-label fw-semibold">{{ __('WAN no-internet debounce (seconds)', 'gdmsintegration') }}</label>
-               <input type="number" class="form-control" name="wan_debounce_seconds"
+               <label class="form-label fw-semibold" for="gdms_wan_debounce">{{ __('WAN no-internet debounce (seconds)', 'gdmsintegration') }}</label>
+               <input type="number" class="form-control" name="wan_debounce_seconds" id="gdms_wan_debounce"
                   min="0" max="3600" value="{{ wan_debounce_seconds }}">
                <small class="text-muted d-block mt-1">{{ __('Seconds to wait before opening a "no internet" WAN ticket. Prevents false alerts from transient high-latency events. 0 = open immediately. Default: 300.', 'gdmsintegration') }}</small>
             </div>
             <div class="col-md-4">
-               <label class="form-label fw-semibold d-block">{{ __('Create WAN port tickets', 'gdmsintegration') }}</label>
+               <label class="form-label fw-semibold d-block" for="gdms_wan_tickets_enabled">{{ __('Create WAN port tickets', 'gdmsintegration') }}</label>
                <div class="form-check form-switch mt-2">
                   <input class="form-check-input" type="checkbox" name="wan_tickets_enabled"
                          id="gdms_wan_tickets_enabled" value="1"
