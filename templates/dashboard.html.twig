@@ -136,7 +136,8 @@
       {# Vue filter bar — mounted by window.Vue.createApp if available #}
       <div id="gdms-filter-app" class="d-flex align-items-center gap-2 flex-wrap py-2 px-3 border-bottom"
            style="display:none!important;" data-vue-filter>
-         <input type="search" v-model="search" class="form-control form-control-sm"
+         <input type="search" v-model="search" id="gdms-device-search" name="search"
+                class="form-control form-control-sm"
                 style="max-width:220px;" :placeholder="strDevice">
          <div class="btn-group btn-group-sm">
             <button type="button" class="btn"
@@ -486,7 +487,7 @@
       <div class="modal-footer flex-column align-items-stretch gap-2 pt-2">
         <div id="gdmsFwScheduleRow" style="display:none;">
           <div class="d-flex align-items-center gap-2">
-            <label class="form-label mb-0 text-nowrap small fw-semibold">${STR.fwScheduleFor}:</label>
+            <label class="form-label mb-0 text-nowrap small fw-semibold" for="gdmsFwDatetime">${STR.fwScheduleFor}:</label>
             <div class="btn-group flex-grow-1 flatpickr" id="gdmsFwFlatpickrWrap">
               <input type="text" class="form-control form-control-sm rounded-start ps-2"
                      id="gdmsFwDatetime" data-input placeholder="dd/mm/yyyy hh:mm" autocomplete="off">

@@ -3,17 +3,19 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.4.3] — 2026-05-21
+## [1.4.3] — 2026-05-22
 
 ### Fixed
-- **Missing imputs id/names ** — in dashboard page..
+- **Accessibility warnings — label/input associations** — all `<label>` elements in the config form now have `for` attributes pointing to their corresponding field `id`. Inputs that lacked an `id` received one. The Entity dropdown heading was changed from `<label>` to `<p>` (no single target field). Eliminates 16 browser accessibility warnings on the config page.
+- **Accessibility warnings — dashboard search field** — the Vue filter bar search `<input>` now has `id="gdms-device-search"` and `name="search"`, resolving the "form field has neither id nor name" browser warning.
+- **Accessibility warnings — firmware schedule label** — the "Schedule for" label in the firmware upgrade modal now has `for="gdmsFwDatetime"`, linking it to the flatpickr date input.
 
 ### Improved
-- **vis-network updated to 10.1.o**.
+- **vis-network updated to 10.1.0**.
 
 ---
 
-## [1.4.2] — 2026-05-16
+## [1.4.2] — 2026-05-20
 
 ### Added
 - **Factory reset for UC phones/ATAs** — the phone SIP detail modal now includes a Factory Reset button (before the Reboot button) with a prominent danger alert explaining the consequences. The button requires two clicks (second click turns yellow "I understand — Reset now", auto-reverts in 6 s) to prevent accidental execution. Calls GDMS `task/add` with `taskType=2`. Requires `config:UPDATE` permission. -BETA - THIS FEATURE MAY FAIL.
