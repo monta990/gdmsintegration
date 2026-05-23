@@ -79,6 +79,7 @@ class PluginGdmsintegrationUtils {
         global $DB;
         $alters = [
             // configs
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` DROP COLUMN IF EXISTS `webhook_secret`",
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `ip_version` varchar(4) NOT NULL DEFAULT 'ipv4'",
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `debug_logging` tinyint unsigned NOT NULL DEFAULT 0",
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `chart_days` smallint unsigned NOT NULL DEFAULT 60",

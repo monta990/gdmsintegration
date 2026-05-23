@@ -258,15 +258,6 @@ An amber **⬆** icon appears next to the firmware version when an update is ava
 
 ---
 
-### Webhook
-
-- **Real-time events** — GDMS/GWN Cloud pushes status changes directly to the plugin endpoint.
-- **HMAC-SHA256 validation** — verified against `X-GDMS-Signature` header. Secret optional but recommended.
-- **GET health check** — returns `{"status":"ok","plugin":"gdmsintegration","endpoint":"webhook"}`.
-- **Full ticket integration** — webhook transitions trigger the same open/resolve logic as the cron.
-
----
-
 ### Logging
 
 Logs written to `files/_log/gdmsintegration.log`.
@@ -320,11 +311,9 @@ Logs written to `files/_log/gdmsintegration.log`.
 | GDMS UC API ID | Open API client ID from `gdms.cloud` → GDMS Unified Communications → System → Development API |
 | GDMS UC Secret Key | Open API client secret — stored encrypted |
 
-### Card 4 — Webhook & Settings
+### Card 4 — Settings
 | Field | Description |
 |-------|-------------|
-| Webhook Secret | Shared secret for HMAC-SHA256 validation (optional but recommended) |
-| Webhook URL | Full URL — paste into GDMS/GWN Cloud portal |
 | Refresh interval | Dashboard auto-refresh in seconds (default 300) |
 | Debug logging | Toggle verbose logging |
 | Availability chart days | Days of history shown in chart and Excel export (7–365, default 60). Values > 90 may slow the dashboard. |
@@ -386,11 +375,6 @@ The GWN Cloud API requires the OAuth2 `client_credentials` grant as a `GET` requ
 ### JavaScript libraries
 vis-network 10.0.3 is the only library bundled inside the plugin's `js/` directory and served via a PHP stateless route (`front/visnetwork.php`). Chart rendering uses **ECharts 5** and date picking uses **Flatpickr** — both are already bundled with GLPI and loaded on demand via `Html::requireJs('charts')` and `Html::requireJs('flatpickr')`. No external CDN requests are made.
 
-### Webhook secret
-Configuring a webhook secret is strongly recommended for production deployments — a warning is shown in the configuration form when no secret is set.
-
----
-
 ## API Authentication
 
 **GDMS Networking (GWN Cloud)**
@@ -400,20 +384,6 @@ Configuring a webhook secret is strongly recommended for production deployments 
 **GDMS Unified Communications**
 - Token: `GET /oauth/token?grant_type=client_credentials&client_id=…&client_secret=…`
 - Signature: `SHA256( & access_token=…&appID=…&secretKey=…&timestamp=… & SHA256(body) & )`
-
----
-
-## Webhook Testing
-
-```bash
-# Health check
-curl https://your-glpi.example.com/plugins/gdmsintegration/front/webhook.php
-
-# Simulate offline event
-curl -X POST "https://your-glpi.example.com/plugins/gdmsintegration/front/webhook.php" \
-  -H "Content-Type: application/json" \
-  -d '{"mac":"c0:74:ad:ec:02:fc","status":"offline"}'
-```
 
 ---
 

@@ -125,62 +125,6 @@
       </div>
    </div>
 
-   {# ── Webhook ───────────────────────────────────────────────────── #}
-   <div class="card mb-4">
-      <div class="card-header d-flex align-items-center gap-2">
-         <i class="ti ti-bolt"></i>
-         <h5 class="mb-0">{{ __('Webhook (optional)', 'gdmsintegration') }}</h5>
-      </div>
-      <div class="card-body">
-         <p class="text-muted mb-3">{{ __('A webhook lets GDMS notify GLPI immediately when a device goes offline, instead of waiting for the next scheduled sync. If you configure it in GDMS, paste the URL below into GDMS → System → Alerts → Webhook.', 'gdmsintegration') }}</p>
-         <div class="row g-3">
-            <div class="col-md-6">
-               <label class="form-label fw-semibold" for="gdms_webhook_secret">{{ __('Webhook Secret', 'gdmsintegration') }}</label>
-               <input type="text" class="form-control" name="webhook_secret" id="gdms_webhook_secret"
-                  value="{{ cur.webhook_secret ?? '' }}" autocomplete="off"
-                  placeholder="{{ __('Optional — leave empty to skip validation', 'gdmsintegration') }}">
-               <small class="text-muted d-block mt-1">{{ __('If set, GDMS must sign each request with this secret. Recommended for security.', 'gdmsintegration') }}</small>
-            </div>
-            <div class="col-md-6">
-               <label class="form-label fw-semibold" for="gdms-webhook-url">{{ __('Your Webhook URL', 'gdmsintegration') }}</label>
-               <div class="input-group">
-                  <input type="text" class="form-control font-monospace"
-                     value="{{ webhook_url }}" readonly id="gdms-webhook-url">
-                  <button type="button" class="btn btn-outline-secondary"
-                     title="{{ __('Copy URL', 'gdmsintegration') }}"
-                     onclick="navigator.clipboard.writeText(document.getElementById('gdms-webhook-url').value).then(function(){var b=this;b.innerHTML='<i class=\'ti ti-check\'></i>';setTimeout(function(){b.innerHTML='<i class=\'ti ti-copy\'></i>';},1500)}.bind(this))">
-                     <i class="ti ti-copy"></i>
-                  </button>
-               </div>
-               <small class="text-muted d-block mt-1">{{ __('Copy this URL and paste it in the GDMS webhook settings.', 'gdmsintegration') }}</small>
-            </div>
-         </div>
-      </div>
-      <div class="card-body border-top py-3">
-         <div class="row g-3">
-            <div class="col-md-4">
-               <label class="form-label fw-semibold" for="gdms_refresh_interval">{{ __('Dashboard auto-refresh (seconds)', 'gdmsintegration') }}</label>
-               <input type="number" class="form-control" name="refresh_interval" id="gdms_refresh_interval"
-                  min="30" max="3600" value="{{ refresh_interval }}">
-               <small class="text-muted d-block mt-1">{{ __('How often the dashboard syncs from the cloud. Minimum 30s, default 300s (5 min).', 'gdmsintegration') }}</small>
-            </div>
-            <div class="mb-3">
-               <label class="form-label fw-semibold" for="gdms_debug_logging">{{ __('Debug logging', 'gdmsintegration') }}</label>
-               <div class="form-check form-switch mt-1">
-                  <input class="form-check-input" type="checkbox" name="debug_logging"
-                         id="gdms_debug_logging" value="1"
-                         {% if (cur.debug_logging ?? 0)|number_format == 1 %}checked{% endif %}>
-                  <label class="form-check-label" for="gdms_debug_logging">
-                     {{ __('Verbose logging (debug mode)', 'gdmsintegration') }}
-                  </label>
-               </div>
-               <small class="text-muted d-block mt-1">{{ __('Enable verbose API and sync logging. Recommended only for troubleshooting — generates large log entries.', 'gdmsintegration') }}</small>
-               <small class="text-muted d-block">{{ __('When disabled, only errors and key sync results are logged.', 'gdmsintegration') }}</small>
-            </div>
-         </div>
-      </div>
-   </div>
-
    {# ── Dashboard & Tickets ───────────────────────────────────────── #}
    <div class="card mb-4">
       <div class="card-header d-flex align-items-center gap-2">
@@ -224,6 +168,27 @@
                   <option value="ipv6"{% if ip_version == 'ipv6' %} selected{% endif %}>{{ __('IPv6 (preferred, fallback to IPv4)', 'gdmsintegration') }}</option>
                </select>
                <small class="text-muted d-block mt-1">{{ __('Which address to show in the Private IP column. If the preferred version is unavailable for a device, the other is shown as fallback.', 'gdmsintegration') }}</small>
+            </div>
+         </div>
+         <div class="row g-3 mt-1">
+            <div class="col-md-4">
+               <label class="form-label fw-semibold" for="gdms_refresh_interval">{{ __('Dashboard auto-refresh (seconds)', 'gdmsintegration') }}</label>
+               <input type="number" class="form-control" name="refresh_interval" id="gdms_refresh_interval"
+                  min="30" max="3600" value="{{ refresh_interval }}">
+               <small class="text-muted d-block mt-1">{{ __('How often the dashboard syncs from the cloud. Minimum 30s, default 300s (5 min).', 'gdmsintegration') }}</small>
+            </div>
+            <div class="col-md-4">
+               <label class="form-label fw-semibold" for="gdms_debug_logging">{{ __('Debug logging', 'gdmsintegration') }}</label>
+               <div class="form-check form-switch mt-1">
+                  <input class="form-check-input" type="checkbox" name="debug_logging"
+                         id="gdms_debug_logging" value="1"
+                         {% if (cur.debug_logging ?? 0)|number_format == 1 %}checked{% endif %}>
+                  <label class="form-check-label" for="gdms_debug_logging">
+                     {{ __('Verbose logging (debug mode)', 'gdmsintegration') }}
+                  </label>
+               </div>
+               <small class="text-muted d-block mt-1">{{ __('Enable verbose API and sync logging. Recommended only for troubleshooting — generates large log entries.', 'gdmsintegration') }}</small>
+               <small class="text-muted d-block">{{ __('When disabled, only errors and key sync results are logged.', 'gdmsintegration') }}</small>
             </div>
          </div>
          <div class="row g-3 mt-1">

@@ -3,7 +3,7 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.4.3\n"
+"Project-Id-Version: gdmsintegration 1.5.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-12\n"
 "PO-Revision-Date: 2026-05-12\n"
@@ -22,16 +22,6 @@ msgstr "%% Online %d Tage"
 msgid "%s — since first seen in cloud (%s, ~%d days)"
 msgstr "%s — seit erstmaliger Erkennung in der Cloud (%s, ~%d Tage)"
 
-#: front/config.form.php:245
-msgid ""
-"A webhook lets GDMS notify GLPI immediately when a device goes offline, "
-"instead of waiting for the next scheduled sync. If you configure it in GDMS, "
-"paste the URL below into GDMS → System → Alerts → Webhook."
-msgstr ""
-"Ein Webhook ermöglicht es GDMS, GLPI sofort zu benachrichtigen, wenn ein "
-"Gerät offline geht, anstatt auf die nächste geplante Synchronisierung zu "
-"warten. Wenn Sie ihn in GDMS konfigurieren, fügen Sie die URL unten in GDMS "
-"→ System → Benachrichtigungen → Webhook ein."
 
 #: front/dashboard.php:844
 msgid "AP"
@@ -168,11 +158,6 @@ msgstr "Verbindung"
 msgid "Copy URL"
 msgstr "URL kopieren"
 
-#: front/config.form.php:267
-msgid "Copy this URL and paste it in the GDMS webhook settings."
-msgstr ""
-"Kopieren Sie diese URL und fügen Sie sie in die GDMS-Webhook-Einstellungen "
-"ein."
 
 #: front/dashboard.php:849
 msgid "Could not load alerts"
@@ -905,13 +890,6 @@ msgstr "WAN aktiv, kein Internet"
 msgid "WAN up, unknown"
 msgstr "WAN aktiv"
 
-#: front/config.form.php:241
-msgid "Webhook (optional)"
-msgstr "Webhook (optional)"
-
-#: front/config.form.php:249
-msgid "Webhook Secret"
-msgstr "Webhook-Geheimnis"
 
 #: front/config.form.php:292
 msgid "When disabled, only errors and key sync results are logged."
@@ -927,9 +905,6 @@ msgstr ""
 "Wenn deaktiviert, wird das Topologiediagramm ausgeblendet und die gesamte "
 "Datenverarbeitung übersprungen."
 
-#: front/config.form.php:257
-msgid "Your Webhook URL"
-msgstr "Ihre Webhook-URL"
 
 #: front/config.form.php:145
 msgid ""

@@ -112,8 +112,7 @@ class PluginGdmsintegrationDevice extends PluginGdmsintegrationBaseTM {
         ];
         if ($first_seen !== null) $data['first_seen'] = $first_seen;
         if ($last_seen  !== null) $data['last_seen']  = $last_seen;
-        // Only set entities_id when caller knows it (>0) so that webhook updates
-        // (which pass 0) never overwrite the entity set by a proper cron/ajax sync.
+        // Only set entities_id when caller knows it (>0) — never overwrite entity set by cron/ajax sync.
         if ($entities_id > 0) $data['entities_id'] = $entities_id;
         if (!empty($rows)) {
             $id  = array_key_first($rows);
