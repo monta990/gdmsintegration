@@ -8,7 +8,7 @@ use Glpi\Plugin\Hooks;
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.4.3');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.5.0');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI',  '11.0');
 define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '12.99');
 
@@ -55,11 +55,6 @@ function plugin_gdmsintegration_check_config(bool $verbose = false): bool {
 // Boot — runs before session is loaded, used for stateless path registration
 // ---------------------------------------------------------------------------
 function plugin_gdmsintegration_boot(): void {
-    // webhook.php — called by GDMS Cloud servers, no browser session
-    \Glpi\Http\SessionManager::registerPluginStatelessPath(
-        'gdmsintegration',
-        '#^/front/webhook\.php#'
-    );
     // vis-network static JS asset — served without session
     \Glpi\Http\SessionManager::registerPluginStatelessPath(
         'gdmsintegration',
@@ -113,7 +108,6 @@ function plugin_gdmsintegration_install(): bool {
                 `client_secret`  text,
                 `gwn_client_id`  varchar(255) NOT NULL DEFAULT '',
                 `gwn_client_secret` text,
-                `webhook_secret`    varchar(255) NOT NULL DEFAULT '',
                 `refresh_interval`  int unsigned NOT NULL DEFAULT 300,
                 `debug_logging`     tinyint unsigned NOT NULL DEFAULT 0,
                 `date_creation`  TIMESTAMP NULL DEFAULT NULL,

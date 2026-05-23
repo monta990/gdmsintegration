@@ -3,7 +3,7 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.4.3\n"
+"Project-Id-Version: gdmsintegration 1.5.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-12\n"
 "PO-Revision-Date: 2026-05-12\n"
@@ -22,9 +22,6 @@ msgstr "%% En línea %d días"
 msgid "%s — since first seen in cloud (%s, ~%d days)"
 msgstr "%s — desde que apareció en la nube (%s, ~%d días)"
 
-#: front/config.form.php:245
-msgid "A webhook lets GDMS notify GLPI immediately when a device goes offline, instead of waiting for the next scheduled sync. If you configure it in GDMS, paste the URL below into GDMS → System → Alerts → Webhook."
-msgstr "Un webhook permite que GDMS notifique a GLPI inmediatamente cuando un dispositivo se desconecta, sin esperar la próxima sincronización programada. Si lo configuras en GDMS, pega la URL a continuación en GDMS → Sistema → Alertas → Webhook."
 
 #: front/dashboard.php:844
 msgid "AP"
@@ -155,9 +152,6 @@ msgstr "Conexión"
 msgid "Copy URL"
 msgstr "Copiar URL"
 
-#: front/config.form.php:267
-msgid "Copy this URL and paste it in the GDMS webhook settings."
-msgstr "Copia esta URL y pégala en la configuración de webhook de GDMS."
 
 #: front/dashboard.php:849
 msgid "Could not load alerts"
@@ -846,13 +840,6 @@ msgstr "WAN activo, sin internet"
 msgid "WAN up, unknown"
 msgstr "WAN activo"
 
-#: front/config.form.php:241
-msgid "Webhook (optional)"
-msgstr "Webhook (opcional)"
-
-#: front/config.form.php:249
-msgid "Webhook Secret"
-msgstr "Secreto de webhook"
 
 #: front/config.form.php:292
 msgid "When disabled, only errors and key sync results are logged."
@@ -862,9 +849,6 @@ msgstr "Cuando está desactivado, solo se registran errores y resultados clave d
 msgid "When disabled, the topology graph is hidden and its data processing is skipped entirely."
 msgstr "Cuando se desactiva, el gráfico de topología se oculta y se omite todo el procesamiento de sus datos."
 
-#: front/config.form.php:257
-msgid "Your Webhook URL"
-msgstr "URL de tu webhook"
 
 #: front/config.form.php:145
 msgid "Your gdms.cloud login credentials. Used to authenticate against the GDMS API."

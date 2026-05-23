@@ -108,7 +108,7 @@ if (isset($_POST['export_config'])) {
         'tickets_router'=>(int)($cfg2['tickets_router']??1),'tickets_switch'=>(int)($cfg2['tickets_switch']??1),
         'tickets_ap'=>(int)($cfg2['tickets_ap']??1),'tickets_pbx'=>(int)($cfg2['tickets_pbx']??1),
     ];
-    if ($inc) foreach (['password','client_id','client_secret','gwn_client_id','gwn_client_secret','webhook_secret'] as $k) $exp[$k]=$cfg2[$k]??'';
+    if ($inc) foreach (['password','client_id','client_secret','gwn_client_id','gwn_client_secret'] as $k) $exp[$k]=$cfg2[$k]??'';
     ob_clean(); // discard any GLPI debug output captured before this return
     return new \Symfony\Component\HttpFoundation\Response(
         json_encode($exp, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
@@ -139,7 +139,7 @@ if (isset($_POST['import_config'])) {
             }
             if (!empty($data['username'])) $inp['username']=$data['username'];
             if (!empty($data['_includes_credentials'])) {
-                foreach (['password','client_id','client_secret','gwn_client_id','gwn_client_secret','webhook_secret'] as $k) {
+                foreach (['password','client_id','client_secret','gwn_client_id','gwn_client_secret'] as $k) {
                     if (array_key_exists($k,$data)) $inp[$k]=$data[$k];
                 }
             }
@@ -163,7 +163,6 @@ if (isset($_POST['save'])) {
         'client_secret'     => $_POST['client_secret']     ?? '',
         'gwn_client_id'     => $_POST['gwn_client_id']     ?? '',
         'gwn_client_secret' => $_POST['gwn_client_secret'] ?? '',
-        'webhook_secret'      => $_POST['webhook_secret']      ?? '',
         'refresh_interval'    => max(30, (int)($_POST['refresh_interval'] ?? 300)),
         'ip_version'          => in_array($_POST['ip_version'] ?? '', ['ipv4', 'ipv6'], true) ? $_POST['ip_version'] : 'ipv4',
         'debug_logging'       => isset($_POST['debug_logging']) ? 1 : 0,
@@ -240,7 +239,6 @@ $tickets_ap     = (int)($cur['tickets_ap']     ?? 1);
 $tickets_pbx    = (int)($cur['tickets_pbx']    ?? 1);
 
 $_plugin_web = ($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration';
-$webhook_url = rtrim($CFG_GLPI['url_base'] ?? '', '/') . $_plugin_web . '/front/webhook.php?entities_id=' . $entities_id;
 
 Html::header(
     __('GDMS Configuration', 'gdmsintegration'),
@@ -267,7 +265,6 @@ echo PluginGdmsintegrationTwig::get()->render('config_form.html.twig', [
     'entity_dropdown'      => $entity_dropdown,
     'has_gdms'             => $has_gdms,
     'has_gwn'              => $has_gwn,
-    'webhook_url'          => $webhook_url,
     'refresh_interval'     => $refresh_interval,
     'chart_days'           => $chart_days,
     'show_topology'        => $show_topology,

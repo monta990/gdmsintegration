@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.5.0] — 2026-05-23
+
+### Removed
+- **Webhook receiver removed** — `front/webhook.php` and all related infrastructure (stateless path registration, `webhook_secret` config field, HMAC validation logic, locale strings) have been removed. The cron sync and dashboard manual sync provide equivalent coverage without exposing an unauthenticated HTTP endpoint. The `webhook_secret` database column is dropped automatically on first load via `ensureSchema()`.
+
+---
+
 ## [1.4.3] — 2026-05-22
 
 ### Fixed

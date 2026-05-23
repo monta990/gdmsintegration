@@ -49,7 +49,7 @@ class PluginGdmsintegrationSync extends CommonGLPI {
     }
 
     // -----------------------------------------------------------------------
-    // Per-entity sync — called from cron and webhook
+    // Per-entity sync — called from cron
     // -----------------------------------------------------------------------
     public static function syncEntity(int $entities_id): int {
         global $DB;
@@ -759,23 +759,6 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
     }
 
     // -----------------------------------------------------------------------
-    // -----------------------------------------------------------------------
-    // Public wrappers for webhook to trigger ticket logic
-    // -----------------------------------------------------------------------
-    public static function triggerOfflineTicket(
-        string $name, string $mac, string $serial,
-        int $entities_id, string $itemtype, int $glpi_id,
-        string $ip = '', string $network = '', string $firmware = '', int $uptime_sec = 0,
-        string $private_ip = ''
-    ): void {
-        self::createOfflineTicket($name, $mac, $serial, $entities_id, $itemtype, $glpi_id, $ip, $network, $firmware, $uptime_sec, $private_ip);
-    }
-
-    public static function triggerResolveTicket(string $name, string $itemtype, int $glpi_id): void {
-        self::resolveOfflineTicket($name, $itemtype, $glpi_id);
-    }
-
-        // -----------------------------------------------------------------------
     // Open an offline incident ticket and link the asset as an element.
     // Skips creation if an open GDMS ticket already exists for this asset.
     // -----------------------------------------------------------------------
@@ -1214,7 +1197,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             'FROM'   => PluginGdmsintegrationDevice::getTable(),
         ];
         // Filter by entity so that syncing entity A never purges entity B's device state.
-        // Rows with entities_id=0 are legacy records (pre-1.2.8) or webhook-only entries;
+        // Rows with entities_id=0 are legacy records (pre-1.2.8);
         // include them only when syncing the root entity (0).
         if ($entities_id > 0) {
             $query['WHERE'] = ['entities_id' => $entities_id];
