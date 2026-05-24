@@ -360,14 +360,23 @@ function gdmsCheckRateLimit(string $action, string $mac, int $ttl = 60): bool {
     $macl = strtolower($mac);
     $rows = $DB->request(['SELECT' => [$col], 'FROM' => 'glpi_plugin_gdmsintegration_devices',
                           'WHERE'  => ['mac' => $macl], 'LIMIT' => 1]);
-    if (count($rows) === 0) {
-        $DB->insert('glpi_plugin_gdmsintegration_devices', ['mac' => $macl, $col => date('Y-m-d H:i:s')]);
-        return true;
-    }
+    if (count($rows) === 0) return true;
     $last = strtotime($rows->current()[$col] ?? '') ?: 0;
-    if (time() - $last < $ttl) return false;
-    $DB->update('glpi_plugin_gdmsintegration_devices', [$col => date('Y-m-d H:i:s')], ['mac' => $macl]);
-    return true;
+    return time() - $last >= $ttl;
+}
+
+function gdmsCommitRateLimit(string $action, string $mac): void {
+    global $DB;
+    $col  = $action === 'reboot' ? 'last_reboot_at' : 'last_factory_reset_at';
+    $macl = strtolower($mac);
+    $rows = $DB->request(['SELECT' => ['id'], 'FROM' => 'glpi_plugin_gdmsintegration_devices',
+                          'WHERE'  => ['mac' => $macl], 'LIMIT' => 1]);
+    $now  = date('Y-m-d H:i:s');
+    if (count($rows) === 0) {
+        $DB->insert('glpi_plugin_gdmsintegration_devices', ['mac' => $macl, $col => $now]);
+    } else {
+        $DB->update('glpi_plugin_gdmsintegration_devices', [$col => $now], ['mac' => $macl]);
+    }
 }
 
 // ── REBOOT_GDMS — UC devices via task/add taskType=1 ──────────────────────────
@@ -386,6 +395,8 @@ if ($action === 'reboot_gdms') {
     $result = PluginGdmsintegrationAPI::gdmsCreateRebootTask($config, $mac);
     if (!empty($result['error'])) {
         PluginGdmsintegrationUtils::log("Reboot (GDMS task) FAILED — " . $result['error']);
+    } else {
+        gdmsCommitRateLimit('reboot', $mac);
     }
     echo json_encode($result);
     return;
@@ -407,6 +418,8 @@ if ($action === 'factory_reset_gdms') {
     $result = PluginGdmsintegrationAPI::gdmsCreateFactoryResetTask($config, $mac);
     if (!empty($result['error'])) {
         PluginGdmsintegrationUtils::log("Factory reset (GDMS task) FAILED — " . $result['error']);
+    } else {
+        gdmsCommitRateLimit('factory_reset', $mac);
     }
     echo json_encode($result);
     return;

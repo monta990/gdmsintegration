@@ -18,14 +18,15 @@ $cur         = $config->getConfigByEntity($entities_id);
 // ---- History import -----
 if (isset($_POST['import_history'])) {
     $upload = $_FILES['history_xlsx'] ?? null;
-    $xlsx_mime = $upload ? (new finfo(FILEINFO_MIME_TYPE))->file($upload['tmp_name'] ?? '') : false;
+    $upload_ok = $upload && $upload['error'] === UPLOAD_ERR_OK && !empty($upload['tmp_name']);
+    $xlsx_mime = $upload_ok ? (new finfo(FILEINFO_MIME_TYPE))->file($upload['tmp_name']) : false;
     $xlsx_ok   = in_array($xlsx_mime, [
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/zip', // xlsx is a zip; some finfo builds return this
     ], true);
     $max_xlsx_mb  = max(1, min(50, (int)($cur['max_xlsx_size_mb'] ?? 5)));
-    $xlsx_size_ok = $upload && ($upload['size'] ?? 0) <= $max_xlsx_mb * 1024 * 1024;
-    if (!$upload || $upload['error'] !== UPLOAD_ERR_OK || empty($upload['tmp_name']) || !$xlsx_ok || !$xlsx_size_ok) {
+    $xlsx_size_ok = $upload_ok && ($upload['size'] ?? 0) <= $max_xlsx_mb * 1024 * 1024;
+    if (!$upload_ok || !$xlsx_ok || !$xlsx_size_ok) {
         Session::addMessageAfterRedirect(__('No file received or upload error.', 'gdmsintegration'), false, ERROR);
         Html::back();
     } else {
@@ -142,10 +143,11 @@ if (isset($_POST['export_config'])) {
 
 // ---- Config import -----
 if (isset($_POST['import_config'])) {
-    $upload2   = $_FILES['config_json'] ?? null;
-    $json_mime = $upload2 ? (new finfo(FILEINFO_MIME_TYPE))->file($upload2['tmp_name'] ?? '') : false;
-    $json_ok   = in_array($json_mime, ['application/json', 'text/plain', 'text/json'], true);
-    if (!$upload2 || $upload2['error'] !== UPLOAD_ERR_OK || !$json_ok) {
+    $upload2    = $_FILES['config_json'] ?? null;
+    $upload2_ok = $upload2 && $upload2['error'] === UPLOAD_ERR_OK && !empty($upload2['tmp_name']);
+    $json_mime  = $upload2_ok ? (new finfo(FILEINFO_MIME_TYPE))->file($upload2['tmp_name']) : false;
+    $json_ok    = in_array($json_mime, ['application/json', 'text/plain', 'text/json'], true);
+    if (!$upload2_ok || !$json_ok) {
         Session::addMessageAfterRedirect(__('No file received or upload error.', 'gdmsintegration'), false, ERROR);
     } else {
         $data = json_decode(file_get_contents($upload2['tmp_name']), true);
