@@ -389,7 +389,7 @@
 </div>
 
 {% if show_topology %}
-<script src="{{ visnetwork_url|raw }}"></script>
+<script src="{{ visnetwork_url|escape('html_attr') }}"></script>
 {% endif %}
 
 <style>
@@ -618,7 +618,15 @@
                 defaultMinute: _fpNow.getMinutes(),
                 locale: typeof getFlatPickerLocale === 'function'
                     ? getFlatPickerLocale('{{ fp_lang }}', '{{ fp_region }}')
-                    : { firstDayOfWeek: 1 }
+                    : { firstDayOfWeek: 1 },
+                onReady: function(sel, str, fp) {
+                    var c = fp.calendarContainer;
+                    if (!c) return;
+                    var ms = c.querySelector('.flatpickr-monthDropdown-months'); if (ms && !ms.name) ms.name = 'gdms_fp_month';
+                    var yr = c.querySelector('.cur-year');                       if (yr && !yr.name) yr.name = 'gdms_fp_year';
+                    var hr = c.querySelector('.flatpickr-hour');                 if (hr && !hr.name) hr.name = 'gdms_fp_hour';
+                    var mn = c.querySelector('.flatpickr-minute');               if (mn && !mn.name) mn.name = 'gdms_fp_minute';
+                }
             });
             fpWrap._fp.setDate(new Date(Date.now() + 5 * 60 * 1000), false);
             if (_fpToggle) _fpToggle.addEventListener('click', function() { fpWrap._fp.open(); });
@@ -897,8 +905,8 @@
                     if (p.portIpv6) html += '<dt class="col-5 text-muted fw-normal">IPv6</dt><dd class="col-7"><code style="font-size:.8em;word-break:break-all;">' + p.portIpv6 + '</code></dd>';
                     if (p.connectDuration) html += '<dt class="col-5 text-muted fw-normal">' + STR.connectedFor + '</dt><dd class="col-7">' + fmtDuration(p.connectDuration) + '</dd>';
                     if (p.txBytes || p.rxBytes) {
-                        html += '<dt class="col-5 text-muted fw-normal">↑ Upload</dt><dd class="col-7 text-success">' + fmtBytes(p.txBytes || 0) + '</dd>';
-                        html += '<dt class="col-5 text-muted fw-normal">↓ Download</dt><dd class="col-7 text-info">' + fmtBytes(p.rxBytes || 0) + '</dd>';
+                        html += '<dt class="col-5 text-muted fw-normal">↑ ' + STR.upload + '</dt><dd class="col-7 text-success">' + fmtBytes(p.txBytes || 0) + '</dd>';
+                        html += '<dt class="col-5 text-muted fw-normal">↓ ' + STR.download + '</dt><dd class="col-7 text-info">' + fmtBytes(p.rxBytes || 0) + '</dd>';
                     }
                     if (p.txPackets || p.rxPackets) {
                         html += '<dt class="col-5 text-muted fw-normal">' + STR.txrxPkts + '</dt>'

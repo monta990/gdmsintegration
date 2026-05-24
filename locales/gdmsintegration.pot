@@ -727,6 +727,20 @@ msgstr ""
 msgid "TX / RX"
 msgstr ""
 
+#: front/dashboard.php
+msgid "TX / RX packets"
+msgstr ""
+
+msgid "Upload"
+msgstr ""
+
+msgid "Download"
+msgstr ""
+
+#: templates/config_form.html.twig
+msgid "Max upload size (MB)"
+msgstr ""
+
 #: front/dashboard.php:795
 msgid "The device will reboot during the update. Schedule during a maintenance window."
 msgstr ""

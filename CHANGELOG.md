@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.5.0] — 2026-05-23
 
+### Fixed
+- **Entity access check on AJAX endpoints** — `alerts.ajax.php`, `clients.ajax.php`, and `ports.ajax.php` now call `Session::haveAccessToEntity()` after parsing `entities_id`. A user with `config:READ` on entity 1 can no longer query data from entity 2 via `?entities_id=2`.
+- **`php://input` capped at 64 KB in firmware.ajax.php** — replaced `file_get_contents('php://input')` with `stream_get_contents(..., 65536)` in both the `upgrade` and `upgrade_gdms` handlers.
+- **Missing access control on AJAX endpoints** — `alerts.ajax.php`, `alerts-dismiss.ajax.php`, `clients.ajax.php`, and `ports.ajax.php` checked only `checkLoginUser()`. Any authenticated GLPI user could query GWN alerts, WiFi clients, and WAN port state across all entities. All four now require `config:READ`.
+- **Alert dismiss IDs validated** — `alerts-dismiss.ajax.php` now filters IDs through a `preg_match('/^[a-zA-Z0-9_\-]{1,64}$/')` whitelist before forwarding to the GWN API. Arbitrary strings are silently dropped.
+- **Port modal labels showed "undefined"** — `STR.gateway`, `STR.dns`, `STR.wanMac`, `STR.txrxPkts`, `STR.linkSpeed`, and `STR.description` were missing from `$js_strings` in `dashboard.php`. Gateway, DNS, WAN MAC, TX/RX packets, link speed, and description rows in the port detail modal now display correctly.
+- **`history_import.php` standalone endpoint disabled** — the file now returns HTTP 404 immediately; import is handled exclusively by `config.form.php` which has MIME, size, and transaction controls.
+- **`ensureSchema()` runs once per PHP process** — a static flag prevents the ~40 `ALTER TABLE` statements from executing on every dashboard page load under concurrent PHP-FPM workers.
+- **XLSX upload size limit configurable** — the 5 MB cap is now a setting ("Max upload size") in the History Import card (1–50 MB, default 5 MB) instead of a hardcoded constant. Stored in `max_xlsx_size_mb` config column.
+- **TLS certificate verification restored** — `CURLOPT_SSL_VERIFYPEER` was `false` in `gwnGetFirmwareVersionsBatch()` while the other three curl calls used `true`. All GWN Cloud calls now verify the server certificate.
+- **Firmware download URL restricted to Grandstream CDN** — `upgrade_gdms` now validates the `downloadUrl` host against an allowlist (`firmware.grandstream.com`, `fw.gdms.cloud`). Arbitrary URLs including RFC-1918 addresses and `file://` URIs are rejected before being forwarded to GDMS.
+- **History import size cap** — XLSX uploads are rejected above 5 MB before being loaded into memory by PhpSpreadsheet, preventing OOM from adversarial files.
+- **History import wrapped in DB transaction** — INSERT loop now runs inside `START TRANSACTION` / `COMMIT`; any failure triggers `ROLLBACK`, leaving the history table in a consistent state.
+- **Rate limiting moved to database** — reboot and factory-reset cooldowns are now stored in `last_reboot_at` / `last_factory_reset_at` columns on the device row instead of `$_SESSION`. Cooldown survives session reset, new browser tabs, and direct `curl` calls.
+- **API tokens redacted from log files** — `access_token`, `token`, and `Authorization` query-string values are replaced with `[REDACTED]` before being written to `gdmsintegration.log`, even in verbose/debug mode.
+- **`visnetwork_url` escaped in Twig** — changed from `|raw` to `|escape('html_attr')` in `dashboard.html.twig`. (defence-in-depth)
+- **Factory reset requires `config:PURGE`** — previously required only `config:UPDATE` (standard technician right). Now requires the higher `PURGE` right, restricting factory reset to administrators and profiles explicitly granted that permission.
+- **Server-side rate limiting for destructive device actions** — reboot is limited to once per 60 s per device per user session; factory reset is limited to once per 5 min per device per user session. Bypass via direct POST is blocked server-side regardless of the frontend confirmation UI.
+- **File upload MIME validation** — history XLSX and config JSON uploads now verify the actual file magic bytes via `finfo(FILEINFO_MIME_TYPE)` instead of trusting the client-supplied `Content-Type`. Rejects non-XLSX files uploaded to the history importer and non-JSON files uploaded to the config importer before any parsing occurs.
+
 ### Removed
 - **Webhook receiver removed** — `front/webhook.php` and all related infrastructure (stateless path registration, `webhook_secret` config field, HMAC validation logic, locale strings) have been removed. The cron sync and dashboard manual sync provide equivalent coverage without exposing an unauthenticated HTTP endpoint. The `webhook_secret` database column is dropped automatically on first load via `ensureSchema()`.
 

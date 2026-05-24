@@ -771,6 +771,12 @@ msgstr "System-/Cron-Benutzer (Standard)"
 msgid "TX / RX"
 msgstr "TX / RX"
 
+msgid "TX / RX packets"
+msgstr "TX / RX-Pakete"
+
+msgid "Max upload size (MB)"
+msgstr "Maximale Upload-Größe (MB)"
+
 #: front/dashboard.php:795
 msgid ""
 "The device will reboot during the update. Schedule during a maintenance "

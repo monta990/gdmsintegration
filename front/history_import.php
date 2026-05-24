@@ -1,4 +1,7 @@
 <?php
+// Import is handled by config.form.php — this standalone endpoint is disabled.
+http_response_code(404);
+exit;
 /**
  * GDMS Integration — History import from availability Excel export
  *

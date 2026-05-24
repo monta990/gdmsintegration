@@ -47,7 +47,9 @@ class PluginGdmsintegrationUtils {
         if ($verbose && !self::isDebug()) {
             return;
         }
-        Toolbox::logInFile('gdmsintegration', $message . PHP_EOL);
+        // Redact tokens from URLs before writing to disk
+        $safe = preg_replace('/([?&](?:access_token|token|Authorization)=)[^&\s"\']+/i', '$1[REDACTED]', $message);
+        Toolbox::logInFile('gdmsintegration', ($safe ?? $message) . PHP_EOL);
     }
 
     /**
@@ -76,6 +78,9 @@ class PluginGdmsintegrationUtils {
      * Keeping both call sites in sync is the responsibility of this single function.
      */
     public static function ensureSchema(): void {
+        static $done = false;
+        if ($done) return;
+        $done = true;
         global $DB;
         $alters = [
             // configs
@@ -93,6 +98,7 @@ class PluginGdmsintegrationUtils {
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `tickets_ap`     tinyint unsigned NOT NULL DEFAULT 1",
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `tickets_pbx`   tinyint unsigned NOT NULL DEFAULT 1",
             "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `last_sync_at` TIMESTAMP NULL DEFAULT NULL",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_configs` ADD COLUMN IF NOT EXISTS `max_xlsx_size_mb` tinyint unsigned NOT NULL DEFAULT 5",
             // devices
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `entities_id` int unsigned NOT NULL DEFAULT 0",
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD INDEX IF NOT EXISTS `entities_id` (`entities_id`)",
@@ -110,6 +116,8 @@ class PluginGdmsintegrationUtils {
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `last_seen` TIMESTAMP NULL DEFAULT NULL",
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `mgmt_ip` varchar(50) NOT NULL DEFAULT ''",
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `last_sync_at` TIMESTAMP NULL DEFAULT NULL",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `last_reboot_at` TIMESTAMP NULL DEFAULT NULL",
+            "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `last_factory_reset_at` TIMESTAMP NULL DEFAULT NULL",
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `firmware_latest` varchar(50) NOT NULL DEFAULT ''",
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `sip_status` varchar(50) NOT NULL DEFAULT ''",
             "ALTER TABLE `glpi_plugin_gdmsintegration_devices` ADD COLUMN IF NOT EXISTS `ipv6` varchar(60) NOT NULL DEFAULT ''",
