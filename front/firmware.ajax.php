@@ -376,13 +376,17 @@ function gdmsCommitRateLimit(string $action, string $mac): void {
     global $DB;
     $col  = $action === 'reboot' ? 'last_reboot_at' : 'last_factory_reset_at';
     $macl = strtolower($mac);
-    $rows = $DB->request(['SELECT' => ['id'], 'FROM' => 'glpi_plugin_gdmsintegration_devices',
-                          'WHERE'  => ['mac' => $macl], 'LIMIT' => 1]);
-    $now  = date('Y-m-d H:i:s');
-    if (count($rows) === 0) {
-        $DB->insert('glpi_plugin_gdmsintegration_devices', ['mac' => $macl, $col => $now]);
-    } else {
-        $DB->update('glpi_plugin_gdmsintegration_devices', [$col => $now], ['mac' => $macl]);
+    try {
+        $rows = $DB->request(['SELECT' => ['id'], 'FROM' => 'glpi_plugin_gdmsintegration_devices',
+                              'WHERE'  => ['mac' => $macl], 'LIMIT' => 1]);
+        $now  = date('Y-m-d H:i:s');
+        if (count($rows) === 0) {
+            $DB->insert('glpi_plugin_gdmsintegration_devices', ['mac' => $macl, $col => $now]);
+        } else {
+            $DB->update('glpi_plugin_gdmsintegration_devices', [$col => $now], ['mac' => $macl]);
+        }
+    } catch (\Throwable $e) {
+        // Column absent on unmigrated schema — skip write, action already succeeded.
     }
 }
 
