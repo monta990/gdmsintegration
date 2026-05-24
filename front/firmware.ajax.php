@@ -407,6 +407,17 @@ function gdmsCommitRateLimit(string $action, string $mac): void {
     }
 }
 
+function gdmsClearRateLimit(string $action, string $mac): void {
+    global $DB;
+    $col  = $action === 'reboot' ? 'last_reboot_at' : 'last_factory_reset_at';
+    $macl = strtolower($mac);
+    try {
+        $DB->update('glpi_plugin_gdmsintegration_devices', [$col => null], ['mac' => $macl]);
+    } catch (\Throwable $e) {
+        // Ignore — best-effort rollback of cooldown.
+    }
+}
+
 // ── REBOOT_GDMS — UC devices via task/add taskType=1 ──────────────────────────
 if ($action === 'reboot_gdms') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['error' => 'POST required']); return; }
@@ -426,6 +437,7 @@ if ($action === 'reboot_gdms') {
     $result = PluginGdmsintegrationAPI::gdmsCreateRebootTask($config, $mac);
     if (!empty($result['error'])) {
         PluginGdmsintegrationUtils::log("Reboot (GDMS task) FAILED — " . $result['error']);
+        gdmsClearRateLimit('reboot', $mac);
     }
     echo json_encode($result);
     return;
@@ -450,6 +462,7 @@ if ($action === 'factory_reset_gdms') {
     $result = PluginGdmsintegrationAPI::gdmsCreateFactoryResetTask($config, $mac);
     if (!empty($result['error'])) {
         PluginGdmsintegrationUtils::log("Factory reset (GDMS task) FAILED — " . $result['error']);
+        gdmsClearRateLimit('factory_reset', $mac);
     }
     echo json_encode($result);
     return;
