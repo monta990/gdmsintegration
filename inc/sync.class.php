@@ -361,7 +361,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             // Read previous status BEFORE updating state (order matters for transitions)
             $prevStatus = $state->getState($mac ?: $serial);
             // Log state transition; note when persisting offline (no ticket generated)
-            $stateNote = ($prevStatus === 'offline' && $status === 'offline') ? ' — no ticket (persists offline)' : '';
+            $stateNote = '';
             PluginGdmsintegrationUtils::debug(
                 "  STATE {$name}: prev=" . ($prevStatus ?? 'null') . " → new={$status}{$stateNote}"
             );
@@ -641,7 +641,8 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             // Devices removed from the cloud, moved between networks, or that stay offline
             // do NOT generate new tickets — only a genuine state change does.
             if ($glpi_id > 0) {
-                if ($prevStatus === 'online' && $status === 'offline') {
+                if (($prevStatus === 'online' && $status === 'offline') ||
+                    ($prevStatus === 'offline' && $status === 'offline')) {
                     $dev_category   = PluginGdmsintegrationAPI::getDeviceCategory($gdms_model);
                     $cat_flag_map   = [
                         'phone'  => 'tickets_phone',
