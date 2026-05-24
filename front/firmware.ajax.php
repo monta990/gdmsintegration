@@ -360,7 +360,10 @@ function gdmsCheckRateLimit(string $action, string $mac, int $ttl = 60): bool {
     $macl = strtolower($mac);
     $rows = $DB->request(['SELECT' => [$col], 'FROM' => 'glpi_plugin_gdmsintegration_devices',
                           'WHERE'  => ['mac' => $macl], 'LIMIT' => 1]);
-    if (count($rows) === 0) return true;
+    if (count($rows) === 0) {
+        $DB->insert('glpi_plugin_gdmsintegration_devices', ['mac' => $macl, $col => date('Y-m-d H:i:s')]);
+        return true;
+    }
     $last = strtotime($rows->current()[$col] ?? '') ?: 0;
     if (time() - $last < $ttl) return false;
     $DB->update('glpi_plugin_gdmsintegration_devices', [$col => date('Y-m-d H:i:s')], ['mac' => $macl]);
