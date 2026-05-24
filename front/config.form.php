@@ -126,6 +126,7 @@ if (isset($_POST['export_config'])) {
         'wan_tickets_enabled'=>(int)($cfg2['wan_tickets_enabled']??1),'tickets_phone'=>(int)($cfg2['tickets_phone']??1),
         'tickets_router'=>(int)($cfg2['tickets_router']??1),'tickets_switch'=>(int)($cfg2['tickets_switch']??1),
         'tickets_ap'=>(int)($cfg2['tickets_ap']??1),'tickets_pbx'=>(int)($cfg2['tickets_pbx']??1),
+        'max_xlsx_size_mb'=>(int)($cfg2['max_xlsx_size_mb']??5),
     ];
     if ($inc) foreach (['password','client_id','client_secret','gwn_client_id','gwn_client_secret'] as $k) $exp[$k]=$cfg2[$k]??'';
     ob_clean(); // discard any GLPI debug output captured before this return
@@ -156,7 +157,7 @@ if (isset($_POST['import_config'])) {
         } else {
             $eid2 = (int)($_POST['entities_id'] ?? $data['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);
             $inp = ['entities_id'=>$eid2];
-            foreach (['refresh_interval','ip_version','debug_logging','chart_days','show_topology','ticket_requester_id','wan_debounce_seconds','wan_tickets_enabled','tickets_phone','tickets_router','tickets_switch','tickets_ap','tickets_pbx'] as $k) {
+            foreach (['refresh_interval','ip_version','debug_logging','chart_days','show_topology','ticket_requester_id','wan_debounce_seconds','wan_tickets_enabled','tickets_phone','tickets_router','tickets_switch','tickets_ap','tickets_pbx','max_xlsx_size_mb'] as $k) {
                 if (array_key_exists($k,$data)) $inp[$k]=$data[$k];
             }
             if (!empty($data['username'])) $inp['username']=$data['username'];
@@ -165,6 +166,7 @@ if (isset($_POST['import_config'])) {
                     if (array_key_exists($k,$data)) $inp[$k]=$data[$k];
                 }
             }
+            PluginGdmsintegrationUtils::ensureSchema();
             (new PluginGdmsintegrationConfig())->saveConfig($inp);
             Session::addMessageAfterRedirect(__('Configuration imported. API credentials were not changed — re-enter them if needed.', 'gdmsintegration'), true, INFO);
         }
@@ -174,6 +176,7 @@ if (isset($_POST['import_config'])) {
 
 if (isset($_POST['save'])) {
     // GLPI 11: CSRF validated automatically by Symfony CheckCsrfListener before reaching here.
+    PluginGdmsintegrationUtils::ensureSchema();
 
     $config->saveConfig([
         'entities_id'       => (int) ($_POST['entities_id']       ?? 0),
