@@ -11,6 +11,10 @@ global $CFG_GLPI;
 Session::checkLoginUser();
 Session::checkRight('config', UPDATE);
 
+$config      = new PluginGdmsintegrationConfig();
+$entities_id = (int) ($_SESSION['glpiactive_entity'] ?? 0);
+$cur         = $config->getConfigByEntity($entities_id);
+
 // ---- History import -----
 if (isset($_POST['import_history'])) {
     $upload = $_FILES['history_xlsx'] ?? null;
@@ -166,8 +170,6 @@ if (isset($_POST['import_config'])) {
     Html::back(); exit;
 }
 
-$config = new PluginGdmsintegrationConfig();
-
 if (isset($_POST['save'])) {
     // GLPI 11: CSRF validated automatically by Symfony CheckCsrfListener before reaching here.
 
@@ -235,8 +237,6 @@ if (isset($_POST['save'])) {
     Html::back();
 }
 
-$entities_id = (int) ($_SESSION['glpiactive_entity'] ?? 0);
-$cur = $config->getConfigByEntity($entities_id);
 // Always clear debug session cache on config page load so displayed state is fresh from DB
 unset($_SESSION['_gdms_debug']);
 
