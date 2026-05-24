@@ -320,8 +320,10 @@ if ($action === 'upgrade_gdms') {
         return;
     }
     if ($downloadUrl !== '') {
-        $dlHost = strtolower(parse_url($downloadUrl, PHP_URL_HOST) ?? '');
-        if (!in_array($dlHost, ['firmware.grandstream.com', 'fw.gdms.cloud'], true)) {
+        $dlScheme = strtolower(parse_url($downloadUrl, PHP_URL_SCHEME) ?? '');
+        $dlHost   = strtolower(parse_url($downloadUrl, PHP_URL_HOST) ?? '');
+        if (!in_array($dlScheme, ['http', 'https'], true) ||
+            !in_array($dlHost, ['firmware.grandstream.com', 'fw.gdms.cloud'], true)) {
             echo json_encode(['error' => 'downloadUrl host not allowed']);
             return;
         }
@@ -358,8 +360,13 @@ function gdmsCheckRateLimit(string $action, string $mac, int $ttl = 60): bool {
     global $DB;
     $col  = $action === 'reboot' ? 'last_reboot_at' : 'last_factory_reset_at';
     $macl = strtolower($mac);
-    $rows = $DB->request(['SELECT' => [$col], 'FROM' => 'glpi_plugin_gdmsintegration_devices',
-                          'WHERE'  => ['mac' => $macl], 'LIMIT' => 1]);
+    try {
+        $rows = $DB->request(['SELECT' => [$col], 'FROM' => 'glpi_plugin_gdmsintegration_devices',
+                              'WHERE'  => ['mac' => $macl], 'LIMIT' => 1]);
+    } catch (\Throwable $e) {
+        // Column absent on unmigrated schema — allow the action, do not block.
+        return true;
+    }
     if (count($rows) === 0) return true;
     $last = strtotime($rows->current()[$col] ?? '') ?: 0;
     return time() - $last >= $ttl;
