@@ -4,9 +4,11 @@
  * GET ?action=status — returns port info for all tracked GWN routers.
  */
 Session::checkLoginUser();
+Session::checkRight('config', READ);
 header('Content-Type: application/json');
 
 $entities_id = (int) ($_GET['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);
+if (!Session::haveAccessToEntity($entities_id)) { http_response_code(403); echo json_encode(['error' => 'Access denied']); return; }
 $action      = $_GET['action'] ?? 'status';
 
 if ($action !== 'status') {

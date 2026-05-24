@@ -14,7 +14,14 @@ Session::checkRight('config', UPDATE);
 // ---- History import -----
 if (isset($_POST['import_history'])) {
     $upload = $_FILES['history_xlsx'] ?? null;
-    if (!$upload || $upload['error'] !== UPLOAD_ERR_OK || empty($upload['tmp_name'])) {
+    $xlsx_mime = $upload ? (new finfo(FILEINFO_MIME_TYPE))->file($upload['tmp_name'] ?? '') : false;
+    $xlsx_ok   = in_array($xlsx_mime, [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/zip', // xlsx is a zip; some finfo builds return this
+    ], true);
+    $max_xlsx_mb  = max(1, min(50, (int)($cur['max_xlsx_size_mb'] ?? 5)));
+    $xlsx_size_ok = $upload && ($upload['size'] ?? 0) <= $max_xlsx_mb * 1024 * 1024;
+    if (!$upload || $upload['error'] !== UPLOAD_ERR_OK || empty($upload['tmp_name']) || !$xlsx_ok || !$xlsx_size_ok) {
         Session::addMessageAfterRedirect(__('No file received or upload error.', 'gdmsintegration'), false, ERROR);
         Html::back();
     } else {
@@ -62,27 +69,34 @@ if (isset($_POST['import_history'])) {
                 }
                 global $DB;
                 $RECORDS=100; $STEP=864; $ins=0; $skip=0;
-                for ($r=2; $r<=$maxRow; $r++) {
-                    $raw = $cell($pivotSheet,1,$r)->getValue();
-                    if ($raw===null||$raw==='') continue;
-                    $day = is_numeric($raw) ? XlDate::excelToDateTimeObject((float)$raw)->format('Y-m-d') : substr(trim((string)$raw),0,10);
-                    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/',$day)) continue;
-                    foreach ($colToMac as $c=>$mac) {
-                        if (!empty($existing[$mac][$day])) { $skip++; continue; }
-                        $val = $cell($pivotSheet,$c,$r)->getValue();
-                        if ($val===null||$val==='') continue;
-                        $pct = max(0.0,min(1.0,(float)$val));
-                        $on  = (int)round($pct*$RECORDS);
-                        $ts  = strtotime($day.' 00:08:00');
-                        if ($ts===false||$ts<86400) { $skip++; continue; }
-                        for ($i=0;$i<$RECORDS;$i++) {
-                            $DB->insert('glpi_plugin_gdmsintegration_history', [
-                                'mac'=>$mac, 'status'=>$i<$on?'online':'offline',
-                                'date'=>date('Y-m-d H:i:s',$ts+$i*$STEP),
-                            ]);
+                $DB->doQuery('START TRANSACTION');
+                try {
+                    for ($r=2; $r<=$maxRow; $r++) {
+                        $raw = $cell($pivotSheet,1,$r)->getValue();
+                        if ($raw===null||$raw==='') continue;
+                        $day = is_numeric($raw) ? XlDate::excelToDateTimeObject((float)$raw)->format('Y-m-d') : substr(trim((string)$raw),0,10);
+                        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/',$day)) continue;
+                        foreach ($colToMac as $c=>$mac) {
+                            if (!empty($existing[$mac][$day])) { $skip++; continue; }
+                            $val = $cell($pivotSheet,$c,$r)->getValue();
+                            if ($val===null||$val==='') continue;
+                            $pct = max(0.0,min(1.0,(float)$val));
+                            $on  = (int)round($pct*$RECORDS);
+                            $ts  = strtotime($day.' 00:08:00');
+                            if ($ts===false||$ts<86400) { $skip++; continue; }
+                            for ($i=0;$i<$RECORDS;$i++) {
+                                $DB->insert('glpi_plugin_gdmsintegration_history', [
+                                    'mac'=>$mac, 'status'=>$i<$on?'online':'offline',
+                                    'date'=>date('Y-m-d H:i:s',$ts+$i*$STEP),
+                                ]);
+                            }
+                            $existing[$mac][$day]=true; $ins++;
                         }
-                        $existing[$mac][$day]=true; $ins++;
                     }
+                    $DB->doQuery('COMMIT');
+                } catch (\Throwable $e) {
+                    $DB->doQuery('ROLLBACK');
+                    throw $e;
                 }
                 Session::addMessageAfterRedirect(sprintf(__('Import complete: %d device-days imported (%d records each), %d device-days skipped (already had data).','gdmsintegration'),$ins,$RECORDS,$skip),true,INFO);
                 Html::back();
@@ -124,8 +138,10 @@ if (isset($_POST['export_config'])) {
 
 // ---- Config import -----
 if (isset($_POST['import_config'])) {
-    $upload2 = $_FILES['config_json'] ?? null;
-    if (!$upload2 || $upload2['error'] !== UPLOAD_ERR_OK) {
+    $upload2   = $_FILES['config_json'] ?? null;
+    $json_mime = $upload2 ? (new finfo(FILEINFO_MIME_TYPE))->file($upload2['tmp_name'] ?? '') : false;
+    $json_ok   = in_array($json_mime, ['application/json', 'text/plain', 'text/json'], true);
+    if (!$upload2 || $upload2['error'] !== UPLOAD_ERR_OK || !$json_ok) {
         Session::addMessageAfterRedirect(__('No file received or upload error.', 'gdmsintegration'), false, ERROR);
     } else {
         $data = json_decode(file_get_contents($upload2['tmp_name']), true);
@@ -171,6 +187,7 @@ if (isset($_POST['save'])) {
         'ticket_requester_id'  => (int)($_POST['ticket_requester_id'] ?? 0),
         'wan_debounce_seconds' => max(0, min(3600, (int)($_POST['wan_debounce_seconds'] ?? 300))),
         'wan_tickets_enabled'  => isset($_POST['wan_tickets_enabled']) ? 1 : 0,
+        'max_xlsx_size_mb'     => max(1, min(50, (int)($_POST['max_xlsx_size_mb'] ?? 5))),
         'tickets_phone'        => isset($_POST['tickets_phone'])  ? 1 : 0,
         'tickets_router'       => isset($_POST['tickets_router']) ? 1 : 0,
         'tickets_switch'       => isset($_POST['tickets_switch']) ? 1 : 0,
@@ -232,6 +249,7 @@ $ip_version           = in_array($cur['ip_version'] ?? '', ['ipv4', 'ipv6'], tru
 $ticket_requester_id  = (int)($cur['ticket_requester_id'] ?? 0);
 $wan_debounce_seconds = max(0, min(3600, (int)($cur['wan_debounce_seconds'] ?? 300)));
 $wan_tickets_enabled  = (int)($cur['wan_tickets_enabled'] ?? 1);
+$max_xlsx_size_mb     = max(1, min(50, (int)($cur['max_xlsx_size_mb'] ?? 5)));
 $tickets_phone  = (int)($cur['tickets_phone']  ?? 1);
 $tickets_router = (int)($cur['tickets_router'] ?? 1);
 $tickets_switch = (int)($cur['tickets_switch'] ?? 1);
@@ -272,6 +290,7 @@ echo PluginGdmsintegrationTwig::get()->render('config_form.html.twig', [
     'ticket_requester_id'  => $ticket_requester_id,
     'wan_debounce_seconds' => $wan_debounce_seconds,
     'wan_tickets_enabled'  => $wan_tickets_enabled,
+    'max_xlsx_size_mb'     => $max_xlsx_size_mb,
     'tickets_phone'        => $tickets_phone,
     'tickets_router'       => $tickets_router,
     'tickets_switch'       => $tickets_switch,

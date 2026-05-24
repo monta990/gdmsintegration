@@ -5,9 +5,11 @@
  * Returns recent alerts across all GWN networks (or one specific network).
  */
 Session::checkLoginUser();
+Session::checkRight('config', READ);
 header('Content-Type: application/json');
 
 $entities_id      = (int) ($_GET['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);
+if (!Session::haveAccessToEntity($entities_id)) { http_response_code(403); echo json_encode(['error' => 'Access denied']); return; }
 $filter_network   = (int) ($_GET['network_id']  ?? 0);
 
 $config_obj = new PluginGdmsintegrationConfig();

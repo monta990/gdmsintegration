@@ -21,7 +21,9 @@
  */
 
 $_action_early = $_GET['action'] ?? 'check';
-if (in_array($_action_early, ['upgrade', 'upgrade_gdms', 'reboot_gdms', 'factory_reset_gdms'], true)) {
+if ($_action_early === 'factory_reset_gdms') {
+    Session::checkRight('config', PURGE);   // factory reset requires higher right than UPDATE
+} elseif (in_array($_action_early, ['upgrade', 'upgrade_gdms', 'reboot_gdms'], true)) {
     Session::checkRight('config', UPDATE);
 } else {
     Session::checkRight('config', READ);
@@ -274,7 +276,7 @@ if ($action === 'upgrade') {
     if ($rawMacs !== null) {
         $macs = array_filter(array_map('strtoupper', json_decode($rawMacs, true) ?? []));
     } else {
-        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $body = json_decode(stream_get_contents(fopen('php://input', 'r'), 65536) ?: '{}', true) ?? [];
         $macs = array_filter(array_map('strtoupper', (array)($body['macs'] ?? [])));
     }
     if (empty($macs)) { echo json_encode(['error' => 'No MACs provided']); return; }
@@ -301,8 +303,8 @@ if ($action === 'upgrade_gdms') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['error' => 'POST required']); return; }
     if (empty($config['client_id']) || empty($config['client_secret'])) { echo json_encode(['error' => 'GDMS UC not configured']); return; }
 
-    $rawBody = file_get_contents('php://input');
-    $body    = json_decode($rawBody ?: '{}', true) ?? [];
+    $rawBody = stream_get_contents(fopen('php://input', 'r'), 65536) ?: '{}';
+    $body    = json_decode($rawBody, true) ?? [];
 
     // Also support FormData
     $mac         = $_POST['mac']         ?? $body['mac']         ?? '';
@@ -316,6 +318,13 @@ if ($action === 'upgrade_gdms') {
     if (!$mac || (!$version && !$downloadUrl)) {
         echo json_encode(['error' => 'mac and version (or downloadUrl) required']);
         return;
+    }
+    if ($downloadUrl !== '') {
+        $dlHost = strtolower(parse_url($downloadUrl, PHP_URL_HOST) ?? '');
+        if (!in_array($dlHost, ['firmware.grandstream.com', 'fw.gdms.cloud'], true)) {
+            echo json_encode(['error' => 'downloadUrl host not allowed']);
+            return;
+        }
     }
 
     // MAC must be in colon format for task/add
@@ -344,6 +353,20 @@ if ($action === 'upgrade_gdms') {
     return;
 }
 
+// ── DESTRUCTIVE ACTION RATE LIMIT — DB-backed, survives session reset ─────────
+function gdmsCheckRateLimit(string $action, string $mac, int $ttl = 60): bool {
+    global $DB;
+    $col  = $action === 'reboot' ? 'last_reboot_at' : 'last_factory_reset_at';
+    $macl = strtolower($mac);
+    $rows = $DB->request(['SELECT' => [$col], 'FROM' => 'glpi_plugin_gdmsintegration_devices',
+                          'WHERE'  => ['mac' => $macl], 'LIMIT' => 1]);
+    if (count($rows) === 0) return true;
+    $last = strtotime($rows->current()[$col] ?? '') ?: 0;
+    if (time() - $last < $ttl) return false;
+    $DB->update('glpi_plugin_gdmsintegration_devices', [$col => date('Y-m-d H:i:s')], ['mac' => $macl]);
+    return true;
+}
+
 // ── REBOOT_GDMS — UC devices via task/add taskType=1 ──────────────────────────
 if ($action === 'reboot_gdms') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['error' => 'POST required']); return; }
@@ -354,6 +377,7 @@ if ($action === 'reboot_gdms') {
     if (!str_contains($mac, ':')) {
         $mac = implode(':', str_split($mac, 2));
     }
+    if (!gdmsCheckRateLimit('reboot', $mac)) { echo json_encode(['error' => 'Rate limit — wait 60 s between reboots for the same device']); return; }
 
     PluginGdmsintegrationUtils::log("Reboot (GDMS task) requested — MAC: {$mac}");
     $result = PluginGdmsintegrationAPI::gdmsCreateRebootTask($config, $mac);
@@ -374,6 +398,7 @@ if ($action === 'factory_reset_gdms') {
     if (!str_contains($mac, ':')) {
         $mac = implode(':', str_split($mac, 2));
     }
+    if (!gdmsCheckRateLimit('factory_reset', $mac, 300)) { echo json_encode(['error' => 'Rate limit — wait 5 min between factory resets for the same device']); return; }
 
     PluginGdmsintegrationUtils::log("Factory reset (GDMS task) requested — MAC: {$mac}");
     $result = PluginGdmsintegrationAPI::gdmsCreateFactoryResetTask($config, $mac);

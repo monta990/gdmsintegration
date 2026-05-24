@@ -5,9 +5,11 @@
  * Returns array of connected WiFi clients for an AP or entire network.
  */
 Session::checkLoginUser();
+Session::checkRight('config', READ);
 header('Content-Type: application/json');
 
 $entities_id = (int) ($_GET['entities_id'] ?? $_SESSION['glpiactive_entity'] ?? 0);
+if (!Session::haveAccessToEntity($entities_id)) { http_response_code(403); echo json_encode(['error' => 'Access denied']); return; }
 $network_id  = (int) ($_GET['network_id']  ?? 0);
 $mac         = trim($_GET['mac'] ?? '');
 

@@ -831,7 +831,7 @@ class PluginGdmsintegrationAPI {
                 CURLOPT_POSTFIELDS     => $body,
                 CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
                 CURLOPT_TIMEOUT        => 15,
-                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYPEER => true,
             ]);
             curl_multi_add_handle($mh, $ch);
             $handles[$nid] = $ch;

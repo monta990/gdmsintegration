@@ -288,6 +288,11 @@
       </div>
       <div class="card-body">
          <p class="text-muted mb-3">{{ __('Restore availability history from a previously exported Excel file (gdms_history_*.xlsx). Days that already have data are skipped — no existing records are overwritten.', 'gdmsintegration') }}</p>
+         <div class="mb-3" style="max-width:220px">
+            <label class="form-label fw-semibold" for="gdms_max_xlsx_size_mb">{{ __('Max upload size (MB)', 'gdmsintegration') }}</label>
+            <input type="number" class="form-control" name="max_xlsx_size_mb" id="gdms_max_xlsx_size_mb"
+               min="1" max="50" value="{{ max_xlsx_size_mb }}" form="main-config-form">
+         </div>
          <form method="post" action="" enctype="multipart/form-data" class="gdms-import-form">
             <div class="d-flex align-items-center gap-3 flex-wrap">
                <input type="file" class="form-control" name="history_xlsx" accept=".xlsx" required style="max-width:340px">

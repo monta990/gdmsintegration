@@ -4,6 +4,7 @@
  * POST  ids[]=id1&ids[]=id2  (or JSON body {"ids":["id1"]})
  */
 Session::checkLoginUser();
+Session::checkRight('config', READ);
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -20,7 +21,7 @@ if (empty($ids)) {
     $json = json_decode(file_get_contents('php://input'), true);
     $ids  = $json['ids'] ?? [];
 }
-$ids = array_filter(array_map('strval', (array)$ids));
+$ids = array_values(array_filter(array_map('strval', (array)$ids), fn($id) => preg_match('/^[a-zA-Z0-9_\-]{1,64}$/', $id)));
 
 if (empty($ids)) {
     echo json_encode(['ok' => false, 'msg' => 'No ids provided']);
