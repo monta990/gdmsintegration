@@ -4,7 +4,9 @@
  * POST  ids[]=id1&ids[]=id2  (or JSON body {"ids":["id1"]})
  */
 Session::checkLoginUser();
-Session::checkRight('config', READ);
+if (!Session::haveRight('config', READ) && !Session::haveRight('networking', READ)) {
+    http_response_code(403); echo json_encode(['error' => 'Access denied']); exit;
+}
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
