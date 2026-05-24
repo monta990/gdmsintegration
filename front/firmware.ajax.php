@@ -356,6 +356,23 @@ if ($action === 'upgrade_gdms') {
 }
 
 // ── DESTRUCTIVE ACTION RATE LIMIT — DB-backed, survives session reset ─────────
+// Check+commit are wrapped in an advisory lock by the caller to prevent TOCTOU
+// races from concurrent POSTs for the same MAC.
+
+function gdmsRateLimitLock(string $action, string $mac): bool {
+    global $DB;
+    $name = 'gdms_rl_' . $action . '_' . strtolower($mac);
+    $res  = $DB->doQuery("SELECT GET_LOCK('" . $DB->escape($name) . "', 3) AS lk");
+    $row  = $res ? $res->fetch_assoc() : null;
+    return ($row['lk'] ?? 0) == 1;
+}
+
+function gdmsRateLimitUnlock(string $action, string $mac): void {
+    global $DB;
+    $name = 'gdms_rl_' . $action . '_' . strtolower($mac);
+    $DB->doQuery("SELECT RELEASE_LOCK('" . $DB->escape($name) . "')");
+}
+
 function gdmsCheckRateLimit(string $action, string $mac, int $ttl = 60): bool {
     global $DB;
     $col  = $action === 'reboot' ? 'last_reboot_at' : 'last_factory_reset_at';
@@ -400,14 +417,15 @@ if ($action === 'reboot_gdms') {
     if (!str_contains($mac, ':')) {
         $mac = implode(':', str_split($mac, 2));
     }
-    if (!gdmsCheckRateLimit('reboot', $mac)) { echo json_encode(['error' => 'Rate limit — wait 60 s between reboots for the same device']); return; }
+    if (!gdmsRateLimitLock('reboot', $mac)) { echo json_encode(['error' => 'Rate limit — wait 60 s between reboots for the same device']); return; }
+    if (!gdmsCheckRateLimit('reboot', $mac)) { gdmsRateLimitUnlock('reboot', $mac); echo json_encode(['error' => 'Rate limit — wait 60 s between reboots for the same device']); return; }
+    gdmsCommitRateLimit('reboot', $mac);
+    gdmsRateLimitUnlock('reboot', $mac);
 
     PluginGdmsintegrationUtils::log("Reboot (GDMS task) requested — MAC: {$mac}");
     $result = PluginGdmsintegrationAPI::gdmsCreateRebootTask($config, $mac);
     if (!empty($result['error'])) {
         PluginGdmsintegrationUtils::log("Reboot (GDMS task) FAILED — " . $result['error']);
-    } else {
-        gdmsCommitRateLimit('reboot', $mac);
     }
     echo json_encode($result);
     return;
@@ -423,14 +441,15 @@ if ($action === 'factory_reset_gdms') {
     if (!str_contains($mac, ':')) {
         $mac = implode(':', str_split($mac, 2));
     }
-    if (!gdmsCheckRateLimit('factory_reset', $mac, 300)) { echo json_encode(['error' => 'Rate limit — wait 5 min between factory resets for the same device']); return; }
+    if (!gdmsRateLimitLock('factory_reset', $mac)) { echo json_encode(['error' => 'Rate limit — wait 5 min between factory resets for the same device']); return; }
+    if (!gdmsCheckRateLimit('factory_reset', $mac, 300)) { gdmsRateLimitUnlock('factory_reset', $mac); echo json_encode(['error' => 'Rate limit — wait 5 min between factory resets for the same device']); return; }
+    gdmsCommitRateLimit('factory_reset', $mac);
+    gdmsRateLimitUnlock('factory_reset', $mac);
 
     PluginGdmsintegrationUtils::log("Factory reset (GDMS task) requested — MAC: {$mac}");
     $result = PluginGdmsintegrationAPI::gdmsCreateFactoryResetTask($config, $mac);
     if (!empty($result['error'])) {
         PluginGdmsintegrationUtils::log("Factory reset (GDMS task) FAILED — " . $result['error']);
-    } else {
-        gdmsCommitRateLimit('factory_reset', $mac);
     }
     echo json_encode($result);
     return;
