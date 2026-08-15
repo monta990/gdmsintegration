@@ -11,11 +11,13 @@
   <a href="https://github.com/monta990/gdmsintegration/releases" target="_blank"><img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/monta990/gdmsintegration/total"></a>
 </p>
 
+**Current release:** `1.6.0`
+
 ---
 
 ## Overview
 
-Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS (Grandstream Device Management System) Cloud into GLPI. Raises incident tickets when devices go offline and auto-resolves them on recovery. Assigned technicians are notified automatically. Provides a real-time NOC dashboard with per-network device stats, traffic metrics, interactive port status, configurable availability history, network topology, Excel export, and firmware update scheduling for all Grandstream device families (GWN, UCM, GRP, GXV, WP, HT).
+Automatically synchronizes Grandstream networking equipment and VoIP phones from GDMS (Grandstream Device Management System) Cloud into GLPI. Raises incident tickets when devices go offline and auto-resolves them on recovery. Assigned technicians are notified automatically. Provides a real-time NOC dashboard with per-network device stats, traffic metrics, interactive port status, configurable availability history, network topology, XLSX export, official-firmware update scheduling, WAN health visibility, infrastructure health scoring, and automatic incident-ticket generation for Grandstream device families (GWN, UCM, GRP, GXV, WP, HT).
 
 ---
 
@@ -61,18 +63,29 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 
 #### Summary cards
 
-Six stat cards at the top of the dashboard in Grandstream Cloud style, each showing online / offline counts:
+Seven compact stat cards are displayed in a single row on desktop screens. The layout automatically wraps additional cards to a new row if more indicators are added in the future:
 
-| Card | What it counts |
+| Card | What it shows |
 |------|---------------|
-| **Networks** | Total GWN networks / sites |
-| **Router** | GWN7001/7002/7003 devices |
-| **Switch** | GWN78xx / GSS devices |
-| **AP** | Other GWN access points |
-| **Phones & PBX** | GRP/GXP/GXV/WP/HT phones **and** UCM/GCC PBX appliances |
-| **Clients** | Connected wireless clients (aggregate across all networks) |
+| **Networks & clients** | Total GWN networks / sites plus connected wireless clients (aggregate across all networks). |
+| **Router** | GWN7001/7002/7003 devices, online / offline. |
+| **Switch** | GWN78xx / GSS devices, online / offline. |
+| **AP** | Other GWN access points, online / offline. |
+| **Phones & PBX** | GRP/GXP/GXV/WP/HT phones and UCM/GCC PBX appliances, online / offline. |
+| **Infrastructure health** | Operational health score based on device availability and synchronization state over the configured history period. |
+| **WAN status** | Active WAN links versus down links; active WANs without confirmed Internet are called out separately. |
 
-A horizontal availability bar below the cards shows the overall online percentage across all devices.
+The **Infrastructure health** value is a percentage based on device availability and synchronization state, using the same number of days configured for the availability chart/history. Firmware update status is intentionally independent from this score. The **WAN status** card treats a WAN with physical link but no Internet as active, not down.
+
+A separate horizontal bar below the cards shows **availability at the last synchronization** for all devices. It represents the online/offline state contained in the most recent synchronization, not the historical availability percentage used by the health score and SLA calculations.
+
+#### Operational indicators
+
+The dashboard keeps historical and current-state concepts separate:
+
+- **Infrastructure health** is a percentage score based on device availability and synchronization state, evaluated over the configured history period. Firmware status does not increase or decrease this score; firmware updates are handled independently.
+- **WAN status** counts WAN links with a physical link as active even when Internet connectivity is not confirmed. Those active/no-Internet links are shown separately so they are not mistaken for physically down WANs.
+- **Availability at last synchronization** is the current online/offline snapshot from the most recent sync across all managed devices. It is not the same metric as the historical availability used for SLA tiers.
 
 #### Device table
 
@@ -146,6 +159,23 @@ Phones show a 9 px colour-coded dot in the Ports column instead of port dots:
 
 This dot also appears for ATA devices (HT series) regardless of whether they are stored as Phone or NetworkEquipment in GLPI — classification is based on the model prefix.
 
+#### Grandstream diagnostics tab
+
+Grandstream-managed phones, ATAs, and network equipment that are linked to a synchronized Grandstream cloud state record expose an additional **Grandstream diagnostics** tab in the GLPI asset form. The tab is intentionally read-only and is only shown for assets that are actually linked to Grandstream cloud data; unrelated GLPI devices do not receive the tab.
+
+The diagnostic snapshot includes:
+
+- Current cloud **status**, **SLA tier**, and historical **availability percentage**, using the same availability/SLA logic as the NOC dashboard.
+- Grandstream **network/site** association.
+- The stored **private/local management IP**, preferring the synchronized private address and falling back to the management IP when available. The public IP is deliberately not used as a fallback.
+- **Current firmware** reported by the synchronized Grandstream cloud state. Firmware update availability is handled by the dashboard/firmware workflow rather than this read-only asset tab.
+- Connected **clients** and **last seen** information when reported by the cloud data.
+- A read-only **WAN diagnostics** table for routers with stored WAN information, including link state, WAN IP, gateway, and DNS.
+
+All valid diagnostic IP addresses are rendered as secure **HTTPS links** that open in a new browser tab/window. IPv4 and IPv6 literals are validated before becoming links; IPv6 destinations use bracket notation. This includes the private/local device IP and WAN IPs shown in the diagnostic view.
+
+The tab uses GLPI/Tabler icons and deliberately does not expose destructive actions such as reboot or factory reset.
+
 **Clicking the dot** opens a detail modal with:
 
 - SIP registration status.
@@ -201,7 +231,7 @@ Availability % is calculated over the configured history period (default 60 days
 | **Bronze** | ≥ 95.0 % | Acceptable availability — some incidents recorded |
 | **Critical** | < 95.0 % | Poor availability — requires immediate attention |
 
-The same tiers and thresholds apply to both the NOC dashboard and the Excel export Summary sheet.
+The same tiers and thresholds apply to both the NOC dashboard and the XLSX export Summary sheet.
 
 #### History Import
 
@@ -209,9 +239,11 @@ Availability history lost due to database migration, server move, or accidental 
 
 ---
 
-### Firmware Updates (All device families) - BETA - THIS FEATURE MAY FAIL
+### Firmware Updates (official firmware only)
 
 The dashboard checks firmware availability for all Grandstream devices 2 seconds after page load, in background, without blocking the sync or the device table. GLPI's native Flatpickr date/time picker is used for scheduling updates, with locale matching the active GLPI session.
+
+Only **official/stable firmware** is considered for update detection and installation. Beta, RC, alpha, preview, development, and test releases are intentionally ignored so they cannot create a false "new firmware" indicator or appear as an installable version. The dashboard also does not use stale stored pre-release information to display an update badge.
 
 **Version sources:**
 
@@ -224,11 +256,12 @@ The dashboard checks firmware availability for all Grandstream devices 2 seconds
 | WP Wi-Fi phones | `grandstream.com/support/firmware` scraper |
 | HT ATAs | `grandstream.com/support/firmware` scraper |
 
-An amber **⬆** icon appears next to the firmware version when an update is available for any device type.
+An amber **⬆** icon appears next to the firmware version only when the current official/stable check confirms a newer official firmware.
 
 **Clicking the ⬆ icon** opens a modal showing:
 - Current version installed on the device.
-- Available versions with radio buttons (hidden when no version data is available):
+- The latest official firmware available when the API provides it.
+- Available official versions with radio buttons (hidden when no version data is available).
   - **Official firmware** (green badge) — stable release.
 - Reboot warning (the device will restart during the upgrade).
 - Two action buttons:
@@ -265,11 +298,17 @@ Logs written to `files/_log/gdmsintegration.log`.
 | Tier | When active | What is recorded |
 |------|------------|-----------------|
 | **Minimal** | Always | Token OK/ERROR, device counts, MATCH/CREATE/UPDATE, ticket events, API errors |
-| **Verbose** | GLPI debug mode **or** plugin debug toggle | Full API URLs, request bodies, raw JSON responses, HMAC inputs, SN diagnostics |
+| **Verbose** | GLPI debug mode **or** plugin debug toggle | Detailed API URLs (with sensitive auth parameters redacted), request bodies, raw JSON responses, HMAC inputs, SN diagnostics |
 
-> ⚠️ Verbose mode logs full API URLs including access tokens. Disable after troubleshooting and rotate API secrets if logs were exposed.
+> ⚠️ Verbose mode logs detailed API URLs, request/response diagnostics and troubleshooting data. Sensitive authentication parameters and tokens are redacted before they are written to the log. Disable verbose logging after troubleshooting.
 
 ---
+
+### Plugin Update Check
+
+The configuration page checks the GitHub Releases API for the latest published stable release of the plugin. The check compares the installed plugin version with the latest non-draft, non-prerelease release and provides a direct link to the release when an update is available.
+
+The result is cached in the current GLPI session for six hours. A GitHub or network failure does not affect plugin configuration or synchronization.
 
 ## Requirements
 
@@ -281,6 +320,20 @@ Logs written to `files/_log/gdmsintegration.log`.
 | GLPI vendor | `phpoffice/phpspreadsheet` (bundled with GLPI) |
 
 ---
+
+## Architecture and GLPI 11/12 compatibility
+
+This plugin targets **GLPI 11.x and 12.x**. Its HTTP entry points use GLPI plugin Controllers under `src/Controller/`, with Symfony routing attributes and `Glpi\Controller\AbstractController`. Controllers are auto-discovered by GLPI; no manual route registration is required. For GLPI 11.0 through 11.0.6, mutating routes use GLPI's documented `GET`+`POST` compatibility workaround and reject non-POST requests inside the service layer; GLPI 11.0.7+ and GLPI 12 use the same routes without needing the workaround at the router level.
+
+The HTTP layer follows a strict separation of responsibilities:
+
+- `src/Controller/` owns routing, `Request` input and `Response` output.
+- `src/Service/` contains dashboard/configuration/API endpoint orchestration and does not read PHP HTTP superglobals.
+- `src/` contains the plugin domain/API classes using PSR-4 autoloading.
+- `hook.php` owns installation, migration and uninstallation lifecycle work.
+- `setup.php` is limited to metadata, prerequisites, runtime initialization and hook/class registration.
+
+The plugin does not depend on legacy `front/` or `ajax/` entry points, and no runtime code includes procedural endpoint scripts. This keeps the web layer aligned with the Controller architecture documented for GLPI 11+. Database access remains through GLPI's database abstractions/query builder and plugin-owned lifecycle migrations; runtime requests do not perform schema changes.
 
 ## Installation
 
@@ -314,12 +367,15 @@ Logs written to `files/_log/gdmsintegration.log`.
 ### Card 4 — Settings
 | Field | Description |
 |-------|-------------|
+| GDMS account region | Selects the region of the GDMS Unified Communications account. Supported regions are **United States / Americas** and **Europe**; the plugin maps the selection to the corresponding fixed API endpoint. |
 | Refresh interval | Dashboard auto-refresh in seconds (default 300) |
 | Debug logging | Toggle verbose logging |
-| Availability chart days | Days of history shown in chart and Excel export (7–365, default 60). Values > 90 may slow the dashboard. |
+| Availability chart days | Days of history used by the availability chart and XLSX export (7–365, default 60). The same period is used for the Infrastructure health context. Values > 90 may slow the dashboard. |
 | Ticket requester | GLPI user set as requester on auto-generated incident tickets. Asset's assigned user (`users_id`) takes priority when set. |
 | Ticket device name | Auto-generated tickets use the GLPI asset name when the device is already registered in GLPI; falls back to the GDMS cloud name for unregistered devices. |
 | Show topology card | Toggle the vis-network topology graph. Disabling skips all topology data processing. |
+| Ticket category — network equipment | Selects a real GLPI ITIL incident category for automatically generated tickets related to routers, switches, access points, and WAN failures. The option is optional. |
+| Ticket category — Grandstream telephony | Selects a real GLPI ITIL incident category for automatically generated tickets related to Grandstream phones / telephony devices. The option is optional. |
 | WAN no-internet debounce (seconds) | Seconds to wait before opening a "no internet" WAN ticket. Filters false alerts from transient high-latency events. 0 = open immediately. Default: 300. |
 | Create WAN port tickets | Toggle (on by default). When disabled, the plugin suppresses all WAN link-down and no-internet incident tickets. Port state tracking and debounce timers continue running so re-enabling takes effect immediately. Resolved tickets are still closed automatically. |
 
@@ -334,6 +390,8 @@ Logs written to `files/_log/gdmsintegration.log`.
 | IP PBX / UCM (UCM, GCC) | Open offline tickets when UCM/GCC PBX appliances go offline. |
 
 Disabling a type suppresses ticket creation for that category only. Ticket auto-resolution is never suppressed — open tickets still close when a device comes back online.
+
+**Ticket categories** are optional. When configured, the plugin assigns the selected GLPI ITIL incident category to the corresponding automatically generated tickets. If no category is selected, ticket creation keeps the previous behavior and leaves the category unset.
 
 After saving, the plugin tests both API connections and shows green/red status badges.
 
@@ -358,10 +416,17 @@ Upload a `gdms_history_*.xlsx` file (exported from the availability chart) to re
 | `glpi_plugin_gdmsintegration_devices` | Live device state: MAC, status, network_id, network_name, IP, firmware, uptime_sec, sn_cloud, wan_ports_json, model, cloud_name, clients, upload_bytes, download_bytes, usage_bytes, channel_2g, channel_5g, first_seen, last_seen, mgmt_ip, firmware_latest, ipv6, private_ip, location |
 | `glpi_plugin_gdmsintegration_history` | Per-device status snapshots (retention based on `chart_days` config) |
 | `glpi_plugin_gdmsintegration_links` | Network topology edges |
+| `glpi_plugin_gdmsintegration_client_history` | Historical client-to-AP correlation data |
+| `glpi_plugin_gdmsintegration_action_log` | Audited destructive and bulk device actions |
+| `glpi_plugin_gdmsintegration_network_locations` | Network-to-GLPI-location associations |
+| `glpi_plugin_gdmsintegration_locks` | Short-lived application locks used to prevent concurrent sync/ticket actions |
 
 ---
 
 ## Architecture Notes
+
+### Database schema management
+Schema creation and upgrades are executed through GLPI's `Migration` API during plugin installation/update. Normal dashboard, controller and synchronization requests do not modify the plugin schema.
 
 ### Entity scope
 The plugin operates from the root entity (entity 0) and loads all network equipment across all GLPI entities. Network infrastructure is shared organization-wide, not scoped to individual subsidiaries.
@@ -373,7 +438,7 @@ The *Model* column in the NOC dashboard resolves first from the GLPI asset catal
 The GWN Cloud API requires the OAuth2 `client_credentials` grant as a `GET` request — this is Grandstream's mandated format. Credentials are encrypted at rest with `GLPIKey` and transmitted only over TLS.
 
 ### JavaScript libraries
-vis-network 10.0.3 is the only library bundled inside the plugin's `js/` directory and served via a PHP stateless route (`front/visnetwork.php`). Chart rendering uses **ECharts 5** and date picking uses **Flatpickr** — both are already bundled with GLPI and loaded on demand via `Html::requireJs('charts')` and `Html::requireJs('flatpickr')`. No external CDN requests are made.
+vis-network 10.1.1 is bundled as a public static asset under `public/js/` and is served by GLPI at `/plugins/gdmsintegration/js/vis-network.min.js`. Chart rendering uses **ECharts 5** and date picking uses **Flatpickr** — both are already bundled with GLPI and loaded on demand via `Html::requireJs('charts')` and `Html::requireJs('flatpickr')`. No external CDN requests are made.
 
 ## API Authentication
 
@@ -389,7 +454,7 @@ vis-network 10.0.3 is the only library bundled inside the plugin's `js/` directo
 
 ## Locales
 
-es_MX, fr_FR, de_DE
+es_MX, fr_FR, de_DE, pt_BR
 
 ---
 
@@ -428,3 +493,8 @@ GPL v3+ — see [LICENSE](LICENSE).
 ## Issues
 
 Report bugs or request features on the [issue tracker](https://github.com/monta990/gdmsintegration/issues).
+
+
+### GLPI 11/12 controllers
+
+All web endpoints are exposed through the plugin controller system under `/plugins/gdmsintegration/*`. The plugin no longer uses `front/` or `ajax/` scripts for its web entry points. This follows GLPI's controller architecture for GLPI 11 and later.

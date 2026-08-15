@@ -2,13 +2,19 @@
 
 use Glpi\Plugin\Hooks;
 
+// GLPI's plugin lifecycle manager may inspect the installation hooks while
+// loading setup.php. Keep the lifecycle implementation in hook.php, but make
+// those functions available from the plugin bootstrap as well. require_once
+// avoids duplicate declarations when GLPI subsequently loads hook.php itself.
+require_once __DIR__ . '/hook.php';
+
 /**
  * GDMS Integration — setup.php
  * Author: Edwin Elias Alvarez
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.5.0');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.6.0');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI',  '11.0');
 define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '12.99');
 
@@ -51,18 +57,6 @@ function plugin_gdmsintegration_check_config(bool $verbose = false): bool {
     return true;
 }
 
-// ---------------------------------------------------------------------------
-// Boot — runs before session is loaded, used for stateless path registration
-// ---------------------------------------------------------------------------
-function plugin_gdmsintegration_boot(): void {
-    // vis-network static JS asset — served without session
-    \Glpi\Http\SessionManager::registerPluginStatelessPath(
-        'gdmsintegration',
-        '#^/front/visnetwork\.php#'
-    );
-    // firmware.ajax.php: NOT stateless — uses session normally, CSRF via X-Glpi-Csrf-Token header
-    // sync.ajax.php uses normal GLPI session (browser sends cookie automatically)
-}
 
 // ---------------------------------------------------------------------------
 // Init — hooks & class registration
@@ -70,154 +64,24 @@ function plugin_gdmsintegration_boot(): void {
 function plugin_init_gdmsintegration(): void {
     global $PLUGIN_HOOKS;
 
-    if (defined('\Glpi\Plugin\Hooks::CSRF_COMPLIANT')) {
-        $PLUGIN_HOOKS[Hooks::CSRF_COMPLIANT]['gdmsintegration'] = true;
+    // GLPI 11 exposes the legacy CSRF-compliance hook; GLPI 12 removed it.
+    // Keep the declaration only for GLPI 11 so the plugin can initialize on both targets.
+    if (version_compare(GLPI_VERSION, '12.0.0', '<')) {
+        $PLUGIN_HOOKS['csrf_compliant']['gdmsintegration'] = true;
     }
-    $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['gdmsintegration']    = 'front/config.form.php';
+    // Keep the plugin configuration link compatible with GLPI's plugin UI.
+    // Plugin::getConfigPage() prefixes this value with /plugins/gdmsintegration/.
+    $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['gdmsintegration'] = 'config';
 
-    if (Session::getLoginUserID()) {
-        $PLUGIN_HOOKS[Hooks::MENU_TOADD]['gdmsintegration'] = [
-            'tools' => 'PluginGdmsintegrationMenu',
-        ];
+    // plugin_init() runs before the user session is loaded. Class registration
+    // must therefore never depend on Session state. Permission checks belong
+    // to the menu provider and Controllers.
+    $PLUGIN_HOOKS[Hooks::MENU_TOADD]['gdmsintegration'] = [
+        'tools' => '\GlpiPlugin\Gdmsintegration\Menu',
+    ];
 
-        Plugin::registerClass('PluginGdmsintegrationConfig');
-        Plugin::registerClass('PluginGdmsintegrationDevice');
-        Plugin::registerClass('PluginGdmsintegrationHistory');
-        Plugin::registerClass('PluginGdmsintegrationLink');
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Install
-// ---------------------------------------------------------------------------
-function plugin_gdmsintegration_install(): bool {
-    global $DB;
-
-    $charset   = DBConnection::getDefaultCharset();
-    $collation = DBConnection::getDefaultCollation();
-    $sign      = DBConnection::getDefaultPrimaryKeySignOption();
-
-    if (!$DB->tableExists('glpi_plugin_gdmsintegration_configs')) {
-        $DB->doQuery(
-            "CREATE TABLE `glpi_plugin_gdmsintegration_configs` (
-                `id`             int {$sign} NOT NULL AUTO_INCREMENT,
-                `entities_id`    int {$sign} NOT NULL DEFAULT '0',
-                `username`       varchar(255) NOT NULL DEFAULT '',
-                `password`       text,
-                `client_id`      varchar(255) NOT NULL DEFAULT '',
-                `client_secret`  text,
-                `gwn_client_id`  varchar(255) NOT NULL DEFAULT '',
-                `gwn_client_secret` text,
-                `refresh_interval`  int unsigned NOT NULL DEFAULT 300,
-                `debug_logging`     tinyint unsigned NOT NULL DEFAULT 0,
-                `date_creation`  TIMESTAMP NULL DEFAULT NULL,
-                `date_mod`       TIMESTAMP NULL DEFAULT NULL,
-                PRIMARY KEY (`id`),
-                UNIQUE KEY `entities_id` (`entities_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}"
-        );
-    }
-
-    if (!$DB->tableExists('glpi_plugin_gdmsintegration_history')) {
-        $DB->doQuery(
-            "CREATE TABLE `glpi_plugin_gdmsintegration_history` (
-                `id`     int {$sign} NOT NULL AUTO_INCREMENT,
-                `mac`    varchar(50) NOT NULL DEFAULT '',
-                `status` varchar(20) NOT NULL DEFAULT '',
-                `date`   TIMESTAMP NULL DEFAULT NULL,
-                PRIMARY KEY (`id`),
-                KEY `mac`  (`mac`),
-                KEY `date` (`date`)
-            ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}"
-        );
-    }
-
-    if (!$DB->tableExists('glpi_plugin_gdmsintegration_devices')) {
-        $DB->doQuery(
-            "CREATE TABLE `glpi_plugin_gdmsintegration_devices` (
-                `id`     int {$sign} NOT NULL AUTO_INCREMENT,
-                `entities_id`  int unsigned NOT NULL DEFAULT 0,
-                `mac`          varchar(50) NOT NULL DEFAULT '',
-                `status`       varchar(20) NOT NULL DEFAULT '',
-                `network_name` varchar(255) NOT NULL DEFAULT '',
-                `network_id`   int unsigned NOT NULL DEFAULT 0,
-                `ip`           varchar(50) NOT NULL DEFAULT '',
-                `firmware`     varchar(50) NOT NULL DEFAULT '',
-                `uptime_sec`   bigint unsigned NOT NULL DEFAULT 0,
-                `sn_cloud`     varchar(100) NOT NULL DEFAULT '',
-                `wan_ports_json` text NOT NULL DEFAULT '',
-                `model`         varchar(100) NOT NULL DEFAULT '',
-                PRIMARY KEY (`id`),
-                UNIQUE KEY `mac` (`mac`),
-                KEY `entities_id` (`entities_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}"
-        );
-    }
-
-    if (!$DB->tableExists('glpi_plugin_gdmsintegration_links')) {
-        $DB->doQuery(
-            "CREATE TABLE `glpi_plugin_gdmsintegration_links` (
-                `id`         int {$sign} NOT NULL AUTO_INCREMENT,
-                `source_mac` varchar(50) NOT NULL DEFAULT '',
-                `target_mac` varchar(50) NOT NULL DEFAULT '',
-                `type`       varchar(20) NOT NULL DEFAULT '',
-                PRIMARY KEY (`id`),
-                UNIQUE KEY `source_target` (`source_mac`, `target_mac`)
-            ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}"
-        );
-    }
-
-    // Clean up any orphaned crontask from previous installs, then re-register
-    CronTask::unregister('gdmsintegration');
-    CronTask::register(
-        'PluginGdmsintegrationSync',
-        'syncDevices',
-        10 * MINUTE_TIMESTAMP,
-        [
-            'comment' => 'Synchronize GDMS/GWN cloud devices with GLPI',
-            'mode'    => CronTask::MODE_EXTERNAL,
-            'state'   => CronTask::STATE_WAITING,
-        ]
-    );
-    // Force-update existing crontask — frequency, mode and state
-    $DB->update(
-        CronTask::getTable(),
-        [
-            'frequency' => 10 * MINUTE_TIMESTAMP,
-            'mode'      => CronTask::MODE_EXTERNAL,
-            'state'     => CronTask::STATE_WAITING,
-        ],
-        [
-            'itemtype' => 'PluginGdmsintegrationSync',
-            'name'     => 'syncDevices',
-        ]
-    );
-    // Note: log retention is managed by GLPI's own cron interface (Setup → Automatic Actions)
-
-    // Add columns that may be missing in existing installs (upgrade-safe).
-    // Single source of truth — see PluginGdmsintegrationUtils::ensureSchema()
-    PluginGdmsintegrationUtils::ensureSchema();
-
-    return true;
-}
-
-// ---------------------------------------------------------------------------
-// Uninstall
-// ---------------------------------------------------------------------------
-function plugin_gdmsintegration_uninstall(): bool {
-    global $DB;
-
-    foreach ([
-        'glpi_plugin_gdmsintegration_configs',
-        'glpi_plugin_gdmsintegration_history',
-        'glpi_plugin_gdmsintegration_devices',
-        'glpi_plugin_gdmsintegration_links',
-    ] as $table) {
-        if ($DB->tableExists($table)) {
-            $DB->doQuery("DROP TABLE `{$table}`");
-        }
-    }
-
-    CronTask::unregister('gdmsintegration');
-    return true;
+    Plugin::registerClass(\GlpiPlugin\Gdmsintegration\Config::class);
+    Plugin::registerClass(\GlpiPlugin\Gdmsintegration\Device::class, ['addtabon' => ['NetworkEquipment', 'Phone']]);
+    Plugin::registerClass(\GlpiPlugin\Gdmsintegration\History::class);
+    Plugin::registerClass(\GlpiPlugin\Gdmsintegration\Link::class);
 }
