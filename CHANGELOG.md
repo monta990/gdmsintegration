@@ -1,11 +1,102 @@
 # Changelog — GDMS Integration
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [1.6.0] — 2026-08-15
+
+### Added
+
+- Migrated plugin-owned classes from the legacy `inc/` layout to PSR-4 namespaced classes under `src/`.
+- Moved plugin installation and uninstallation lifecycle hooks to `hook.php`; `setup.php` now remains focused on metadata, prerequisites, runtime initialization and registrations.
+- Removed the plugin `front/` entry-point dependency; all public plugin web routes are exposed through GLPI 11/12 Controllers.
+- Added a GitHub release check on the plugin configuration page to notify administrators when a newer stable plugin version is available.
+- Added the NOC dashboard with compact summary cards for networks and clients, routers, switches, access points, phones/PBX, infrastructure health, and WAN status.
+- Added infrastructure health as a historical operational indicator based on availability and synchronization over the configured history period.
+- Added WAN diagnostics that distinguish active links with Internet access, active links without Internet access, and down links.
+- Added ITIL incident-category selectors for network equipment and Grandstream cloud telephony, using GLPI's `ITILCategory` framework and supporting GLPI 11 and 12.
+- Added richer GDMS/GWN API error logging with provider, endpoint, HTTP status, API return code/message, category, duration, and retryability.
+- Added a read-only **Grandstream diagnostics** tab for GLPI assets linked to synchronized Grandstream cloud state, with status, SLA tier, availability percentage, network, private/local IP, firmware, clients, last-seen data, and router WAN diagnostics.
+- Added safe clickable diagnostic IP addresses: private/local device IPs and stored WAN IPs open their HTTPS management address in a new tab, with IPv4/IPv6 validation and RFC-compatible IPv6 URL formatting.
+- Added GLPI/Tabler icons throughout the Grandstream diagnostics tab and kept destructive diagnostics intentionally out of the read-only view.
+- Added improved firmware update controls for immediate and scheduled GWN firmware actions.
+- Added firmware detection restricted to official/stable releases; beta, RC, alpha, preview, development, and test releases are not treated as actionable updates.
+- Added updated documentation covering the dashboard, synchronization, firmware, WAN diagnostics, ITIL categories, logging, and configuration.
+- Added Brazilian Portuguese (`pt_BR`) translation for the complete plugin interface.
+
+### Changed
+
+- Completed the GLPI 11/12 Controller migration: all plugin web routes now terminate in `src/Controller/GdmsController.php`, with request/response orchestration delegated to namespaced services under `src/Service/`.
+- Removed `src/Controller/EndpointRunner.php` and the obsolete procedural `src/Endpoint/*.php` implementation files; no runtime controller includes endpoint scripts or captures legacy HTTP headers/status codes.
+- Exposed mutating routes as `GET`+`POST` (`/sync`, `/bulk`, `/network-location`) to support the documented GLPI 11.0-11.0.6 routing workaround; the service layer rejects non-POST requests for state-changing operations. Firmware keeps `GET` for checks and `POST` for mutations.
+- Removed HTTP superglobal access from the synchronization entry path; `Sync::syncEntity()` now receives its caller/source explicitly, so synchronization is no longer coupled to HTTP.
+- Replaced direct spreadsheet/config upload superglobals with Symfony `Request`/`UploadedFile` handling and changed history export to a `BinaryFileResponse` with temporary-file cleanup.
+- Replaced the configuration page's direct core-user table helper with GLPI's `User` object/query API.
+- Removed the redundant **Health** column from the device table so device-level availability and SLA use the same nomenclature as the rest of the dashboard.
+- Redesigned the dashboard layout so operational indicators use the same compact card style and additional indicators can flow to subsequent rows responsively.
+- Combined the Networks and Clients summary into a single compact card.
+- Clarified the dashboard availability label to identify it as the state recorded at the last synchronization, distinguishing it from historical infrastructure health.
+- Infrastructure health no longer includes firmware compliance; firmware status is handled independently by the firmware subsystem.
+- Firmware status is evaluated only against the current official/stable release returned by the cloud API and does not use beta or pre-release versions to trigger update warnings.
+- Updated the topology loader to use vis-network 10.1.1 with cache-busting and safer initialization.
+- Updated the README and translation catalogs to document the current 1.6.0 behavior.
+- Changed plugin schema management to use GLPI Migration during installation and updates instead of request-time self-healing schema changes.
+
+- Added a GDMS region selector (US/Americas or Europe) and fixed all GDMS API/task endpoints to use the selected fixed allow-listed host.
+- Added encrypted cross-process GDMS OAuth token/refresh-token caching with expiry safety margin; refresh-token grant is preferred and password grant is retained as fallback. Tokens are invalidated when configuration is saved.
+- Added bounded retry/backoff with jitter for safe API reads on cURL failures and HTTP 429/502/503/504, including Retry-After handling. Destructive actions are not automatically retried.
+- Added one controlled token renewal/retry path for long-running safe list/version requests.
+- GWN network/list and client/list now paginate instead of silently stopping at the first page. GWN device pagination now reports whether the result is authoritative; partial/truncated results are processed but cannot trigger removal detection.
+- GWN device/info enrichment is capped to 40 concurrent requests and falls back to the hardened single-request path on per-request transport/API failures.
+- Firmware version checks now use the hardened request path and expose per-network API failures separately through `gwnGetLastFirmwareErrors()` while preserving the existing public result shape.
+- Expanded log redaction to cover client_secret, secretKey, refresh_token and password query parameters.
+- Removed remaining hard-coded GWN OAPI endpoint strings in favor of `self::GWN_BASE` + the central API version constant.
+- GWN alerts are paginated safely; existing callers may still request a small page size.
+- GWN client and alert pagination now exposes whether results are complete; dashboard AJAX keeps the existing array response shape and signals/shows partial results without treating them as authoritative.
+- Firmware checks now surface per-network GWN API failures in the dashboard instead of silently presenting them as “no update”.
+- Synchronization preserves the last known `firmware_latest` value when `/upgrade/version` fails for a network, preventing transient API failures from clearing valid firmware information.
+
+### Fixed
+
+- Replaced spreadsheet-brand wording with neutral **XLSX** terminology across the dashboard, configuration, documentation, metadata, and all translations.
+- Fixed the SIP status/DND indicator in the Ports column so its status dot uses the same native Bootstrap tooltip behavior and placement as the network equipment port dots.
+- Removed an unreachable duplicate redirect return from `ConfigService` found during the final pre-publication audit.
+- Fixed GLPI 11 automatic-action discovery by explicitly registering the namespaced `Sync` itemtype and registering the `SyncDevices` CronTask with `Sync::class`, allowing `cronSyncDevices()` to be resolved correctly by the scheduler.
+- Fixed plugin initialization so PSR-4 classes and the configuration route are registered before a user session exists; permission checks remain inside the menu provider and Controllers.
+- Fixed GLPI 11.0-11.0.6 Controller method compatibility by exposing mutating routes as `GET`+`POST` and rejecting non-POST requests in the service layer, following GLPI's documented workaround.
+- Fixed GLPI 11/12 controller runtime errors caused by using `AbstractController::generateUrl()` (not provided by GLPI's plugin controller base) and by resolving global GLPI classes such as `Session`, `Html` and `Entity` inside namespaced service classes.
+- Fixed GLPI 12 plugin activation by avoiding the removed `Hooks::CSRF_COMPLIANT` constant; the legacy `csrf_compliant` hook is now registered only on GLPI 11.
+- Localized the Grandstream asset diagnostic tab consistently with the dashboard, including device status and WAN link labels.
+- Removed the redundant **Latest firmware** field from the read-only Grandstream diagnostics tab; official firmware detection remains available to the dashboard/firmware workflow.
+- Fixed local diagnostic and WAN IP addresses to open the device HTTPS address in a new tab with safe IPv4/IPv6 handling.
+- Fixed configuration connection-status badges to use the same compact, readable styling as dashboard device-status badges.
+- Fixed the Grandstream diagnostics tab to appear only on assets linked to Grandstream cloud state, added GLPI-style Tabler icons, and changed its IP display to prefer the stored private/local management address instead of the public IP.
+- Fixed the Cloud Alerts panel leaving an empty table after the last alert is dismissed.
+- Fixed Cloud Alerts dismiss controls leaving their native GLPI tooltip visible after the alert row is removed.
+- Fixed the critical-SLA banner layout so its left side and device details remain fully visible and wrap safely at narrow widths or with long device names.
+- Fixed dashboard tooltips to use GLPI's centralized `initTooltips()` implementation instead of creating plugin-owned Bootstrap tooltip instances, preserving GLPI's native delay, hover trigger and automatic placement and preventing stacked or orphaned tooltips.
+- Aligned all dashboard tooltip markup with GLPI's native pattern (`title` + `data-bs-toggle="tooltip"`), including Export to XLSX, port/SIP indicators, firmware, copy actions and cloud-alert dismiss controls; removed the incompatible `data-bs-title` markup that caused tooltips to remain visible or stack.
+- Fixed WAN totals so active WAN links without Internet access are counted as active links instead of being treated as down.
+- Fixed the Grandstream diagnostics WAN table to mirror the dashboard connection state, distinguishing link down, online, WAN up without Internet, and unknown WAN connectivity.
+- Fixed GWN firmware actions when the API does not provide a selectable version because the cloud service is expected to choose the latest official release.
+- Fixed firmware update state so only official/stable releases can become actionable, preventing stale or pre-release firmware data from producing false update warnings.
+- Fixed creation of the `last_sync_status` schema field with a valid default value.
+- Fixed database concurrency and transaction handling to use GLPI database abstractions instead of raw SQL advisory locks or transaction statements.
+- Fixed dashboard layout and wording issues that made operational indicators ambiguous or duplicated.
+- Fixed the bulk GDMS reboot endpoint input parsing and made it explicitly POST-only, with CSRF enforcement provided by GLPI's Controller CSRF validation.
+- Fixed synchronization CSRF handling by enforcing POST-only behavior in the service layer while relying on GLPI's Controller CSRF validation, including the documented GLPI 11.0-11.0.6 routing workaround.
+- Hardened firmware mutation endpoints with explicit GLPI CSRF validation for upgrade, reboot, and factory-reset actions.
+
+- **Safe GDMS partial-pagination handling** — `gdmsGetDevices()` now reports whether the returned list is complete while preserving its existing array return value. Transport failures and non-zero GDMS responses no longer make a partial list authoritative for removal detection. Returned devices are still synchronized normally.
+- **5,000-device pagination ceiling no longer causes false removals** — reaching the 50-page safety ceiling with a full page marks the GDMS result as incomplete. The current batch is processed, but `markRemovedDevicesOffline()` is skipped for that cycle so devices beyond the ceiling are never falsely marked offline/removed.
+- **Twig output escaping hardened** — device/cloud/GLPI values are now passed to Twig as raw data and escaped by Twig according to HTML/attribute context instead of relying on manual `htmlspecialchars()` plus `|raw`. JavaScript payloads and endpoint URLs are pre-encoded with `JSON_HEX_TAG`, `JSON_HEX_AMP`, `JSON_HEX_APOS`, and `JSON_HEX_QUOT` before the small number of intentional `|raw` script insertions, preventing script-context breakout without changing dashboard behavior.
+
+---
 
 ## [1.5.0] — 2026-05-23
 
 ### Fixed
+
 - **Entity access check on AJAX endpoints** — `alerts.ajax.php`, `clients.ajax.php`, and `ports.ajax.php` now call `Session::haveAccessToEntity()` after parsing `entities_id`. A user with `config:READ` on entity 1 can no longer query data from entity 2 via `?entities_id=2`.
 - **`php://input` capped at 64 KB in firmware.ajax.php** — replaced `file_get_contents('php://input')` with `stream_get_contents(..., 65536)` in both the `upgrade` and `upgrade_gdms` handlers.
 - **Missing access control on AJAX endpoints** — `alerts.ajax.php`, `alerts-dismiss.ajax.php`, `clients.ajax.php`, and `ports.ajax.php` checked only `checkLoginUser()`. Any authenticated GLPI user could query GWN alerts, WiFi clients, and WAN port state across all entities. All four now require `config:READ`.
@@ -27,6 +118,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **File upload MIME validation** — history XLSX and config JSON uploads now verify the actual file magic bytes via `finfo(FILEINFO_MIME_TYPE)` instead of trusting the client-supplied `Content-Type`. Rejects non-XLSX files uploaded to the history importer and non-JSON files uploaded to the config importer before any parsing occurs.
 
 ### Removed
+
 - **Webhook receiver removed** — `front/webhook.php` and all related infrastructure (stateless path registration, `webhook_secret` config field, HMAC validation logic, locale strings) have been removed. The cron sync and dashboard manual sync provide equivalent coverage without exposing an unauthenticated HTTP endpoint. The `webhook_secret` database column is dropped automatically on first load via `ensureSchema()`.
 
 ---
@@ -34,11 +126,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.4.3] — 2026-05-22
 
 ### Fixed
+
 - **Accessibility warnings — label/input associations** — all `<label>` elements in the config form now have `for` attributes pointing to their corresponding field `id`. Inputs that lacked an `id` received one. The Entity dropdown heading was changed from `<label>` to `<p>` (no single target field). Eliminates 16 browser accessibility warnings on the config page.
 - **Accessibility warnings — dashboard search field** — the Vue filter bar search `<input>` now has `id="gdms-device-search"` and `name="search"`, resolving the "form field has neither id nor name" browser warning.
 - **Accessibility warnings — firmware schedule label** — the "Schedule for" label in the firmware upgrade modal now has `for="gdmsFwDatetime"`, linking it to the flatpickr date input.
 
 ### Improved
+
 - **vis-network updated to 10.1.0**.
 
 ---
@@ -46,16 +140,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.4.2] — 2026-05-20
 
 ### Added
+
 - **Factory reset for UC phones/ATAs** — the phone SIP detail modal now includes a Factory Reset button (before the Reboot button) with a prominent danger alert explaining the consequences. The button requires two clicks (second click turns yellow "I understand — Reset now", auto-reverts in 6 s) to prevent accidental execution. Calls GDMS `task/add` with `taskType=2`. Requires `config:UPDATE` permission. -BETA - THIS FEATURE MAY FAIL.
 
 ### Fixed
+
 - **Firmware scheduler date/time picker did not update the field after selection** — `altInput: true` combined with `wrap: true` caused flatpickr to insert a hidden secondary input inside the Bootstrap `btn-group`, leaving the visible field blank after picking a date or time. Removed `altInput`/`altFormat`; the original `data-input` field now updates directly with `d/m/Y H:i` format. Schedule submission is unaffected (reads `selectedDates[0]`) - BETA - THIS FEATURE MAY FAIL.
 - **GWN device disappears intermittently** — when the GWN Cloud ap/list request for one network timed out, the plugin treated that network as having zero devices and deleted their state records, causing devices to vanish from the dashboard until the next successful sync. `gwnGetDevices()` now returns `false` on any per-network failure, which triggers the existing removal guard so no state is deleted during a partial API failure.
 - **Restart devices** — an immediate execution task is scheduled to restart the device. -BETA - THIS FEATURE MAY FAIL.
 - **JSON Export** — now export and import correctly.
 
-
 ### Improved
+
 - **Firmware modal — CDN-only devices show "Latest available"** — phones/ATAs (GRP, HT, WP, etc.) have no firmware version page on grandstream.com; the modal now displays "Latest available" instead of the raw CDN filename. Version sent to GDMS task is left blank when only a download URL is known, avoiding the previous incorrect behaviour of sending the current firmware version as the target.
 - **Firmware check_all — parallel GWN version fetch** — `check_all` now fetches firmware versions for all GWN networks in a single parallelised `curl_multi` batch instead of one sequential HTTP call per network, matching the behaviour of the existing `check` action. Reduces latency proportionally to the number of configured networks.
 - **Twig + Vue 3 frontend** — `front/dashboard.php` and `front/config.form.php` converted to standalone Twig templates (`templates/dashboard.html.twig`, `templates/config_form.html.twig`). PHP data layer and HTML presentation fully separated. Vue 3 filter bar replaces inline JS DOM manipulation. Compatible with GLPI 11 and GLPI 12.
@@ -65,7 +161,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.4.1] — 2026-05-13
 
 ### Added
-- **History import from Excel** — new card in Configuration lets operators restore availability history from a previously exported `gdms_history_*.xlsx` file (renamed from `gdms_disponibilidad_*.xlsx`). Device-days that already have data are skipped (non-destructive). Each imported day generates 100 synthetic records spaced ~14 min apart so the daily online/total ratio exactly reconstructs the original percentage (±1 %).
+
+- **History import from XLSX** — new card in Configuration lets operators restore availability history from a previously exported `gdms_history_*.xlsx` file (renamed from `gdms_disponibilidad_*.xlsx`). Device-days that already have data are skipped (non-destructive). Each imported day generates 100 synthetic records spaced ~14 min apart so the daily online/total ratio exactly reconstructs the original percentage (±1 %).
 - **Plugin configuration export** — download all plugin settings as a JSON backup file. An optional checkbox includes API credentials (username, keys, secrets) in the export for full migration scenarios.
 - **Plugin configuration import** — restore settings from a previously exported JSON backup. Credentials are only written when the source file explicitly included them; all other imports leave stored secrets unchanged.
 - **Firmware modal — device name and private IP** — modal header now shows the device name and its private IP (clickable link) so the operator knows which device they are updating without scrolling the table.
@@ -77,9 +174,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Firmware update in progress indicator** — after a successful upgrade request the firmware version cell shows "Updating…" instead of going blank; reverts to the real version on the next sync.
 
 ### Fixed
+
 - **CSRF double-upgrade failure** — second firmware upgrade in the same session failed with CSRF error. Root cause: GLPI 11 consumes single-use form tokens but preserves `X-Glpi-Csrf-Token` header tokens (`preserve_token: true`). All firmware upgrade fetches now send `X-Requested-With: XMLHttpRequest` + `X-Glpi-Csrf-Token` header; the body token field is removed.
 
 ### Improved
+
 - **Sync performance** — eliminated up to 3 DB round-trips per device: device state is loaded once into an in-process PHP cache (`primeCache()`) so `getState()` and `saveStateWithNetwork()` skip per-device `find()` calls; existing topology links are pre-loaded into a PHP set so link deduplication is a hash lookup; all history snapshots are flushed in a single bulk `INSERT` at the end of the loop instead of one per device. Expected reduction: ~35 % fewer queries on a 35-device account.
 - **vis-network updated to 10.0.3**.
 
@@ -88,6 +187,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.4.0] — 2026-05-10
 
 ### Added
+
 - **Phone SIP status dot** — phones show a colour-coded 9 px dot in the Ports column (green = SIP registered, red = unregistered; dimmed when offline). Clicking opens a SIP detail modal with: SIP status, extension, site, private IP (clickable), public IP (WHOIS link), last seen, PBX/UCM IP, Do Not Disturb, provisioning sync status + error, scheduled task.
 - **Phone SIP dot tooltip** — hovering the SIP dot shows a native tooltip: SIP state, extension (if any), Do Not Disturb flag.
 - **PBX / UCM in phone modal** — SIP modal shows the UCM/GCC device in the same network as a clickable private IP link with device name. Matched by `siteName`; no extra API call.
@@ -104,6 +204,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.3.8] — 2026-05-09
 
 ### Fixed
+
 - **GLPI 11/12 compatibility** — replaced removed `Html::displayRightError()` with `throw new \Glpi\Exception\Http\AccessDeniedHttpException()` in `front/history_export.php`; compatible with both GLPI 11 and 12.
 - **GLPI 11/12 compatibility** — replaced non-existent `Html::forbidden()` with `throw new \Glpi\Exception\Http\AccessDeniedHttpException()` in `front/dashboard.php`; method never existed in either GLPI version.
 - **GLPI 12 compatibility** — `Hooks::CSRF_COMPLIANT` registration in `setup.php` now guarded with `defined()` check; constant was removed in GLPI 12 causing a PHP fatal error on plugin load.
@@ -115,6 +216,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.3.7] — 2026-05-03
 
 ### Security
+
 - **Credential redaction in debug logs** — GWN OAuth token request URL and token response are no longer logged verbatim. Debug output now shows only `appID` and `expires_in`, preventing `client_secret` and `access_token` from appearing in `files/_log/gdmsintegration.log` even when verbose mode is enabled. (OWASP A02/A09)
 - **Advisory lock queries use escaped identifiers** — `GET_LOCK`/`RELEASE_LOCK` raw SQL queries in the sync engine now call `$DB->escape()` on the lock name, following defense-in-depth for all raw query parameters. (OWASP A03)
 - **Webhook signature mismatch returns 204** — failed HMAC verification no longer returns HTTP 403 (which confirmed the endpoint existed and the signature was checked). Now returns `204 No Content`, removing the oracle useful for probing or brute-forcing. (OWASP A07)
@@ -127,6 +229,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.3.6] — 2026-04-29
 
 ### Added
+
 - **Ticket creation by device type** — new "Ticket creation by device type" config section with five independent toggles: IP Phones (GRP/GXP/GXV/WP), Routers (GWN7001/7002/7003), Switches (GWN7800/GSS), Access Points (GWN76xx), and IP PBX / UCM (UCM/GCC). All enabled by default for backward compatibility. Disabling a toggle suppresses offline incident tickets for that device category; ticket resolution remains unaffected so existing open tickets still auto-close. Translated in es_MX, fr_FR, de_DE.
 - **GLPI asset name on tickets** — offline and WAN-down ticket subjects now use the GLPI asset name when the device is already registered in GLPI. Falls back to the GDMS cloud name for unregistered devices.
 - **Private IP in offline tickets** — offline incident ticket body now includes the device's private/LAN IP alongside the public IP.
@@ -137,6 +240,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.3.5] — 2026-04-23
 
 ### Added
+
 - **Disable WAN port tickets** — new config toggle `wan_tickets_enabled` (enabled by default). When turned off, the plugin stops opening incident tickets for WAN link-down and no-internet events entirely. Debounce timers and port state tracking continue normally so the feature can be re-enabled at any time without side-effects. Resolved tickets are still closed automatically. Active regardless of sync method (cron or manual). Translated in es_MX, fr_FR, de_DE.
 
 ---
@@ -144,10 +248,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.3.4] — 2026-04-22
 
 ### Fixed
+
 - **False WAN tickets on all ports** — WAN port ticket loop iterated every port in `wan_ports_json` including LAN ports (role=0). LAN link-down events now correctly skipped via `role != 1` guard at the top of the loop.
 - **Non-router devices treated as routers** — `$is_gwn_router` used `!$is_gwn_switch` as the only exclusion, so APs (GWN76xx) and any NetworkEquipment with a `networkId` could enter the router WAN port code path. Now uses explicit `preg_match('/^GWN700[123]/i', $gdms_model)` — only GWN7001/7002/7003 trigger WAN port monitoring.
 
 ### Added
+
 - **Asset user as ticket requester** — when a GLPI asset has a user assigned (`users_id`), that user is set as requester on auto-generated offline and WAN-down tickets. Takes priority over the entity-level default requester configured in plugin settings.
 - **WAN no-internet debounce** — new config option `wan_debounce_seconds` (default 300 s, range 0–3600). When `connectStatus` drops to 0 (internet lost) the plugin waits the configured number of seconds before opening a ticket. Prevents false alerts caused by transient high-latency events that momentarily fail the router's internet reachability test. Physical link-down events (Case A) are never debounced. Timer is stored inside `wan_ports_json` and survives across sync cycles. Setting to 0 restores the previous immediate-open behaviour. Translated in es_MX, fr_FR, de_DE.
 
@@ -156,6 +262,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.3.3] — 2026-04-18
 
 ### Added
+
 - **Ticket location** — auto-created offline and WAN tickets inherit `locations_id` from the linked GLPI asset when set.
 - **Sortable dashboard table** — Device Name, Type, Model, Network, Status, Clients, Avail. %, and SLA headers are clickable (↑/↓). Click again to reverse direction.
 - **Default table order** — network devices (routers, switches, APs) listed before phones; within each group sorted by name.
@@ -164,18 +271,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`slaLabel(float $uptime)`** — new static helper on `PluginGdmsintegrationSync`; dashboard now calls `calculateUptime()` only once per device instead of twice.
 
 ### Fixed
+
 - Ticket body field labels ("Serial", "Network", "Last uptime", "Detected") were hardcoded in Spanish — now use `__()` and are translated in all locales.
 - Empty-row fallback in device table had wrong `colspan="13"` — corrected to 15.
 
 ### Changed
+
 - WAN ticket legacy-match code (pre-1.2.8 fallback) removed — only marker-based matching used.
 - Ticket urgency now checks device model prefix — only GWN7001/7002/7003 routers get High(4); switches, APs, and phones get Medium(3) as intended.
 - Locales updated: 8 new strings — "Last uptime", "Detected", "Reset sort", "DHCP", "Static" (→ localized), "PPPoE", "PPTP", "L2TP". 228 strings total.
 
 ### Performance
+
 - Dashboard uptime calculation reduced from N queries (one per device) to 1 batch query via new `calculateUptimeBatch()` method.
 
 ### Fixed
+
 - Ticket body "IP" row label was hardcoded — now uses `__('IP', 'gdmsintegration')`.
 - WAN type labels in port modal ("DHCP", "Static", "PPPoE", "PPTP", "L2TP") were hardcoded JS strings — now injected from PHP via `__()`.
 - "No history" devices (new, never synced) assigned `sla_rank=3` (Critical) — now get rank 4 (N/A) when device is online with zero history, keeping them out of the Critical tier in sort.
@@ -187,6 +298,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.3.2] — 2026-04-15
 
 ### Fixed
+
 - **GLPI version constraint** — `plugin_version_gdmsintegration_check()` returned incompatible for GLPI 11.x installs that resolved to a minor version outside the previously declared range. Bumped version to 1.3.2 to clear the constraint conflict.
 
 ---
@@ -194,13 +306,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.3.1] — 2026-04-12
 
 ### Added
+
 **Backend**
+
 - **ipv6** — IPv6 address (GWN APs, routers)
 - **private_ip** — LAN/private IP (GDMS UC phones)
 - **sip_extension** — SIP extension number extracted from device/detail lineInfo
 - **location** — Physical location/site from GDMS or GWN API
 
 **API extraction**
+
 - **gwnGetDevices** extracts ipv6/ipv6Address and location/site from ap/list response
 - **gwnGetAlerts** normalizes basicDataKey → category, detailMap.reason, detailMap.port_id, detailMap.deviceType
 
@@ -209,6 +324,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 **Sync** passes ipv6, private_ip, sip_extension, location through to saveStateWithNetwork
 
 **Dashboard**
+
 - **IP cell** shows private IP as secondary line + IPv6 below
 - **Uptime tooltip** shows Location if set
 - **Status cell** shows SIP Extension badge alongside SIP Reg/Unreg
@@ -218,6 +334,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.3.0] — 2026-04-11
 
 ### Added
+
 - **Cloud Alerts panel — dismiss button.** Each alert row in the Cloud Alerts panel now has an × button. Clicking it hides the row immediately (optimistic local dismiss). Alerts reappear on next page load because the GWN Cloud API does not expose a programmatic alert-deletion endpoint — this is expected behaviour and not a bug.
 - **Switch LAN port status.** GWN78xx / GSS switches now fetch real-time port state via `/switch/portInfo` during sync and store it in `wan_ports_json`. Port dots and the detail modal on the NOC dashboard display link state, speed, port type (GE/SFP), custom label, description, VLAN, and per-port TX/RX bytes for every switch port. The live-API fallback in `ports.ajax.php` also routes to the switch endpoint when stored state is absent.
 - **GWN firmware update badge from cloud data.** During sync, `/upgrade/version` is now called once per GWN network and the latest available firmware is stored in the new `firmware_latest` column. The update badge in the dashboard is shown immediately on page load for any GWN device where the stored firmware differs — no async scraper call needed.
@@ -226,6 +343,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **SIP registration status.** For GDMS UC phones, a batch call to `/device/detail` now runs during sync and stores the SIP registration state (`registered` / `unregistered`) in the new `sip_status` column. The Status column in the dashboard shows a small SIP badge for phone rows.
 
 ### Fixed
+
 - **Cloud Alerts panel not rendering.** The `alertsBody.innerHTML` assignment was missing after the `forEach` loop that built the table rows. The alerts panel always showed the loading spinner and never displayed the alert table. Fixed by closing the table markup and assigning the result to the container.
 - **CSRF error on alert dismiss.** The dismiss endpoint (`alerts-dismiss.ajax.php`) was called without a valid CSRF token, causing GLPI 11's `CheckCsrfListener` to reject every request and log an error. Since GWN Cloud provides no working dismiss API (the `/alert/dismiss` endpoint returns HTTP 404), the server-side call has been removed entirely. Dismiss is now local-only: the row is hidden in the DOM on click. The log noise is eliminated.
 - **`$config_data` undefined in `syncDeviceList()`.** The router/switch port-info API calls inside the per-device loop referenced `$config_data` which was never assigned, causing the port-info fetch to silently skip on every sync. Fixed by loading config at the top of `syncDeviceList()` via `getConfigByEntity()`.
@@ -236,6 +354,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.2.7] — 2026-04-07
 
 ### Fixed
+
 - **WAN ticket not created for already-down port.** When a WAN port was already in a failed state (`link=0` or `link=1`+`connectStatus=0`) the first time the plugin synced a device, no ticket was opened because the transition check required a previous state to compare against. Fixed: if no previous port state exists (first sync or newly added port) and the port is already in a bad state, a ticket is opened immediately without requiring a prior-good-state transition.
 - **WAN ticket not auto-resolved after first-sync port recovery.** As a consequence of the above, ports that recovered after a first-sync down state had no ticket to resolve. Both are now handled consistently.
 - **LAN port modal missing info for active ports.** Active LAN ports showed only "Status: Link up" with no additional data, while inactive ports showed at least speed info. Fixed: active LAN ports now show negotiated link speed (highlighted in green), custom port label (`portCustomName`), and port description (`portDesc`) when available. All LAN ports continue to show link speed, port type (GE/SFP) and status.
@@ -243,11 +362,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.2.6] — 2026-04-04
 
 ### Fixed
+
 - **`DBmysqlIterator` raw query error.** GLPI 11 prohibits calling `$DB->request()` with a raw SQL string (`Building and executing raw queries with the DBmysqlIterator::execute() method is prohibited`). The advisory lock calls for ticket idempotency used `$DB->request("SELECT GET_LOCK(...)")` and `$DB->request("SELECT RELEASE_LOCK(...)")`. Replaced with `$DB->doQuery()` + `$DB->fetchAssoc()` which is the correct GLPI 11 API for raw utility queries. Affected: `createOfflineTicket()` and `createWanDownTicket()`.
 
 ## [1.2.5] — 2026-04-03
 
 ### Added
+
 - **WAN "link up / no internet" ticket.** Detects when a WAN port stays physically connected but loses internet connectivity (`linkStatus=1` + `connectStatus=0`). Opens a separate incident ticket with title suffix "No Internet" and urgency High. Duplicate guard and advisory lock apply equally.
 - **WAN ticket auto-resolve.** When a WAN port recovers (link up + internet confirmed), any open WAN ticket for that port is automatically closed with a followup note — same behaviour as device offline/online auto-resolve.
 - **Failover note in WAN tickets.** When a WAN port goes down, the ticket body includes "Failover → \<ISP name\>" if another WAN port on the same router has verified internet.
@@ -260,21 +381,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Locales up to date.** `.pot` regenerated from source (172 strings). All `.po` files merged and recompiled. New strings fully translated in `es_MX`; `fr_FR` and `de_DE` retain existing coverage.
 
 ### Fixed
+
 - **`$DB` undefined in `syncEntity()`.** `global $DB;` was missing, causing `Call to a member function update() on null` on every cron run and "Sync now" click. Fixed.
 - **Clients column invisible in dark theme.** Badge changed from `bg-secondary` to `text-bg-info`.
 - **Traffic column showed wrong values.** `upload`/`download` from `ap/list` is wireless client traffic, not WAN throughput. Column now uses WAN port aggregate (`txBytes`/`rxBytes`) which correctly shows hundreds of GB to TB for routers.
 - **README sync lifecycle table** — status labels corrected to English ("Online" / "Offline").
 
 ### Changed
+
 - **WAN ticket titles** follow the format `[GDMS] <Device> — WAN <Port> (<ISP>): Link Down` or `: No Internet`.
 - **Sync log summary** now reports: `Sync summary — entity=0 total=7 removed=1`.
 - **State transition log** notes when a device persists offline: `prev=offline → new=offline — no ticket (persists offline)`.
 - `markRemovedDevicesOffline()` returns the count of purged devices for use in the log summary.
 
-
 ## [1.2.4] — 2026-04-03
 
 ### Fixed
+
 - **Any device not present in the cloud is permanently purged from the plugin on the next sync.** On every sync cycle, any MAC or serial that is no longer returned by the GDMS/GWN API — regardless of when it was added or which plugin version was running when it was created — is deleted from `glpi_plugin_gdmsintegration_devices` and `glpi_plugin_gdmsintegration_history`. This includes devices that were left as "offline" ghosts by previous versions. The device disappears immediately from the dashboard, the uptime chart, and all SLA/availability calculations. The corresponding GLPI asset (NetworkEquipment / Phone) is never touched. If the device is re-added to the cloud in the future, the next sync inserts it fresh and re-links it to the existing GLPI asset via serial / MAC match.
 - **No ticket on cloud removal or network change.** Removing a device from the cloud account, moving it between networks, or any other administrative cloud action no longer triggers an incident ticket. Tickets are only created on genuine device reachability transitions (`online → offline`) or WAN port link-down events.
 - **Removed `alreadyOffline` hack.** Devices that stay offline across successive syncs no longer re-attempt ticket creation. The existing open-ticket guard is now the sole protection against repeat tickets for persistently offline devices.
@@ -416,6 +539,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.1.0] - 2026-03-27
 
 ### Added
+
 - **Device name fallback** — name resolution now uses GLPI asset name first, cloud device name second (stored in new `cloud_name` DB column), and MAC address as last resort.
 - **Tech assignment on tickets** — when a GLPI asset has a technician assigned (`users_id_tech`), automatically created incident tickets are now assigned to that user and set to status "Assigned".
 - **Configurable ticket requester** — new config option to select which GLPI user is set as requester on auto-generated tickets (defaults to system/cron user).
@@ -427,12 +551,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **GWN token cache** — GWN access token is now cached in-process for its full lifetime (~3600 s). A full sync cycle no longer makes 6–8 redundant token requests; instead it makes one and reuses it, saving 5–8 seconds of wall time.
 
 ### Changed
-- **Excel export** — removed the "Raw Data" sheet (high volume, no operational value). Export now contains two sheets: availability pivot (% online per day per device) and device summary with SLA tiers. Export respects the `chart_days` config setting.
+
+- **XLSX export** — removed the "Raw Data" sheet (high volume, no operational value). Export now contains two sheets: availability pivot (% online per day per device) and device summary with SLA tiers. Export respects the `chart_days` config setting.
 - **Icon library migration** — all FontAwesome icons replaced with Tabler Icons (`ti ti-*`), eliminating the external FontAwesome CDN dependency. Affected: `dashboard.php`, `config.form.php`, `menu.class.php` (53 replacements).
 - **Port modal title** — renamed from "WAN Port Status" to "Port Status" since the modal now shows all port types (WAN and LAN).
 - **Dashboard & Tickets config card** — added `ti-dashboard` icon and consistent `h5` heading to match all other configuration cards.
 
 ### Fixed
+
 - History data range (dashboard + export) now reads from `chart_days` config instead of hardcoded 60 days.
 
 ---
@@ -440,6 +566,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.0.3] - 2026-03-27
 
 ### Fixed
+
 - **WAN port internet status false positive** — `connectStatus=1` from the GWN API means internet is confirmed. The colour mapping was inverted: all online WAN ports were shown as orange (WAN up, no internet) even when fully connected. Fixed mapping: `connectStatus=1` → green (Online), `connectStatus=0` with link up → orange (No internet).
 
 ---
@@ -447,6 +574,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.0.2] - 2026-03-27
 
 ### Added
+
 - **Port monitoring column** — new *Ports* column in the NOC dashboard table. Shows one colour-coded dot per physical port for every online GWN router (WAN ports first, then LAN). Dots are clickable and open a detail modal.
 - **Port detail modal** — clicking any dot in the Ports column opens a modal showing all ports for that device (WAN and LAN) with: silk-screen label, port name, WAN connection name, connection status, IP address, WAN type (DHCP/Static/PPPoE), link speed, time connected, port type (GE/SFP). A colour legend appears above the port cards.
 - **Port-down incident ticket** — when a sync detects any port transitioning from link-up to link-down, a `[GDMS-WAN:portSilk]` incident ticket (urgency High) is created and linked to the asset. Duplicate guard prevents repeat tickets for the same port across syncs.
@@ -455,21 +583,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Verbose port debug logging** — when debug mode is active, raw `portInfo[]` and `ipv4Info[]` are logged to aid in diagnosing port data issues.
 
 ### Security
+
 - **SSL verification in batch cURL** — `CURLOPT_SSL_VERIFYPEER` was `false` in `gwnGetDeviceInfoBatch()`; set to `true` with `CURLOPT_SSL_VERIFYHOST => 2`.
 - **Access control on AJAX endpoints** — `sync.ajax.php`, `firmware.ajax.php`, and `history_export.php` now require proper rights (`config UPDATE` / `config READ`) instead of `checkLoginUser()` alone.
 - **XSS in firmware modal** — replaced `innerHTML` template literal interpolation with safe DOM construction.
 
 ### Fixed
+
 - **CSRF on firmware upgrade** — switched to `FormData` + `window.glpiGetNewCSRFToken()` to obtain a fresh single-use token just before the POST.
 - **Firmware upgrade icon not appearing** — `firmware.ajax.php` was registered as a stateless route, preventing `Session::checkLoginUser()` from passing. Removed from stateless registration.
 - **Ticket creation on offline transition** — `prevStatus` was read after `saveStateWithNetwork()`, so the previous state was already overwritten; moved before the save.
 - **Firmware upgrade MAC format** — `upgrade/add` API requires MACs without colons; colons are now stripped before the POST body is assembled.
 - **`htmlspecialchars()` before DB write** — device names were HTML-encoded before storage, causing `&amp;` / `&lt;` to appear in asset names and ticket subjects; encoding moved to output time only.
-- **Inconsistent SLA tiers** — Excel export and dashboard now use the same thresholds: Gold ≥ 99.9 % / Silver ≥ 99 % / Bronze ≥ 95 % / Critical < 95 %.
+- **Inconsistent SLA tiers** — XLSX export and dashboard now use the same thresholds: Gold ≥ 99.9 % / Silver ≥ 99 % / Bronze ≥ 95 % / Critical < 95 %.
 - **Port legend items merged** — JS operator precedence bug caused all legend labels to concatenate without separators; fixed by building each item as a self-contained `<span>`.
 - **ipv4Info WAN name matching** — broadened matching between `portInfo` and `ipv4Info` entries; now tries `silkScreenPort`, `portId`, and `wanPortId` with case-insensitive comparison.
 
 ### Changed
+
 - **Port sync** — all ports (WAN + LAN) stored in `wan_ports_json` on every sync; only WAN-role ports trigger incident tickets on link-down.
 - **Legend strings** — all port modal legend labels now go through PHP `__()` and are fully translatable.
 - **Deduplicated GWN signature logic** — `gwnGetFirmwareVersions()` and `gwnScheduleUpgrade()` now call `gwnBuildSignature()` helper instead of duplicating HMAC construction.
@@ -481,6 +612,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 #### GWN Cloud (GDMS Networking) integration
+
 - Independent API client for Grandstream networking devices — GWN APs, switches, and routers.
 - Separate OAuth2 token flow: `GET /oauth/token?grant_type=client_credentials`.
 - Separate HMAC-SHA256 signature scheme using `appID` / `secretKey`.
@@ -488,6 +620,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `network_id` stored in the plugin device state table and passed through sync for use in firmware checks.
 
 #### Firmware update check & scheduling (GDMS Networking only)
+
 - `front/firmware.ajax.php` with two actions:
   - `check` — calls `POST /oapi/v1.0.0/upgrade/version {networkId}` for every tracked network; flags only **stable releases** (no `beta`, `rc`, `dev`, `alpha`).
   - `upgrade` — calls `POST /oapi/v1.0.0/upgrade/add {macs:[...]}` to schedule an official firmware update via GWN Cloud.
@@ -496,28 +629,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Firmware check fires 2 seconds after page load in background — does not block the dashboard.
 
 #### SN enrichment — parallel curl_multi
+
 - All `device/info` requests for a network batch fire simultaneously via `curl_multi`, replacing sequential calls and cutting GWN sync time significantly.
 
 #### NOC Dashboard
+
 - Summary cards with total, online, offline counts and availability % progress bar.
 - Device table with name, type, network, IP (WHOIS link), MAC, serial, firmware + upgrade icon, uptime, status badge, availability %, SLA tier.
 - Per-device history chart — Chart.js line chart, last 60 days.
 - Network topology — vis-network interactive graph.
 - Auto-refresh with countdown timer and manual sync button.
 
-#### Excel export (PhpSpreadsheet)
+#### XLSX export (PhpSpreadsheet)
+
 - Three sheets: % Online 60 days, Raw Data, Summary (per-device availability %, SLA tier).
 
 #### Incident ticketing
+
 - Duplicate guard, urgency routing, rich ticket body, asset element, auto-resolve on recovery.
 
 #### Two-tier logging
+
 - `log()` — always written. `debug()` — verbose, active when GLPI debug mode or plugin debug toggle is on.
 
 #### Localization
+
 - All strings translated to es_MX, fr_FR, de_DE (en_US / en_GB use msgid as base).
 
 ### Fixed
+
 - GWN `device/info` SN parsed correctly as `{type, value, key}` objects.
 - Webhook `ClassNotFoundError` — corrected exception namespace.
 - Cron `MODE_EXTERNAL` registered for CLI execution.
@@ -527,4 +667,5 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.0.0] - 2026-03-24
 
 ### Added
+
 - Initial release — GDMS Cloud sync, incident tickets, NOC dashboard, webhook, per-entity config, GLPIKey encryption, 60-day history, vis-network topology, es_MX / fr_FR / de_DE locales, `plugin.xml`.

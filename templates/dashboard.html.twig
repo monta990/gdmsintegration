@@ -1,3 +1,46 @@
+
+<style>
+.gdms-summary-grid {
+   display:grid;
+   grid-template-columns:repeat(7,minmax(0,1fr));
+   gap:.5rem;
+}
+.gdms-summary-grid > * { min-width:0; width:auto !important; }
+@media (max-width:1199.98px) {
+   .gdms-summary-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+}
+@media (max-width:767.98px) {
+   .gdms-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+.gdms-sla-card {
+   width:100%;
+   max-width:none;
+   min-width:0;
+   box-sizing:border-box;
+   overflow:hidden;
+}
+.gdms-sla-card .card-body {
+   min-width:0;
+}
+.gdms-sla-content {
+   min-width:0;
+   flex:1 1 auto;
+}
+.gdms-sla-devices {
+   min-width:0;
+}
+.gdms-sla-device {
+   min-width:0;
+   max-width:100%;
+   overflow-wrap:anywhere;
+   word-break:break-word;
+}
+.gdms-sla-device a,
+.gdms-sla-device span {
+   overflow-wrap:anywhere;
+   word-break:break-word;
+}
+</style>
 {% if not is_configured %}
 <div class="container-xl mt-5">
    <div class="card border-0 shadow-sm mx-auto" style="max-width:540px;">
@@ -26,7 +69,7 @@
          </div>
          <div class="d-flex align-items-center gap-2">
             {% if last_sync_label %}
-            <small class="text-muted" id="gdms-last-sync" title="{{ last_sync_at }}">{{ last_sync_label }}</small>
+            <small class="text-muted" id="gdms-last-sync" title="{{ last_sync_at }}" data-bs-toggle="tooltip">{{ last_sync_label }}</small>
             {% endif %}
             <small class="text-muted" id="gdms-refresh-countdown"></small>
             <button type="button" id="gdms-refresh-btn" class="btn btn-sm btn-outline-primary">
@@ -39,17 +82,39 @@
       </div>
    </div>
 
-   {# ── Summary stat cards ───────────────────────────────────────── #}
-   <div class="row g-2 mb-3">
-      {% for card in cards %}
-      <div class="col-6 col-sm-4 col-md-2">
+   {# ── Compact summary cards ─────────────────────────────────────── #}
+   <div class="gdms-summary-grid mb-3">
+      <div class="gdms-summary-card">
          <div class="card h-100 text-center py-3 px-2">
             <div class="mb-1">
-               <i class="ti {{ card.icon }} text-primary" style="font-size:2rem;"></i>
+               <i class="ti ti-network text-primary" style="font-size:2rem;"></i>
             </div>
             <div class="small fw-semibold text-muted mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;">
-               {{ card.label }}
+               {{ __('Networks & clients', 'gdmsintegration') }}
             </div>
+            <div class="d-flex justify-content-center gap-3">
+               <div>
+                  <div class="fw-bold fs-2 lh-1">{{ total_networks }}</div>
+                  <div class="text-muted" style="font-size:.78rem;">{{ __('Networks', 'gdmsintegration') }}</div>
+               </div>
+               <div>
+                  <div class="fw-bold fs-2 lh-1 text-info">{{ summary.clients }}</div>
+                  <div class="text-muted" style="font-size:.78rem;">{{ __('Connected', 'gdmsintegration') }}</div>
+               </div>
+            </div>
+         </div>
+      </div>
+      {% set compact_cards = [
+         {'icon':'ti-sitemap','label':__('Router','gdmsintegration'),'vals':[{'v':summary.router_on,'lbl':__('Online','gdmsintegration'),'cls':'text-success'},{'v':summary.router_off,'lbl':__('Offline','gdmsintegration'),'cls':'text-danger'}]},
+         {'icon':'ti-server','label':__('Switch','gdmsintegration'),'vals':[{'v':summary.switch_on,'lbl':__('Online','gdmsintegration'),'cls':'text-success'},{'v':summary.switch_off,'lbl':__('Offline','gdmsintegration'),'cls':'text-danger'}]},
+         {'icon':'ti-wifi','label':'AP','vals':[{'v':summary.ap_on,'lbl':__('Online','gdmsintegration'),'cls':'text-success'},{'v':summary.ap_off,'lbl':__('Offline','gdmsintegration'),'cls':'text-danger'}]},
+         {'icon':'ti-phone','label':__('Phones & PBX','gdmsintegration'),'vals':[{'v':summary.phone_on,'lbl':__('Online','gdmsintegration'),'cls':'text-success'},{'v':summary.phone_off,'lbl':__('Offline','gdmsintegration'),'cls':'text-danger'}]}
+      ] %}
+      {% for card in compact_cards %}
+      <div class="gdms-summary-card">
+         <div class="card h-100 text-center py-3 px-2">
+            <div class="mb-1"><i class="ti {{ card.icon }} text-primary" style="font-size:2rem;"></i></div>
+            <div class="small fw-semibold text-muted mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;">{{ card.label }}</div>
             <div class="d-flex justify-content-center gap-3">
                {% for v in card.vals %}
                <div>
@@ -61,6 +126,25 @@
          </div>
       </div>
       {% endfor %}
+
+      {# Operational cards use the same compact visual language as the cards above. #}
+      <div class="gdms-summary-card">
+         <div class="card h-100 text-center py-3 px-2">
+            <div class="mb-1"><i class="ti ti-chart-line text-primary" style="font-size:2rem;"></i></div>
+            <div class="small fw-semibold text-muted mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;">{{ __('Infrastructure health','gdmsintegration') }}</div>
+            <div class="fw-bold fs-2 lh-1 {{ ops_summary.health >= 90 ? 'text-success' : (ops_summary.health >= 70 ? 'text-warning' : 'text-danger') }}">{{ ops_summary.health }}%</div>
+            <div class="text-muted mt-1" style="font-size:.72rem;line-height:1.25;">{{ sprintf(__('Based on availability and synchronization — last %d days.','gdmsintegration'), chart_days) }}</div>
+         </div>
+      </div>
+      <div class="gdms-summary-card">
+         <div class="card h-100 text-center py-3 px-2">
+            <div class="mb-1"><i class="ti ti-world text-primary" style="font-size:2rem;"></i></div>
+            <div class="small fw-semibold text-muted mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;">{{ __('WAN status','gdmsintegration') }}</div>
+            <div class="fw-bold fs-2 lh-1"><span class="text-success">{{ ops_summary.wan_active }}</span> / <span class="text-danger">{{ ops_summary.wan_down }}</span></div>
+            <div class="text-muted mt-1" style="font-size:.72rem;line-height:1.25;">{{ __('WAN links up / down','gdmsintegration') }}</div>
+            {% if ops_summary.wan_degraded > 0 %}<div class="text-warning" style="font-size:.72rem;line-height:1.25;">{{ ops_summary.wan_degraded }} {{ __('WAN up, no internet','gdmsintegration') }}</div>{% endif %}
+         </div>
+      </div>
    </div>
 
    {# ── Cloud Alerts (GWN only) ───────────────────────────────────── #}
@@ -88,7 +172,7 @@
    {# ── Availability bar ─────────────────────────────────────────── #}
    <div class="card mb-3 px-3 py-2">
       <div class="d-flex align-items-center gap-3 flex-wrap">
-         <span class="small fw-semibold text-nowrap">{{ __('Overall availability', 'gdmsintegration') }} — {{ __('all devices', 'gdmsintegration') }}</span>
+         <span class="small fw-semibold text-nowrap">{{ __('Availability at last synchronization', 'gdmsintegration') }} — {{ __('all devices', 'gdmsintegration') }}</span>
          <div class="progress flex-grow-1" style="height:10px;min-width:120px;">
             <div class="progress-bar {{ pct >= 90 ? 'bg-success' : (pct >= 70 ? 'bg-warning' : 'bg-danger') }}"
                  style="width:{{ pct }}%"></div>
@@ -100,23 +184,24 @@
 
    {# ── Critical SLA banner ──────────────────────────────────────── #}
    {% if critical_devices|length %}
-   <div class="alert border-danger mb-3 d-flex align-items-start gap-3" role="alert"
-        style="border-left:4px solid var(--bs-danger) !important; background:rgba(220,53,69,.08);">
-      <i class="ti ti-alert-triangle text-danger mt-1" style="font-size:1.4rem;flex-shrink:0;"></i>
-      <div>
-         <strong class="text-danger">{{ __('Critical SLA — devices offline', 'gdmsintegration') }}</strong>
-         <div class="mt-1 small">
-         {% for cr in critical_devices %}
-            <span class="me-3">
-               <i class="ti ti-circle-x text-danger me-1"></i>
-               {% if cr.asset_url is not empty %}
-               <a href="{{ cr.asset_url|raw }}" target="_blank" rel="noopener" class="text-danger fw-semibold text-decoration-none">{{ cr.name|raw }}</a>
-               {% else %}
-               <span class="fw-semibold">{{ cr.name|raw }}</span>
-               {% endif %}
-               <span class="text-muted">({{ cr.uptime }}% {{ __('uptime', 'gdmsintegration') }})</span>
-            </span>
-         {% endfor %}
+   <div class="card mb-3 border-danger gdms-sla-card" role="alert">
+      <div class="card-body py-3 d-flex align-items-start gap-3">
+         <i class="ti ti-alert-triangle text-danger mt-1" style="font-size:1.4rem;flex:0 0 auto;"></i>
+         <div class="gdms-sla-content">
+            <strong class="text-danger">{{ __('Critical SLA — devices offline', 'gdmsintegration') }}</strong>
+            <div class="mt-1 small d-flex flex-wrap gap-2 gdms-sla-devices">
+            {% for cr in critical_devices %}
+               <span class="gdms-sla-device d-inline-flex align-items-center">
+                  <i class="ti ti-circle-x text-danger me-1" style="flex:0 0 auto;"></i>
+                  {% if cr.asset_url is not empty %}
+                  <a href="{{ cr.asset_url }}" target="_blank" rel="noopener" class="text-danger fw-semibold text-decoration-none">{{ cr.name }}</a>
+                  {% else %}
+                  <span class="fw-semibold">{{ cr.name }}</span>
+                  {% endif %}
+                  <span class="text-muted ms-1">({{ cr.uptime }}% {{ __('uptime', 'gdmsintegration') }})</span>
+               </span>
+            {% endfor %}
+            </div>
          </div>
       </div>
    </div>
@@ -128,7 +213,7 @@
          <i class="ti ti-list"></i>
          <h5 class="mb-0 me-auto">{{ __('Devices', 'gdmsintegration') }}</h5>
          <button type="button" id="gdms-sort-reset" class="btn btn-sm btn-outline-secondary" style="display:none;"
-                 title="{{ __('Reset sort', 'gdmsintegration') }}">
+                 title="{{ __('Reset sort', 'gdmsintegration') }}" data-bs-toggle="tooltip">
             <i class="ti ti-arrows-sort"></i> {{ __('Reset sort', 'gdmsintegration') }}
          </button>
       </div>
@@ -167,42 +252,42 @@
          <table id="gdms-device-table" class="table table-hover table-sm mb-0">
             <thead>
                <tr>
-                  <th class="ps-3 gdms-sortable" data-col="name" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Device Name', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th class="gdms-sortable" data-col="type" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Type', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th class="gdms-sortable" data-col="model" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Model', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th class="gdms-sortable" data-col="network" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Network', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="ps-3 gdms-sortable" data-col="name" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ __('Device Name', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="type" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ __('Type', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="model" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ __('Model', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="network" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ __('Network', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
                   <th>{{ __('IP', 'gdmsintegration') }}</th>
                   <th>{{ __('MAC Address', 'gdmsintegration') }}</th>
                   <th>{{ __('Serial', 'gdmsintegration') }}</th>
                   <th>{{ __('Firmware', 'gdmsintegration') }}</th>
                   <th>{{ __('Ports', 'gdmsintegration') }}</th>
                   <th>{{ __('Uptime', 'gdmsintegration') }}</th>
-                  <th class="gdms-sortable" data-col="status" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Status', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th title="{{ __('Cumulative upload / download since device first registered in cloud. Hover a cell for the exact period.', 'gdmsintegration') }}" style="cursor:default;">{{ __('Traffic ↑↓', 'gdmsintegration') }} <i class="ti ti-info-circle opacity-50" style="font-size:.75em;"></i></th>
-                  <th class="gdms-sortable" data-col="clients" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Clients', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th class="gdms-sortable" data-col="avail" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('Avail. %', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
-                  <th class="gdms-sortable" data-col="sla" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}">{{ __('SLA', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="status" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ __('Status', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th title="{{ __('Cumulative upload / download since device first registered in cloud. Hover a cell for the exact period.', 'gdmsintegration') }}" data-bs-toggle="tooltip" style="cursor:default;">{{ __('Traffic ↑↓', 'gdmsintegration') }} <i class="ti ti-info-circle opacity-50" style="font-size:.75em;"></i></th>
+                  <th class="gdms-sortable" data-col="clients" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ __('Clients', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="avail" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ __('Avail. %', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
+                  <th class="gdms-sortable" data-col="sla" style="cursor:pointer;user-select:none;" title="{{ __('Click to sort', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ __('SLA', 'gdmsintegration') }} <span class="gdms-sort-icon opacity-40">⇅</span></th>
                </tr>
             </thead>
             <tbody>
                {% for row_idx, r in rows %}
                <tr data-original-index="{{ row_idx + 1 }}"
-                   data-name="{{ r.name|lower|raw }}"
+                   data-name="{{ r.name|lower }}"
                    data-type="{{ r.type == 'Phone' ? 1 : 0 }}"
-                   data-model="{{ r.model|lower|raw }}"
-                   data-network="{{ r.network_name|lower|raw }}"
+                   data-model="{{ r.model|lower }}"
+                   data-network="{{ r.network_name|lower }}"
                    data-status="{{ r.online ? 0 : 1 }}"
                    data-clients="{{ r.clients }}"
                    data-avail="{{ r.uptime }}"
                    data-sla="{{ r.sla_rank }}">
                   <td class="ps-3">
                      {% if r.asset_url is not empty %}
-                     <a href="{{ r.asset_url|raw }}" target="_blank" rel="noopener" class="fw-semibold text-decoration-none">
-                        {{ r.name|raw }}
+                     <a href="{{ r.asset_url }}" target="_blank" rel="noopener" class="fw-semibold text-decoration-none">
+                        {{ r.name }}
                         <i class="ti ti-external-link ms-1 small opacity-50"></i>
                      </a>
                      {% else %}
-                     <span class="fw-semibold">{{ r.name|raw }}</span>
+                     <span class="fw-semibold">{{ r.name }}</span>
                      {% endif %}
                   </td>
                   <td>
@@ -213,56 +298,56 @@
                      {% endif %}
                   </td>
                   <td><small class="text-muted font-monospace gdms-copy" style="cursor:pointer;"
-                             data-copy="{{ r.model|raw }}"
-                             title="{{ __('Copy model', 'gdmsintegration') }}">{{ r.model|raw ?: '—' }}</small></td>
+                             data-copy="{{ r.model }}"
+                             title="{{ __('Copy model', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ r.model ?: '—' }}</small></td>
                   <td>
                   {% if r._net_data is not null %}
                   <small class="gdms-net-link"
                       data-net="{{ r._net_data|json_encode }}"
                       style="cursor:pointer;color:inherit;border-bottom:1px dashed rgba(128,128,128,.5);"
-                      title="{{ __('Click for network details', 'gdmsintegration') }}">
-                      {{ r.network_name|raw }}
+                      title="{{ __('Click for network details', 'gdmsintegration') }}" data-bs-toggle="tooltip">
+                      {{ r.network_name }}
                       <i class="ti ti-info-circle ms-1 opacity-50" style="font-size:.7em;"></i>
                   </small>
                   {% else %}
-                  <small>{{ r.network_name|raw ?: '—' }}</small>
+                  <small>{{ r.network_name ?: '—' }}</small>
                   {% endif %}
                   </td>
                   <td><small class="font-monospace">
                      {% if r.ip is not empty %}
-                     <a href="https://www.whois.com/whois/{{ r.ip|url_encode|raw }}" target="_blank" rel="noopener" class="text-decoration-none" title="{{ __('Public IP', 'gdmsintegration') }}">
-                        {{ r.ip|raw }} <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i>
+                     <a href="https://www.whois.com/whois/{{ r.ip|url_encode }}" target="_blank" rel="noopener" class="text-decoration-none" title="{{ __('Public IP', 'gdmsintegration') }}" data-bs-toggle="tooltip">
+                        {{ r.ip }} <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i>
                      </a>
                      {% else %}—{% endif %}
                      {% if r._pref_ip is not empty %}
-                     <br><a href="{{ r._pref_ip_href|raw }}" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.85em;" title="{{ __('Private IP', 'gdmsintegration') }}">{{ r._pref_ip }} <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
+                     <br><a href="{{ r._pref_ip_href }}" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.85em;" title="{{ __('Private IP', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ r._pref_ip }} <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
                      {% endif %}
                      {% if r._sec_ip is not empty %}
-                     <br><a href="{{ r._sec_ip_href|raw }}" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.75em;word-break:break-all;" title="{{ r._sec_ip_is_ipv6 ? 'IPv6' : __('Private IP', 'gdmsintegration') }}">{{ r._sec_ip }} <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
+                     <br><a href="{{ r._sec_ip_href }}" target="_blank" rel="noopener" class="text-muted text-decoration-none" style="font-size:.75em;word-break:break-all;" title="{{ r._sec_ip_is_ipv6 ? 'IPv6' : __('Private IP', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ r._sec_ip }} <i class="ti ti-external-link opacity-50" style="font-size:.65em;"></i></a>
                      {% endif %}
                   </small></td>
                   <td><code class="small gdms-copy" style="cursor:pointer;"
-                             data-copy="{{ r.mac|raw }}"
-                             title="{{ __('Copy MAC', 'gdmsintegration') }}">{{ r.mac|raw }}</code></td>
+                             data-copy="{{ r.mac }}"
+                             title="{{ __('Copy MAC', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ r.mac }}</code></td>
                   <td><small class="text-muted gdms-copy" style="cursor:pointer;"
-                             data-copy="{{ r.serial|raw }}"
-                             title="{{ __('Copy serial', 'gdmsintegration') }}">{{ r.serial|raw ?: '—' }}</small></td>
+                             data-copy="{{ r.serial }}"
+                             title="{{ __('Copy serial', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ r.serial ?: '—' }}</small></td>
                   <td class="text-nowrap">
                      {% if r.firmware is not empty %}
                      <small class="font-monospace text-muted gdms-fw-badge" style="cursor:pointer;"
-                            data-mac="{{ r.mac|lower|raw }}"
-                            data-current="{{ r.firmware|raw }}"
+                            data-mac="{{ r.mac|lower }}"
+                            data-current="{{ r.firmware }}"
                             data-model="{{ r.raw_model }}"
-                            data-name="{{ r.name|raw }}"
-                            data-ip="{{ r.private_ip|raw }}"
-                            title="{{ __('Click to check firmware', 'gdmsintegration') }}">{{ r.firmware|raw }}</small>
+                            data-name="{{ r.name }}"
+                            data-ip="{{ r.private_ip }}"
+                            title="{{ __('Click to check firmware', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ r.firmware }}</small>
                      <span class="gdms-fw-badge" style="{{ r._fw_badge_shown ? '' : 'display:none; ' }}cursor:pointer;"
-                           data-mac="{{ r.mac|lower|raw }}"
-                           data-current="{{ r.firmware|raw }}"
+                           data-mac="{{ r.mac|lower }}"
+                           data-current="{{ r.firmware }}"
                            data-model="{{ r.raw_model }}"
-                           data-name="{{ r.name|raw }}"
-                           data-ip="{{ r.private_ip|raw }}"
-                           title="{{ __('Firmware update available', 'gdmsintegration') }}">
+                           data-name="{{ r.name }}"
+                           data-ip="{{ r.private_ip }}"
+                           title="{{ __('Firmware update available', 'gdmsintegration') }}" data-bs-toggle="tooltip">
                         <i class="ti ti-arrow-up-circle text-warning ms-1"></i>
                      </span>
                      {% else %}
@@ -272,7 +357,7 @@
                   <td>
                      {% if not r._is_phone and r.mac is not empty %}
                      <span class="gdms-wan-ports d-flex gap-1 align-items-center flex-nowrap"
-                           data-mac="{{ r.mac|lower|raw }}"
+                           data-mac="{{ r.mac|lower }}"
                            data-upload="{{ r.upload_bytes }}"
                            data-download="{{ r.download_bytes }}"
                            data-first-seen="{{ r.first_seen }}"
@@ -282,10 +367,11 @@
                      {% elseif r._is_phone and r.sip_status is not empty %}
                      <span class="gdms-sip-dot" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;"
                            title="{{ r._sip_tip }}"
+                           data-bs-toggle="tooltip"
                            data-pbx-name="{{ r._pbx.name ?? '' }}"
                            data-pbx-ip="{{ r._pbx.ip ?? '' }}"
                            data-pbx-url="{{ r._pbx.url ?? '' }}"
-                           data-mac="{{ r.mac|raw }}"
+                           data-mac="{{ r.mac }}"
                            data-sip="{{ r.sip_status }}"
                            data-dnd="{{ r.dnd }}"
                            data-sync="{{ r.is_synchronized }}"
@@ -293,20 +379,20 @@
                            data-task="{{ r.scheduled_task }}"
                            data-extension="{{ r.sip_extension }}"
                            data-last-seen="{{ r.last_seen }}"
-                           data-private-ip="{{ r.private_ip|raw }}"
-                           data-public-ip="{{ r.ip|raw }}"
-                           data-site="{{ r.network_name|raw }}"
-                           data-name="{{ r.name|raw }}">
+                           data-private-ip="{{ r.private_ip }}"
+                           data-public-ip="{{ r.ip }}"
+                           data-site="{{ r.network_name }}"
+                           data-name="{{ r.name }}">
                         <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:{{ r._sip_color }};outline:1px solid rgba(128,128,128,.3);{{ not r.online ? 'opacity:.4;' : '' }}flex-shrink:0;"></span>
                         {% if r.dnd %}
-                        <small class="text-danger" style="font-size:.65em;line-height:1;" title="{{ __('Do Not Disturb', 'gdmsintegration') }}">DND</small>
+                        <small class="text-danger" style="font-size:.65em;line-height:1;">DND</small>
                         {% endif %}
                      </span>
                      {% endif %}
                   </td>
                   <td>
                   {% if r._uptime_tip %}
-                  <small title="{{ r._uptime_tip }}" style="cursor:default;border-bottom:1px dotted rgba(128,128,128,.4);">{{ r._uptime_display }}</small>
+                  <small title="{{ r._uptime_tip }}" data-bs-toggle="tooltip" style="cursor:default;border-bottom:1px dotted rgba(128,128,128,.4);">{{ r._uptime_display }}</small>
                   {% else %}
                   <small>{{ r._uptime_display }}</small>
                   {% endif %}
@@ -316,7 +402,7 @@
                         {{ r.online ? __('Online', 'gdmsintegration') : __('Offline', 'gdmsintegration') }}
                      </span>
                      {% if r.sip_extension is not empty %}
-                     <br><span class="badge bg-light text-dark border mt-1" style="font-size:.68em;" title="{{ __('SIP Extension', 'gdmsintegration') }}">
+                     <br><span class="badge bg-light text-dark border mt-1" style="font-size:.68em;" title="{{ __('SIP Extension', 'gdmsintegration') }}" data-bs-toggle="tooltip">
                         {{ r.sip_extension }}
                      </span>
                      {% endif %}
@@ -324,7 +410,7 @@
                   <td class="text-nowrap">
                      {% if r._ul_val > 0 or r._dl_val > 0 %}
                      <small class="d-block"
-                            title="{{ r._traffic_tip }}"
+                            title="{{ r._traffic_tip }}" data-bs-toggle="tooltip"
                             style="font-size:.72em;cursor:default;border-bottom:1px dotted rgba(128,128,128,.4);">
                         <span class="text-success">↑{{ r._ul_fmt }}</span>
                         <span class="ms-1 text-info">↓{{ r._dl_fmt }}</span>
@@ -336,16 +422,16 @@
                      {% if cli > 0 and r.network_id > 0 %}
                      <span class="badge text-bg-info fw-bold gdms-clients-badge"
                            style="cursor:pointer;"
-                           data-mac="{{ r.mac|raw }}"
+                           data-mac="{{ r.mac }}"
                            data-network-id="{{ r.network_id }}"
-                           data-name="{{ r.name|raw }}"
-                           title="{{ __('Click to see connected clients', 'gdmsintegration') }}">{{ cli }}</span>
+                           data-name="{{ r.name }}"
+                           title="{{ __('Click to see connected clients', 'gdmsintegration') }}" data-bs-toggle="tooltip">{{ cli }}</span>
                      {% elseif cli > 0 %}
                      <span class="badge text-bg-info fw-bold">{{ cli }}</span>
                      {% else %}<small class="text-muted">—</small>{% endif %}
                   </td>
                   <td>{{ r.uptime }}%</td>
-                  <td>{{ r.sla|raw }}</td>
+                  <td>{{ r.sla }}</td>
                </tr>
                {% else %}
                <tr><td colspan="15" class="text-center text-muted py-3">
@@ -363,9 +449,9 @@
       <div class="card-header d-flex align-items-center gap-2">
          <i class="ti ti-chart-line"></i>
          <h5 class="mb-0 me-auto">{{ sprintf(__('Online %% — last %d days', 'gdmsintegration'), chart_days) }}</h5>
-         <a href="{{ urls.history_export|raw }}"
+         <a href="{{ urls.history_export }}"
             class="btn btn-sm btn-outline-secondary"
-            title="{{ __('Export to Excel', 'gdmsintegration') }}">
+            title="{{ __('Export to XLSX', 'gdmsintegration') }}" data-bs-toggle="tooltip">
             <i class="ti ti-file-spreadsheet me-1"></i>{{ __('Export', 'gdmsintegration') }}
          </a>
       </div>
@@ -399,7 +485,9 @@
 (function () {
     'use strict';
 
-    var STR = {{ js_strings|json_encode|raw }};
+    var STR = {{ js_json.strings|raw }};
+
+    // Tooltips use GLPI's native initTooltips() implementation.
 
     // Byte formatter
     function fmtBytes(b) {
@@ -431,22 +519,41 @@
     }
 
     {% if show_topology %}
-    if (typeof vis !== 'undefined') {
-        var nodes = new vis.DataSet({{ nodes|json_encode|raw }});
-        var edges = new vis.DataSet({{ edges|json_encode|raw }});
+    (function initTopology() {
         var container = document.getElementById('gdms-network');
-        if (container) {
-            new vis.Network(container, { nodes: nodes, edges: edges }, {
-                nodes: { shape: 'dot', size: 14, font: { color: '#fff', size: 12 } },
-                edges: { arrows: 'to', color: { color: '#aaa', highlight: '#007bff' } },
-                physics: { stabilization: { iterations: 150 } },
-                interaction: { hover: true }
-            });
+        if (!container) return;
+
+        function build() {
+            if (!window.vis || typeof window.vis.DataSet !== 'function' || typeof window.vis.Network !== 'function') {
+                return false;
+            }
+            try {
+                var nodes = new window.vis.DataSet({{ js_json.nodes|raw }});
+                var edges = new window.vis.DataSet({{ js_json.edges|raw }});
+                var data = { nodes: nodes, edges: edges };
+                var options = {
+                    nodes: { shape: 'dot', size: 14, font: { color: '#fff', size: 12 } },
+                    edges: { arrows: 'to', color: { color: '#aaa', highlight: '#007bff' } },
+                    physics: { stabilization: { iterations: 150 } },
+                    interaction: { hover: true }
+                };
+                new window.vis.Network(container, data, options);
+                return true;
+            } catch (e) {
+                if (window.console && console.error) console.error('GDMS topology initialization failed', e);
+                return false;
+            }
         }
-    }
+
+        if (build()) return;
+        var attempts = 0;
+        var timer = window.setInterval(function () {
+            if (build() || ++attempts >= 20) window.clearInterval(timer);
+        }, 100);
+    })();
     {% endif %}
 
-    var AJAX_URL           = '{{ urls.sync|raw }}';
+    var AJAX_URL           = {{ js_json.urls.sync|raw }};
     var REFRESH_S          = {{ refresh_interval }};
     var gdmsSyncing        = false;
     var gdmsCountdown      = REFRESH_S;
@@ -462,10 +569,10 @@
     }, 1000);
 
     // ── Firmware update check ─────────────────────────────────────────────────
-    var FW_URL             = '{{ urls.fw_check|raw }}';
-    var FW_UPGRADE_URL     = '{{ urls.fw_upgrade|raw }}';
-    var FW_CHECK_ALL_URL   = '{{ urls.fw_check_all|raw }}';
-    var FW_UPGRADE_GDMS_URL= '{{ urls.fw_upgrade_gdms|raw }}';
+    var FW_URL             = {{ js_json.urls.fw_check|raw }};
+    var FW_UPGRADE_URL     = {{ js_json.urls.fw_upgrade|raw }};
+    var FW_CHECK_ALL_URL   = {{ js_json.urls.fw_check_all|raw }};
+    var FW_UPGRADE_GDMS_URL= {{ js_json.urls.fw_upgrade_gdms|raw }};
 
     var modalHtml = `
 <div class="modal fade" id="gdmsFwModal" tabindex="-1" aria-hidden="true">
@@ -492,7 +599,7 @@
               <input type="text" class="form-control form-control-sm rounded-start ps-2"
                      id="gdmsFwDatetime" data-input placeholder="dd/mm/yyyy hh:mm" autocomplete="off">
               <button type="button" class="btn btn-outline-secondary btn-sm" data-toggle
-                      title="${STR.fwShowPicker}">
+                      title="${STR.fwShowPicker}" data-bs-toggle="tooltip">
                 <i class="ti ti-calendar-time"></i>
               </button>
             </div>
@@ -515,17 +622,38 @@
   </div>
 </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+    initTooltips(document.querySelector('#gdmsFwFlatpickrWrap'));
     document.getElementById('gdmsFwModal').addEventListener('hide.bs.modal', function() { if (document.activeElement) document.activeElement.blur(); });
 
     var fwData = {};
 
     setTimeout(function() {
         fetch(FW_CHECK_ALL_URL, { credentials: 'same-origin' })
-            .then(function(r) { return r.json(); })
+            .then(function(r) {
+                    return r.text().then(function(text) {
+                        var resp = null;
+                        try { resp = text ? JSON.parse(text) : {}; } catch (e) {}
+                        if (!r.ok) {
+                            var detail = (resp && (resp.error || resp.message || resp.detail)) || text || ('HTTP ' + r.status);
+                            throw new Error(String(detail));
+                        }
+                        return resp || {};
+                    });
+                })
             .then(function(list) {
                 if (!Array.isArray(list)) return;
                 list.forEach(function(item) {
                     fwData[item.mac] = item;
+                    if (item.firmwareCheckError) {
+                        document.querySelectorAll('.gdms-fw-badge[data-mac="' + item.mac + '"]')
+                            .forEach(function(el) {
+                                el.style.display = 'inline';
+                                el.classList.remove('bg-info');
+                                el.classList.add('bg-warning', 'text-dark');
+                                el.setAttribute('data-bs-original-title', 'No se pudo comprobar el firmware en GWN: ' + item.firmwareCheckError);
+                            });
+                        return;
+                    }
                     if (!item.hasUpdate) return;
                     document.querySelectorAll('.gdms-fw-badge[data-mac="' + item.mac + '"]')
                         .forEach(function(el) { el.style.display = 'inline'; });
@@ -580,7 +708,7 @@
             macIpRow += '<tr><th class="text-muted fw-normal">' + STR.fwPrivateIp + '</th>'
               + '<td><a href="http://' + esc(devIp) + '/" target="_blank" rel="noopener" class="font-monospace">' + esc(devIp) + '</a></td></tr>';
         }
-        var macCell = '<code id="gdmsFwMacCode" style="cursor:pointer;" title="' + STR.deviceMac + '">' + esc(macUpper) + '</code>';
+        var macCell = '<code id="gdmsFwMacCode" style="cursor:pointer;" title="' + STR.deviceMac + '" data-bs-toggle="tooltip">' + esc(macUpper) + '</code>';
         body.innerHTML = '<table class="table table-sm mb-0">'
           + macIpRow
           + '<tr><th class="text-muted fw-normal w-50">' + STR.curFw + '</th><td><code>' + esc(current) + '</code></td></tr>'
@@ -596,6 +724,7 @@
             + STR.fwPageLbl + ' <i class="ti ti-external-link" style="font-size:.8em;"></i></a></div>';
 
         var _macEl = document.getElementById('gdmsFwMacCode');
+        initTooltips(document.getElementById('gdmsFwModalBody'));
         if (_macEl) {
             _macEl.addEventListener('click', function() {
                 navigator.clipboard && navigator.clipboard.writeText(macUpper).then(function() {
@@ -658,7 +787,9 @@
         function doUpgrade(scheduleMs) {
             var version = getSelectedVersion();
             var selUrl  = getSelectedUrl();
-            if (!version && !selUrl) return;
+            // GWN upgrade/add selects the latest repository firmware server-side;
+            // it therefore does not require a version or download URL.
+            if (!isGwn && !version && !selUrl) return;
             var activeBtn = scheduleMs > 0 ? schedBtn : asapBtn;
             asapBtn.disabled = true; schedBtn.disabled = true;
             activeBtn.innerHTML = '<i class="ti ti-loader me-1" style="animation:spin .8s linear infinite;display:inline-block;"></i>' + STR.scheduling;
@@ -686,7 +817,17 @@
             }
 
             fetch(fetchUrl, { method: 'POST', credentials: 'same-origin', headers: fetchHeaders, body: fetchBody })
-                .then(function(r) { return r.json(); })
+                .then(function(r) {
+                    return r.text().then(function(text) {
+                        var resp = null;
+                        try { resp = text ? JSON.parse(text) : {}; } catch (e) {}
+                        if (!r.ok) {
+                            var detail = (resp && (resp.error || resp.message || resp.detail)) || text || ('HTTP ' + r.status);
+                            throw new Error(String(detail));
+                        }
+                        return resp || {};
+                    });
+                })
                 .then(function(resp) {
                     if (resp.error) {
                         var errDiv = document.createElement('div');
@@ -710,10 +851,10 @@
                             .forEach(function(el) { el.style.display = 'none'; });
                     }
                 })
-                .catch(function() {
+                .catch(function(err) {
                     var connErr = document.createElement('div');
                     connErr.className = 'alert alert-danger mt-2 mb-0 py-2 small';
-                    connErr.textContent = STR.reqFailed;
+                    connErr.textContent = err && err.message ? err.message : STR.reqFailed;
                     body.appendChild(connErr);
                     asapBtn.disabled = false; schedBtn.disabled = false;
                     asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i>' + STR.applyAsap;
@@ -737,7 +878,7 @@
     });
 
     // ── WAN port status ─────────────────────────────────────────────────────
-    var PORTS_URL = '{{ urls.ports|raw }}';
+    var PORTS_URL = {{ js_json.urls.ports|raw }};
 
     var portSpeeds = {0:'—', 1:'10M '+STR.hdx, 2:'10M '+STR.fdx, 3:'100M '+STR.hdx, 4:'100M '+STR.fdx, 5:'1G '+STR.fdx, 6:'1G '+STR.fdx, 7:'10G '+STR.fdx};
     var wanTypeNames = {0:STR.wanDhcp, 1:STR.wanStatic, 2:STR.wanPppoe, 3:STR.wanPptp, 4:STR.wanL2tp};
@@ -780,6 +921,7 @@
                     if (!Array.isArray(ports) || !ports.length) return;
                     var container = document.querySelector('.gdms-wan-ports[data-mac="' + mac + '"]');
                     if (!container) return;
+
                     container.innerHTML = '';
                     ports.forEach(function(p) {
                         var isWan = p.role == 1;
@@ -807,10 +949,13 @@
                         } else {
                             dotStatus = ' — ' + STR.linkUp;
                         }
-                        dot.title = label + portLabel + wanLabel + dotStatus;
+                        dot.setAttribute('title', label + portLabel + wanLabel + dotStatus);
+                        dot.setAttribute('data-bs-toggle', 'tooltip');
+                        
                         dot.style.cssText = 'display:inline-block;width:9px;height:9px;border-radius:50%;background:' + color + ';cursor:pointer;flex-shrink:0' + (isWan ? ';outline:1px solid rgba(255,255,255,.3)' : '');
                         container.appendChild(dot);
                     });
+                    initTooltips(container);
                 });
             })
             .catch(function() {});
@@ -1017,7 +1162,7 @@
     });
 
     // ── WiFi Clients modal ───────────────────────────────────────────────────
-    var CLIENTS_URL = '{{ urls.clients|raw }}';
+    var CLIENTS_URL = {{ js_json.urls.clients|raw }};
 
     var clientModal = document.createElement('div');
     clientModal.className = 'modal fade'; clientModal.id = 'gdmsClientModal';
@@ -1049,14 +1194,16 @@
 
         var url = CLIENTS_URL + '&network_id=' + encodeURIComponent(networkId) + '&mac=' + encodeURIComponent(apMac);
         fetch(url, { credentials: 'same-origin' })
-            .then(function(r) { return r.json(); })
-            .then(function(list) {
+            .then(function(r) { var partial = r.headers.get('X-GDMS-Result-Complete') === '0'; return r.json().then(function(data){ return {data:data, partial:partial}; }); })
+            .then(function(resp) {
+                var list = resp.data;
                 if (!Array.isArray(list) || !list.length) {
+                    if (resp.partial) { body.innerHTML = '<p class="text-warning text-center py-3">La API devolvió una lista parcial de clientes. Intenta de nuevo.</p>'; return; }
                     body.innerHTML = '<p class="text-muted text-center py-3">' + STR.noClients + '</p>';
                     return;
                 }
                 var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || '—'))); return d.innerHTML; };
-                var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead><tr>'
+                var html = (resp.partial ? '<div class="alert alert-warning py-2 px-3 m-2 small">La API devolvió una lista parcial de clientes; algunos pueden no mostrarse.</div>' : '') + '<div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead><tr>'
                     + '<th class="ps-3">' + STR.hostname + '</th>'
                     + '<th>IP</th><th>MAC</th>'
                     + '<th>' + STR.band + ' / SSID</th>'
@@ -1132,7 +1279,7 @@
         if (ext)      rows.push(['<i class="ti ti-hash me-1"></i>' + STR.extension, '<code>' + esc(ext) + '</code>']);
         if (site)     rows.push(['<i class="ti ti-building me-1"></i>' + STR.site, esc(site)]);
         if (mac)      rows.push(['<i class="ti ti-fingerprint me-1"></i>' + STR.macLbl,
-            '<code class="gdms-copy" style="cursor:pointer;" data-copy="' + esc(mac) + '" title="' + STR.copyMac + '">' + esc(mac) + '</code>']);
+            '<code class="gdms-copy" style="cursor:pointer;" data-copy="' + esc(mac) + '" title="' + STR.copyMac + '" data-bs-toggle="tooltip">' + esc(mac) + '</code>']);
         if (privIp)   rows.push(['<i class="ti ti-network me-1"></i>' + STR.fwPrivateIp,
             '<a href="http://' + esc(privIp) + '" target="_blank" rel="noopener"><code>' + esc(privIp) + '</code></a>']);
         if (pubIp)    rows.push(['<i class="ti ti-world me-1"></i>' + STR.publicIpLbl,
@@ -1168,6 +1315,7 @@
             '</div>' +
             '</div>';
         document.getElementById('gdmsSipModalBody').innerHTML = html;
+        initTooltips(document.getElementById('gdmsSipModalBody'));
 
         var _rb = document.getElementById('gdmsSipRebootBtn');
         _rb._rs = 'idle';
@@ -1264,9 +1412,9 @@
     });
 
     // ── Cloud Alerts panel ────────────────────────────────────────────────────
-    var REBOOT_GDMS_URL        = '{{ urls.reboot_gdms|raw }}';
-    var FACTORY_RESET_GDMS_URL = '{{ urls.factory_reset_gdms|raw }}';
-    var ALERTS_URL  = '{{ urls.alerts|raw }}';
+    var REBOOT_GDMS_URL        = {{ js_json.urls.reboot_gdms|raw }};
+    var FACTORY_RESET_GDMS_URL = {{ js_json.urls.factory_reset_gdms|raw }};
+    var ALERTS_URL  = {{ js_json.urls.alerts|raw }};
     var alertsBody = document.getElementById('gdms-alerts-body');
     if (alertsBody) {
         alertsBody.addEventListener('click', function(e) {
@@ -1274,20 +1422,40 @@
             if (!btn) return;
             e.preventDefault();
             var row = btn.closest('tr');
-            if (row) row.style.display = 'none';
+            if (!row) return;
+
+            // The tooltip is managed by GLPI's native initTooltips().
+            // Hide its active instance before removing the button from the DOM;
+            // otherwise Bootstrap can leave the floating tooltip orphaned.
+            if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+                var tooltip = bootstrap.Tooltip.getInstance(btn);
+                if (tooltip) {
+                    tooltip.hide();
+                }
+            }
+            btn.blur();
+
+            row.style.display = 'none';
+
+            var visibleRows = alertsBody.querySelectorAll('tbody tr:not([style*="display: none"])');
+            if (!visibleRows.length) {
+                alertsBody.innerHTML = '<p class="text-muted text-center py-2 small mb-0">' + STR.noAlerts + '</p>';
+            }
         });
 
         setTimeout(function() {
             fetch(ALERTS_URL, { credentials: 'same-origin' })
-                .then(function(r) { return r.json(); })
-                .then(function(list) {
+                .then(function(r) { var partial = r.headers.get('X-GDMS-Result-Complete') === '0'; return r.json().then(function(data){ return {data:data, partial:partial}; }); })
+                .then(function(resp) {
+                    var list = resp.data;
                     if (!Array.isArray(list) || !list.length) {
+                        if (resp.partial) { alertsBody.innerHTML = '<p class="text-warning text-center py-2 small mb-0">La API devolvió alertas parciales. Intenta de nuevo.</p>'; return; }
                         alertsBody.innerHTML = '<p class="text-muted text-center py-2 small mb-0">' + STR.noAlerts + '</p>';
                         return;
                     }
 var sevColor = {'critical':'danger','warning':'warning','medium':'warning','info':'info','low':'secondary','error':'danger'};
                     var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s||''))); return d.innerHTML; };
-                    var html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle"><thead><tr>'
+                    var html = (resp.partial ? '<div class="alert alert-warning py-2 px-3 m-2 small">La lista de alertas es parcial; algunas pueden no mostrarse.</div>' : '') + '<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle"><thead><tr>'
                       + '<th class="ps-3" style="white-space:nowrap">' + STR.alertTime + '</th>'
                       + '<th>' + STR.alertSev + '</th>'
                       + '<th>' + STR.alertDevice + '</th>'
@@ -1313,11 +1481,12 @@ var sevColor = {'critical':'danger','warning':'warning','medium':'warning','info
                           + '<td><span class="badge bg-' + cls + ' text-' + (cls === 'warning' ? 'dark' : 'white') + '">' + esc(sev) + '</span></td>'
                           + '<td class="small text-nowrap">' + esc(devName) + '</td>'
                           + '<td class="small">' + esc(desc) + extraHtml + '</td>'
-                          + '<td class="text-end pe-2"><button type="button" class="btn btn-sm btn-link p-0 text-muted gdms-alert-dismiss" data-alert-id="' + esc(a.id) + '" title="' + esc(STR.alertDismiss) + '"><i class="ti ti-x"></i></button></td>'
+                          + '<td class="text-end pe-2"><button type="button" class="btn btn-sm btn-link p-0 text-muted gdms-alert-dismiss" data-alert-id="' + esc(a.id) + '" title="' + esc(STR.alertDismiss) + '" data-bs-toggle="tooltip" data-bs-trigger="hover"><i class="ti ti-x"></i></button></td>'
                           + '</tr>';
                     });
                     html += '</tbody></table></div>';
                     alertsBody.innerHTML = html;
+                    initTooltips(alertsBody);
 
                     var chevron = document.querySelector('.gdms-alerts-chevron');
                     var collapse = document.getElementById('gdms-alerts-collapse');
@@ -1352,45 +1521,90 @@ var sevColor = {'critical':'danger','warning':'warning','medium':'warning','info
 </script>
 
 {% if chart_datasets|length %}
-<script type="module">
+<script>
 (function() {
+    'use strict';
+
     var hc = document.getElementById('gdms-history-chart');
-    if (!hc || typeof echarts === 'undefined') return;
+    if (!hc) return;
 
-    var _bg   = window.getComputedStyle(document.body).backgroundColor;
-    var _rgb  = _bg.match(/\d+/g);
-    var dark  = (_rgb && parseInt(_rgb[0]) < 100)
-             || document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    var chartLabels   = {{ js_json.chart_labels|raw }};
+    var chartDatasets = {{ js_json.chart_datasets|raw }};
+    var chartInstance = null;
+    var attempts = 0;
+    var maxAttempts = 80;
 
-    var chartLabels   = {{ chart_labels|json_encode|raw }};
-    var chartDatasets = {{ chart_datasets|json_encode|raw }};
+    function isDarkTheme() {
+        var theme = document.documentElement.getAttribute('data-bs-theme');
+        if (theme) return theme === 'dark';
+        var bg = window.getComputedStyle(document.body).backgroundColor || '';
+        var rgb = bg.match(/\d+/g);
+        return !!(rgb && parseInt(rgb[0], 10) < 100);
+    }
 
-    var ec = echarts.init(hc, dark ? 'dark' : null, { renderer: 'svg' });
-    ec.setOption({
-        backgroundColor: 'transparent',
-        tooltip: {
-            trigger: 'axis',
-            formatter: function(params) {
-                var s = '<b>' + params[0].axisValue + '</b><br/>';
-                params.forEach(function(p) {
-                    if (p.value === null || p.value === undefined) return;
-                    s += '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + p.color + ';margin-right:5px;"></span>'
-                       + p.seriesName + ': ' + p.value + '%<br/>';
-                });
-                return s;
+    function renderHistoryChart() {
+        if (!document.body.contains(hc)) return;
+
+        var ec = window.echarts;
+        if (!ec || typeof ec.init !== 'function') {
+            if (attempts++ < maxAttempts) {
+                window.setTimeout(renderHistoryChart, 100);
             }
-        },
-        legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 11 } },
-        grid: { top: 12, right: 16, bottom: 40, left: 48, containLabel: false },
-        xAxis: { type: 'category', data: chartLabels, axisLabel: { fontSize: 11 }, axisLine: { lineStyle: { opacity: .3 } }, splitLine: { show: false } },
-        yAxis: { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%', fontSize: 11 }, splitLine: { lineStyle: { opacity: .15 } } },
-        series: chartDatasets.map(function(ds) {
-            return { name: ds.label, type: 'line', data: ds.data, smooth: true, connectNulls: true, symbolSize: 4,
-                lineStyle: { color: ds.borderColor, width: 2 }, itemStyle: { color: ds.borderColor },
-                areaStyle: { color: ds.borderColor, opacity: .08 } };
-        })
+            return;
+        }
+
+        try {
+            if (chartInstance && typeof chartInstance.dispose === 'function') {
+                chartInstance.dispose();
+            }
+
+            chartInstance = ec.init(hc, isDarkTheme() ? 'dark' : null, { renderer: 'svg' });
+            chartInstance.setOption({
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        if (!params || !params.length) return '';
+                        var s = '<b>' + params[0].axisValue + '</b><br/>';
+                        params.forEach(function(p) {
+                            if (p.value === null || p.value === undefined) return;
+                            s += '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + p.color + ';margin-right:5px;"></span>'
+                               + p.seriesName + ': ' + p.value + '%<br/>';
+                        });
+                        return s;
+                    }
+                },
+                legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 11 } },
+                grid: { top: 12, right: 16, bottom: 40, left: 48, containLabel: false },
+                xAxis: { type: 'category', data: chartLabels, axisLabel: { fontSize: 11 }, axisLine: { lineStyle: { opacity: .3 } }, splitLine: { show: false } },
+                yAxis: { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%', fontSize: 11 }, splitLine: { lineStyle: { opacity: .15 } } },
+                series: chartDatasets.map(function(ds) {
+                    return { name: ds.label, type: 'line', data: ds.data, smooth: true, connectNulls: true, symbolSize: 4,
+                        lineStyle: { color: ds.borderColor, width: 2 }, itemStyle: { color: ds.borderColor },
+                        areaStyle: { color: ds.borderColor, opacity: .08 } };
+                })
+            });
+        } catch (e) {
+            if (attempts++ < maxAttempts) {
+                window.setTimeout(renderHistoryChart, 250);
+            }
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', renderHistoryChart, { once: true });
+    } else {
+        renderHistoryChart();
+    }
+
+    var resizeTimer = null;
+    window.addEventListener('resize', function() {
+        if (!chartInstance || typeof chartInstance.resize !== 'function') return;
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(function() {
+            try { chartInstance.resize(); } catch (e) {}
+        }, 50);
     });
-    window.addEventListener('resize', function() { ec.resize(); });
 })();
 </script>
 {% endif %}

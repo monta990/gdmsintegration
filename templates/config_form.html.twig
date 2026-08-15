@@ -14,7 +14,8 @@
 {% endmacro %}
 
 {% macro badge(ok) %}
-{% if ok %}<span class="badge bg-success"><i class="ti ti-check-circle me-1"></i>{{ __('Connected', 'gdmsintegration') }}</span>{% else %}<span class="badge bg-warning text-dark"><i class="ti ti-alert-triangle me-1"></i>{{ __('Not configured', 'gdmsintegration') }}</span>{% endif %}
+{# Keep configuration status badges visually consistent with the device-status badges used by the dashboard. #}
+{% if ok %}<span class="badge bg-success text-white fw-semibold">{{ __('Connected', 'gdmsintegration') }}</span>{% else %}<span class="badge bg-warning text-dark fw-semibold">{{ __('Not configured', 'gdmsintegration') }}</span>{% endif %}
 {% endmacro %}
 
 <div class="container-fluid px-4 mt-3">
@@ -27,6 +28,54 @@
          <p class="form-label fw-semibold mb-1">{{ __('Entity', 'gdmsintegration') }}</p>
          {{ entity_dropdown|raw }}
          <small class="text-muted d-block mt-1">{{ __('GLPI entity this configuration applies to.', 'gdmsintegration') }}</small>
+      </div>
+   </div>
+
+   {# ── Plugin updates ───────────────────────────────────────────── #}
+   <div class="card mb-4">
+      <div class="card-header d-flex align-items-center gap-2">
+         <i class="ti ti-brand-github"></i>
+         <h5 class="mb-0">{{ __('Plugin updates', 'gdmsintegration') }}</h5>
+      </div>
+      <div class="card-body">
+         {% if plugin_update.update_available %}
+         <div class="alert alert-warning d-flex align-items-start gap-2 mb-0">
+            <i class="ti ti-download mt-1 flex-shrink-0"></i>
+            <div>
+               <div class="fw-semibold">{{ __('A new plugin version is available.', 'gdmsintegration') }}</div>
+               <div>
+                  {{ __('Installed version:', 'gdmsintegration') }} <strong>{{ plugin_update.current_version }}</strong>
+                  · {{ __('Latest version:', 'gdmsintegration') }} <strong>{{ plugin_update.latest_version }}</strong>
+               </div>
+               {% if plugin_update.release_url %}
+               <a class="btn btn-sm btn-warning mt-2" href="{{ plugin_update.release_url }}" target="_blank" rel="noopener">
+                  <i class="ti ti-external-link me-1"></i>{{ __('View release', 'gdmsintegration') }}
+               </a>
+               {% endif %}
+            </div>
+         </div>
+         {% elseif plugin_update.latest_version %}
+         <div class="d-flex align-items-center gap-2">
+            <i class="ti ti-circle-check text-success"></i>
+            <div>
+               <div class="fw-semibold">{{ __('Plugin is up to date.', 'gdmsintegration') }}</div>
+               <div class="text-muted small">
+                  {{ __('Installed version:', 'gdmsintegration') }} <strong>{{ plugin_update.current_version }}</strong>
+                  · {{ __('Latest version:', 'gdmsintegration') }} <strong>{{ plugin_update.latest_version }}</strong>
+               </div>
+            </div>
+         </div>
+         {% else %}
+         <div class="text-muted d-flex align-items-center gap-2">
+            <i class="ti ti-cloud-off"></i>
+            <span>{{ __('The latest plugin version could not be checked right now. Your configuration is not affected.', 'gdmsintegration') }}</span>
+         </div>
+         {% endif %}
+         {% if plugin_update.checked_at %}
+         <div class="text-muted small mt-2">
+            {{ __('Last checked:', 'gdmsintegration') }} {{ plugin_update.checked_at|date('Y-m-d H:i') }}
+         </div>
+         {% endif %}
       </div>
    </div>
 
@@ -108,6 +157,16 @@
                <a href="https://www.gdms.cloud/developer" target="_blank" rel="noopener">gdms.cloud → System → API Development</a>.
             </span>
          </div>
+         <div class="row g-3 mb-1">
+            <div class="col-md-6">
+               <label class="form-label fw-semibold" for="gdms_region">{{ __('GDMS account region', 'gdmsintegration') }}</label>
+               <select class="form-select" name="gdms_region" id="gdms_region">
+                  <option value="us"{% if (cur.gdms_region ?? 'us') == 'us' %} selected{% endif %}>{{ __('United States / Americas (www.gdms.cloud)', 'gdmsintegration') }}</option>
+                  <option value="eu"{% if (cur.gdms_region ?? 'us') == 'eu' %} selected{% endif %}>{{ __('Europe (eu.gdms.cloud)', 'gdmsintegration') }}</option>
+               </select>
+               <small class="text-muted d-block mt-1">{{ __('Select the region where the GDMS Unified Communications account is hosted. The endpoint is fixed by the plugin for security.', 'gdmsintegration') }}</small>
+            </div>
+         </div>
          <div class="row g-3">
             <div class="col-md-6">
                <label class="form-label fw-semibold" for="gdms_client_id">{{ __('API ID', 'gdmsintegration') }}</label>
@@ -171,11 +230,38 @@
             </div>
          </div>
          <div class="row g-3 mt-1">
+            <div class="col-md-6">
+               <label class="form-label fw-semibold" for="gdms_ticket_category_network_id">{{ __('Ticket category — network equipment', 'gdmsintegration') }}</label>
+               <select class="form-select" name="ticket_category_network_id" id="gdms_ticket_category_network_id">
+                  <option value="0">{{ __('Do not assign a category', 'gdmsintegration') }}</option>
+                  {% for category in ticket_category_options %}
+                  <option value="{{ category.id }}"{% if category.id == ticket_category_network_id %} selected{% endif %}>{{ category.label|e }}</option>
+                  {% endfor %}
+               </select>
+               <small class="text-muted d-block mt-1">{{ __('Applied to automatically generated tickets for routers, switches, access points and WAN failures.', 'gdmsintegration') }}</small>
+            </div>
+            <div class="col-md-6">
+               <label class="form-label fw-semibold" for="gdms_ticket_category_telephony_id">{{ __('Ticket category — Grandstream telephony', 'gdmsintegration') }}</label>
+               <select class="form-select" name="ticket_category_telephony_id" id="gdms_ticket_category_telephony_id">
+                  <option value="0">{{ __('Do not assign a category', 'gdmsintegration') }}</option>
+                  {% for category in ticket_category_options %}
+                  <option value="{{ category.id }}"{% if category.id == ticket_category_telephony_id %} selected{% endif %}>{{ category.label|e }}</option>
+                  {% endfor %}
+               </select>
+               <small class="text-muted d-block mt-1">{{ __('Applied to automatically generated tickets for IP phones and PBX/UCM devices.', 'gdmsintegration') }}</small>
+            </div>
+         </div>
+         <div class="row g-3 mt-1">
             <div class="col-md-4">
                <label class="form-label fw-semibold" for="gdms_refresh_interval">{{ __('Dashboard auto-refresh (seconds)', 'gdmsintegration') }}</label>
                <input type="number" class="form-control" name="refresh_interval" id="gdms_refresh_interval"
                   min="30" max="3600" value="{{ refresh_interval }}">
                <small class="text-muted d-block mt-1">{{ __('How often the dashboard syncs from the cloud. Minimum 30s, default 300s (5 min).', 'gdmsintegration') }}</small>
+            </div>
+            <div class="col-md-4">
+               <label class="form-label fw-semibold" for="gdms_history_retention">{{ __('Operational history retention (days)', 'gdmsintegration') }}</label>
+               <input type="number" class="form-control" name="history_retention_days" id="gdms_history_retention" min="7" max="3650" value="{{ history_retention_days }}">
+               <small class="text-muted d-block mt-1">{{ __('Keeps client association and action audit history for this many days. Default: 90.', 'gdmsintegration') }}</small>
             </div>
             <div class="col-md-4">
                <label class="form-label fw-semibold" for="gdms_debug_logging">{{ __('Debug logging', 'gdmsintegration') }}</label>
@@ -287,7 +373,7 @@
          <h5 class="mb-0">{{ __('Import History', 'gdmsintegration') }}</h5>
       </div>
       <div class="card-body">
-         <p class="text-muted mb-3">{{ __('Restore availability history from a previously exported Excel file (gdms_history_*.xlsx). Days that already have data are skipped — no existing records are overwritten.', 'gdmsintegration') }}</p>
+         <p class="text-muted mb-3">{{ __('Restore availability history from a previously exported XLSX file (gdms_history_*.xlsx). Days that already have data are skipped — no existing records are overwritten.', 'gdmsintegration') }}</p>
          <div class="mb-3" style="max-width:220px">
             <label class="form-label fw-semibold" for="gdms_max_xlsx_size_mb">{{ __('Max upload size (MB)', 'gdmsintegration') }}</label>
             <input type="number" class="form-control" name="max_xlsx_size_mb" id="gdms_max_xlsx_size_mb"
