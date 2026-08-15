@@ -1,0 +1,1307 @@
+# GDMS Integration — Translation Template
+# Copyright (C) 2026 Edwin Elias Alvarez
+# This file is distributed under GPL v3+.
+msgid ""
+msgstr ""
+"Project-Id-Version: gdmsintegration 1.6.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-15 00:00
+"
+"PO-Revision-Date: 2026-05-12\n"
+"Last-Translator: Edwin Elias Alvarez\n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: src/Service/HistoryExportService.php:82
+msgid "%% Online %d days"
+msgstr ""
+
+#: src/Service/DashboardService.php:466
+msgid "%s — since first seen in cloud (%s, ~%d days)"
+msgstr ""
+
+#: templates/dashboard.html.twig:82 templates/dashboard.html.twig:1068 templates/dashboard.html.twig:1085 templates/dashboard.html.twig:1164 templates/dashboard.html.twig:1169 templates/dashboard.html.twig:1396 templates/config_form.html.twig:88 templates/config_form.html.twig:111 templates/config_form.html.twig:119 templates/config_form.html.twig:121 templates/config_form.html.twig:126 templates/config_form.html.twig:129 templates/config_form.html.twig:130 templates/config_form.html.twig:133 templates/config_form.html.twig:135 templates/config_form.html.twig:156 templates/config_form.html.twig:171 templates/config_form.html.twig:174 templates/config_form.html.twig:175 templates/config_form.html.twig:178 templates/config_form.html.twig:180 templates/config_form.html.twig:275 templates/config_form.html.twig:401 templates/config_form.html.twig:411 src/Service/BulkService.php:10 src/Service/ConfigService.php:135 src/Service/ConfigService.php:172 src/Service/ConfigService.php:213 src/Service/ClientService.php:5 src/Service/ClientService.php:36 src/Service/FirmwareService.php:74 src/Service/FirmwareService.php:77 src/Service/FirmwareService.php:149 src/Service/FirmwareService.php:150 src/Service/FirmwareService.php:201 src/Service/FirmwareService.php:211 src/Service/FirmwareService.php:212 src/Service/FirmwareService.php:234 src/Service/FirmwareService.php:243 src/Service/FirmwareService.php:300 src/Service/FirmwareService.php:360 src/Service/FirmwareService.php:447 src/Service/FirmwareService.php:472 src/Service/DashboardService.php:58 src/Service/DashboardService.php:242 src/Service/DashboardService.php:243 src/Service/DashboardService.php:498 src/Service/DashboardService.php:551 src/Service/DashboardService.php:591 src/Service/DashboardService.php:668 src/Service/AlertService.php:38 src/Service/PortService.php:46 src/Service/PortService.php:53 src/Service/PortService.php:78 src/Sync.php:89 src/Sync.php:90 src/Sync.php:96 src/Sync.php:101 src/Sync.php:103 src/Sync.php:106 src/Sync.php:108 src/Sync.php:113 src/Sync.php:121 src/Sync.php:122 src/Sync.php:170 src/Sync.php:176 src/Sync.php:178 src/Sync.php:181 src/Sync.php:183 src/Sync.php:202 src/Sync.php:207 src/Sync.php:208 src/Sync.php:216 src/Sync.php:280 src/Sync.php:284 src/Sync.php:357 src/Sync.php:441 src/Sync.php:443 src/Sync.php:634 src/Sync.php:708 src/Sync.php:1064 src/Sync.php:1264 src/Sync.php:1291 src/Sync.php:1300 src/Sync.php:1381 src/Utils.php:11 src/API.php:3 src/API.php:5 src/API.php:7 src/API.php:16 src/API.php:19 src/API.php:21 src/API.php:115 src/API.php:125 src/API.php:146 src/API.php:240 src/API.php:300 src/API.php:343 src/API.php:481 src/API.php:504 src/API.php:506 src/API.php:525 src/API.php:595 src/API.php:597 src/API.php:830 src/API.php:848 src/API.php:882 src/API.php:900 src/API.php:982 src/API.php:1011 src/API.php:1095 src/API.php:1165 src/API.php:1169 src/API.php:1197 src/API.php:1214 src/API.php:1245 src/API.php:1293 src/API.php:1421 src/API.php:1429 public/js/vis-network.min.js:26
+msgid "AP"
+msgstr ""
+
+#: templates/config_form.html.twig:126 templates/config_form.html.twig:129 templates/config_form.html.twig:130 templates/config_form.html.twig:171 templates/config_form.html.twig:174 templates/config_form.html.twig:175 src/Sync.php:103 src/Sync.php:178 src/API.php:1421 src/API.php:1429
+msgid "API ID"
+msgstr ""
+
+#: templates/config_form.html.twig:174
+msgid "API ID from GDMS developer page"
+msgstr ""
+
+#: templates/config_form.html.twig:129
+msgid "API ID from GWN developer page"
+msgstr ""
+
+#: templates/config_form.html.twig:130
+msgid "API ID from gdms.cloud → GDMS Networking → API Developer."
+msgstr ""
+
+#: templates/config_form.html.twig:175
+msgid "API ID shown in GDMS → System → API Development."
+msgstr ""
+
+#: templates/config_form.html.twig:133 templates/config_form.html.twig:135 templates/config_form.html.twig:178 templates/config_form.html.twig:180
+msgid "API Secret Key"
+msgstr ""
+
+#: templates/config_form.html.twig:180
+msgid "API Secret Key from GDMS → System → API Development. Stored encrypted."
+msgstr ""
+
+#: templates/config_form.html.twig:135
+msgid "API Secret Key from gdms.cloud → GDMS Networking → API Developer. Stored encrypted."
+msgstr ""
+
+#: templates/dashboard.html.twig:122 templates/dashboard.html.twig:130 templates/dashboard.html.twig:1376 templates/dashboard.html.twig:1397 src/Service/DashboardService.php:595 src/Service/DashboardService.php:600 src/Service/AlertService.php:38 src/Sync.php:156 src/Sync.php:1376 src/Sync.php:1381 src/API.php:870 src/API.php:901 src/API.php:960
+msgid "Alert"
+msgstr ""
+
+#: src/Service/DashboardService.php:551
+msgid "Apply now (ASAP)"
+msgstr ""
+
+#: templates/dashboard.html.twig:239
+msgid "Avail. %"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:142
+msgid "Availability %"
+msgstr ""
+
+#: templates/config_form.html.twig:195
+msgid "Availability chart — days to display"
+msgstr ""
+
+#: src/Service/DashboardService.php:603
+msgid "Band"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:162 src/Sync.php:1365
+msgid "Bronze"
+msgstr ""
+
+#: templates/dashboard.html.twig:1416 tests/regression_static.php:13 src/Service/ConfigService.php:260 src/Service/ConfigService.php:261 src/Service/ConfigService.php:262 src/Service/DashboardService.php:606 src/Sync.php:708 src/Sync.php:829 src/Sync.php:833 src/Sync.php:913 src/Sync.php:1391 src/Sync.php:1393 src/Sync.php:1394 src/Config.php:17 src/Config.php:34 src/Config.php:37 src/Config.php:46 src/Config.php:54 src/Config.php:71 src/Config.php:72 src/Config.php:79 src/Config.php:84 src/Config.php:271 src/Config.php:272 src/API.php:62 src/API.php:147 src/API.php:942
+msgid "Category"
+msgstr ""
+
+#: src/Service/DashboardService.php:619
+msgid "Checking firmware…"
+msgstr ""
+
+#: templates/dashboard.html.twig:280
+msgid "Click for network details"
+msgstr ""
+
+#: templates/dashboard.html.twig:315
+msgid "Click to check firmware"
+msgstr ""
+
+#: templates/dashboard.html.twig:399
+msgid "Click to see connected clients"
+msgstr ""
+
+#: templates/dashboard.html.twig:238 templates/dashboard.html.twig:1127 templates/dashboard.html.twig:1136 templates/dashboard.html.twig:1165 src/Service/DashboardService.php:500 src/Service/DashboardService.php:593 src/Service/DashboardService.php:594 src/Service/DashboardService.php:633 src/Device.php:158
+msgid "Clients"
+msgstr ""
+
+#: src/Service/DashboardService.php:623 src/Sync.php:1195 public/js/vis-network.min.js:33
+msgid "Close"
+msgstr ""
+
+#: templates/dashboard.html.twig:122 templates/dashboard.html.twig:130 templates/dashboard.html.twig:1376
+msgid "Cloud Alerts"
+msgstr ""
+
+#: src/Service/ConfigService.php:237 src/Service/ConfigService.php:241
+msgid "Configuration saved."
+msgstr ""
+
+#: src/Service/ConfigService.php:237
+msgid "Configuration saved. No credentials to test yet."
+msgstr ""
+
+#: templates/dashboard.html.twig:74 templates/config_form.html.twig:17 src/Service/DashboardService.php:500 src/Service/DashboardService.php:570 src/Service/DashboardService.php:633 public/js/vis-network.min.js:33
+msgid "Connected"
+msgstr ""
+
+#: src/Service/DashboardService.php:633
+msgid "Connected Clients"
+msgstr ""
+
+#: src/Service/DashboardService.php:570
+msgid "Connected for"
+msgstr ""
+
+#: setup.php:96 setup.php:97 setup.php:98 src/Service/ConfigService.php:213 src/Service/DashboardService.php:567 src/Utils.php:163 src/Utils.php:164 src/Utils.php:165 src/API.php:715 src/API.php:1415 public/js/vis-network.min.js:33
+msgid "Connection"
+msgstr ""
+
+#: src/Service/DashboardService.php:596
+msgid "Could not load alerts"
+msgstr ""
+
+#: templates/config_form.html.twig:120 templates/config_form.html.twig:155
+msgid "Credentials from"
+msgstr ""
+
+#: templates/dashboard.html.twig:157 templates/dashboard.html.twig:163 src/Service/HistoryExportService.php:162 src/Service/DashboardService.php:503 src/Sync.php:1366
+msgid "Critical"
+msgstr ""
+
+#: templates/dashboard.html.twig:163
+msgid "Critical SLA — devices offline"
+msgstr ""
+
+#: templates/dashboard.html.twig:237
+msgid "Cumulative upload / download since device first registered in cloud. Hover a cell for the exact period."
+msgstr ""
+
+#: src/Service/DashboardService.php:581
+msgid "Current firmware"
+msgstr ""
+
+#: src/Service/DashboardService.php:628 src/Sync.php:469 src/Device.php:160
+msgid "DNS"
+msgstr ""
+
+#: templates/dashboard.html.twig:38 templates/config_form.html.twig:186 templates/config_form.html.twig:190 templates/config_form.html.twig:255 templates/config_form.html.twig:445 src/Service/DashboardService.php:3 src/Service/DashboardService.php:16 src/Menu.php:22
+msgid "Dashboard"
+msgstr ""
+
+#: templates/config_form.html.twig:186 templates/config_form.html.twig:190
+msgid "Dashboard & Tickets"
+msgstr ""
+
+#: templates/config_form.html.twig:255
+msgid "Dashboard auto-refresh (seconds)"
+msgstr ""
+
+#: templates/dashboard.html.twig:566 templates/dashboard.html.twig:569 templates/dashboard.html.twig:651 templates/dashboard.html.twig:705 templates/dashboard.html.twig:706 templates/dashboard.html.twig:712 templates/dashboard.html.twig:727 templates/dashboard.html.twig:730 templates/dashboard.html.twig:733 templates/dashboard.html.twig:834 templates/dashboard.html.twig:835 templates/dashboard.html.twig:1413 src/Service/HistoryExportService.php:85 src/Service/ConfigService.php:6 src/Service/ConfigService.php:83 src/Service/ConfigService.php:18 src/Service/ConfigService.php:124 public/js/vis-network.min.js:26 public/js/vis-network.min.js:33
+msgid "Date"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:143
+msgid "Days online"
+msgstr ""
+
+#: templates/config_form.html.twig:266 src/Utils.php:12
+msgid "Debug logging"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:78 src/Service/DashboardService.php:632 public/js/vis-network.min.js:33
+msgid "Description"
+msgstr ""
+
+#: setup.php:84 setup.php:180 setup.php:198 templates/dashboard.html.twig:181 templates/dashboard.html.twig:185 templates/dashboard.html.twig:197 templates/dashboard.html.twig:226 templates/dashboard.html.twig:871 templates/dashboard.html.twig:936 templates/dashboard.html.twig:1137 templates/dashboard.html.twig:1151 templates/dashboard.html.twig:1405 templates/dashboard.html.twig:1637 src/Service/HistoryExportService.php:27 src/Service/HistoryExportService.php:77 src/Service/HistoryExportService.php:137 src/Service/HistoryExportService.php:140 src/Service/FirmwareService.php:113 src/Service/FirmwareService.php:194 src/Service/FirmwareService.php:350 src/Service/DashboardService.php:83 src/Service/DashboardService.php:243 src/Service/DashboardService.php:463 src/Service/DashboardService.php:582 src/Service/DashboardService.php:599 src/Service/DashboardService.php:614 src/Service/DashboardService.php:657 src/Service/DashboardService.php:662 src/Service/AlertService.php:26 src/Service/PortService.php:29 src/Sync.php:22 src/Sync.php:24 src/Sync.php:44 src/Sync.php:91 src/Sync.php:106 src/Sync.php:107 src/Sync.php:111 src/Sync.php:119 src/Sync.php:120 src/Sync.php:132 src/Sync.php:156 src/Sync.php:159 src/Sync.php:181 src/Sync.php:182 src/Sync.php:185 src/Sync.php:210 src/Sync.php:214 src/Sync.php:216 src/Sync.php:240 src/Sync.php:263 src/Sync.php:269 src/Sync.php:296 src/Sync.php:703 src/Sync.php:708 src/Sync.php:1067 src/Sync.php:1117 src/Sync.php:1152 src/Sync.php:1187 src/Sync.php:1266 src/Sync.php:1269 src/Sync.php:1274 src/Sync.php:1288 src/Sync.php:1291 src/Device.php:3 src/Device.php:6 src/Device.php:14 src/API.php:42 src/API.php:62 src/API.php:297 src/API.php:549 src/API.php:601 src/API.php:619 src/API.php:680 src/API.php:722 src/API.php:726 src/API.php:781
+msgid "Device"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:77
+msgid "Device Availability"
+msgstr ""
+
+#: src/Service/DashboardService.php:582
+msgid "Device MAC"
+msgstr ""
+
+#: templates/dashboard.html.twig:226
+msgid "Device Name"
+msgstr ""
+
+#: src/Sync.php:1117 src/Sync.php:1152
+msgid "Device Offline"
+msgstr ""
+
+#: src/Service/DashboardService.php:463
+msgid "Device-reported traffic (wireless client usage)"
+msgstr ""
+
+#: setup.php:180 setup.php:198 templates/dashboard.html.twig:185 src/Sync.php:22 src/Sync.php:24 src/Sync.php:44 src/Sync.php:91 src/Sync.php:106 src/Sync.php:107 src/Sync.php:111 src/Sync.php:119 src/Sync.php:120 src/Sync.php:132 src/Sync.php:156 src/Sync.php:159 src/Sync.php:181 src/Sync.php:182 src/Sync.php:185 src/Sync.php:210 src/Sync.php:214 src/Sync.php:216 src/Sync.php:703 src/Sync.php:1266 src/API.php:297 src/API.php:601
+msgid "Devices"
+msgstr ""
+
+#: src/Service/DashboardService.php:585
+msgid "Disconnected"
+msgstr ""
+
+#: templates/dashboard.html.twig:1428 src/Service/DashboardService.php:601 src/API.php:960
+msgid "Dismiss"
+msgstr ""
+
+#: templates/config_form.html.twig:417 src/Service/DashboardService.php:442 src/Service/DashboardService.php:626 src/API.php:1271
+msgid "Download"
+msgstr ""
+
+#: templates/config_form.html.twig:275
+msgid "Enable verbose API and sync logging. Recommended only for troubleshooting — generates large log entries."
+msgstr ""
+
+#: templates/config_form.html.twig:24 templates/config_form.html.twig:27 tests/regression_static.php:5 tests/regression_static.php:6 tests/regression_static.php:8 tests/regression_static.php:13 src/Service/BulkService.php:5 src/Service/BulkService.php:9 src/Service/HistoryExportService.php:17 src/Service/HistoryExportService.php:23 src/Service/SyncService.php:7 src/Service/SyncService.php:15 src/Service/SyncService.php:24 src/Service/NetworkLocationService.php:5 src/Service/ConfigService.php:16 src/Service/ConfigService.php:19 src/Service/ConfigService.php:120 src/Service/ConfigService.php:212 src/Service/ConfigService.php:283 src/Service/ClientService.php:14 src/Service/ClientService.php:24 src/Service/FirmwareService.php:34 src/Service/FirmwareService.php:38 src/Service/DashboardService.php:23 src/Service/DashboardService.php:28 src/Service/AlertService.php:14 src/Service/AlertService.php:18 src/Service/PortService.php:13 src/Service/PortService.php:22 src/Sync.php:25 src/Sync.php:26 src/Sync.php:31 src/Sync.php:54 src/Sync.php:56 src/Sync.php:87 src/Sync.php:281 src/Sync.php:912 src/Sync.php:1110 src/Config.php:17 src/Config.php:54 src/Config.php:84 src/Config.php:188 src/Device.php:150 src/Utils.php:30
+msgid "Entity"
+msgstr ""
+
+#: templates/dashboard.html.twig:425 templates/dashboard.html.twig:426 templates/config_form.html.twig:401 templates/config_form.html.twig:404
+msgid "Export"
+msgstr ""
+
+#: templates/dashboard.html.twig:425
+msgid "Export to XLSX"
+msgstr ""
+
+#: src/Service/DashboardService.php:584 public/js/vis-network.min.js:26
+msgid "FDX"
+msgstr ""
+
+#: src/Sync.php:12 src/Sync.php:892 src/Sync.php:1097 public/js/vis-network.min.js:33
+msgid "Field"
+msgstr ""
+
+#: templates/dashboard.html.twig:233 templates/dashboard.html.twig:322 templates/dashboard.html.twig:540 src/Service/FirmwareService.php:3 src/Service/FirmwareService.php:79 src/Service/FirmwareService.php:149 src/Service/FirmwareService.php:150 src/Service/FirmwareService.php:187 src/Service/FirmwareService.php:211 src/Service/FirmwareService.php:212 src/Service/FirmwareService.php:239 src/Service/FirmwareService.php:243 src/Service/FirmwareService.php:275 src/Service/FirmwareService.php:294 src/Service/FirmwareService.php:302 src/Service/FirmwareService.php:305 src/Service/FirmwareService.php:358 src/Service/FirmwareService.php:362 src/Service/DashboardService.php:475 src/Service/DashboardService.php:617 src/Service/DashboardService.php:618 src/Sync.php:121 src/Sync.php:122 src/Sync.php:146 src/Sync.php:422 src/Sync.php:670 src/Sync.php:728 src/Sync.php:1104 src/Device.php:158 src/API.php:685 src/API.php:686 src/API.php:1060 src/API.php:1082 src/API.php:1083 src/API.php:1099 src/API.php:1109 src/API.php:1117 src/API.php:1141 src/API.php:1143 src/API.php:1144 src/API.php:1163 src/API.php:1166 src/API.php:1170 src/API.php:1177 src/API.php:1178 src/API.php:1381
+msgid "Firmware"
+msgstr ""
+
+#: src/Service/DashboardService.php:618
+msgid "Firmware Update Available"
+msgstr ""
+
+#: templates/dashboard.html.twig:322
+msgid "Firmware update available"
+msgstr ""
+
+#: src/Service/DashboardService.php:451 src/Service/DashboardService.php:561
+msgid "First seen"
+msgstr ""
+
+#: templates/config_form.html.twig:81 templates/config_form.html.twig:85
+msgid "GDMS Account"
+msgstr ""
+
+#: src/Service/ConfigService.php:276 src/Menu.php:26 src/Config.php:13
+msgid "GDMS Configuration"
+msgstr ""
+
+#: src/Menu.php:22
+msgid "GDMS Dashboard"
+msgstr ""
+
+#: hook.php:3 setup.php:6 setup.php:20 tests/regression_static.php:21 src/Service/HistoryExportService.php:3 src/Service/HistoryExportService.php:76 src/Service/HistoryExportService.php:78 src/Service/SyncService.php:3 src/Service/ConfigService.php:3 src/Service/ClientService.php:3 src/Service/ConfigService.php:6 src/Service/FirmwareService.php:3 src/Service/DashboardService.php:3 src/Service/AlertService.php:3 src/Service/PortService.php:3 src/History.php:3 src/BaseGLPI.php:3 src/Menu.php:3 src/Menu.php:8 src/Menu.php:18 src/Menu.php:39 src/Sync.php:3 src/Sync.php:894 src/Sync.php:985 src/Sync.php:1107 src/Sync.php:1187 src/Config.php:3 src/BaseTM.php:3 src/Device.php:3 src/Utils.php:3 src/Link.php:3 src/API.php:3
+msgid "GDMS Integration"
+msgstr ""
+
+#: templates/config_form.html.twig:111
+msgid "GDMS Networking — APs, Switches & Routers"
+msgstr ""
+
+#: templates/config_form.html.twig:98
+msgid "GDMS Password"
+msgstr ""
+
+#: templates/config_form.html.twig:146
+msgid "GDMS Unified Communications — Phones & PBX"
+msgstr ""
+
+#: src/Service/ConfigService.php:227 src/Service/ConfigService.php:231
+msgid "GDMS Unified Communications:"
+msgstr ""
+
+#: src/Service/ConfigService.php:227
+msgid "GDMS Unified Communications: connection successful."
+msgstr ""
+
+#: templates/config_form.html.twig:91
+msgid "GDMS Username"
+msgstr ""
+
+#: src/Service/DashboardService.php:579
+msgid "GDMS applies the latest firmware available in its repository. The selected version is informational only."
+msgstr ""
+
+#: src/Service/DashboardService.php:578
+msgid "GDMS managed"
+msgstr ""
+
+#: templates/dashboard.html.twig:21
+msgid "GDMS not configured yet"
+msgstr ""
+
+#: templates/config_form.html.twig:29
+msgid "GLPI entity this configuration applies to."
+msgstr ""
+
+#: src/Service/ConfigService.php:217 src/Service/ConfigService.php:221
+msgid "GWN Networking:"
+msgstr ""
+
+#: src/Service/ConfigService.php:217
+msgid "GWN Networking: connection successful."
+msgstr ""
+
+#: src/Service/DashboardService.php:627 src/Sync.php:469 src/Device.php:160
+msgid "Gateway"
+msgstr ""
+
+#: templates/config_form.html.twig:445
+msgid "Go to Dashboard"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:162 src/Sync.php:1363
+msgid "Gold"
+msgstr ""
+
+#: src/Service/DashboardService.php:583 public/js/vis-network.min.js:26
+msgid "HDX"
+msgstr ""
+
+#: src/Service/DashboardService.php:602
+msgid "Hostname"
+msgstr ""
+
+#: templates/config_form.html.twig:258
+msgid "How often the dashboard syncs from the cloud. Minimum 30s, default 300s (5 min)."
+msgstr ""
+
+#: templates/dashboard.html.twig:230 templates/dashboard.html.twig:290 templates/dashboard.html.twig:295 templates/dashboard.html.twig:298 templates/dashboard.html.twig:376 templates/dashboard.html.twig:1013 templates/dashboard.html.twig:1171 templates/dashboard.html.twig:1194 templates/config_form.html.twig:141 templates/config_form.html.twig:223 templates/config_form.html.twig:225 templates/config_form.html.twig:226 templates/config_form.html.twig:228 templates/config_form.html.twig:250 templates/config_form.html.twig:317 templates/config_form.html.twig:357 src/Service/ClientService.php:75 src/Service/DashboardService.php:482 src/Service/DashboardService.php:568 src/Service/DashboardService.php:615 src/Service/DashboardService.php:636 src/Service/DashboardService.php:641 src/Service/DashboardService.php:655 src/Sync.php:7 src/Sync.php:170 src/Sync.php:476 src/Sync.php:659 src/Sync.php:1101 src/Sync.php:1102 src/Device.php:158 src/Device.php:160 public/js/vis-network.min.js:26
+msgid "IP"
+msgstr ""
+
+#: src/Service/DashboardService.php:568
+msgid "IP Address"
+msgstr ""
+
+#: src/Service/DashboardService.php:566
+msgid "LAN up"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:78
+msgid "Last %d days — generated by GDMS Integration plugin"
+msgstr ""
+
+#: src/Service/DashboardService.php:452 src/Service/DashboardService.php:562 src/Device.php:158
+msgid "Last seen"
+msgstr ""
+
+#: src/Service/DashboardService.php:38
+msgid "Last sync: %d min ago"
+msgstr ""
+
+#: src/Service/DashboardService.php:40
+msgid "Last sync: %dd ago"
+msgstr ""
+
+#: src/Service/DashboardService.php:39
+msgid "Last sync: %dh ago"
+msgstr ""
+
+#: src/Service/DashboardService.php:37
+msgid "Last sync: just now"
+msgstr ""
+
+#: src/Service/DashboardService.php:622
+msgid "Leave empty to apply as soon as possible"
+msgstr ""
+
+#: src/Sync.php:918
+msgid "Link"
+msgstr ""
+
+msgid "Link Down"
+msgstr ""
+
+#: src/Service/DashboardService.php:554
+msgid "Link down"
+msgstr ""
+
+#: src/Service/DashboardService.php:631
+msgid "Link speed"
+msgstr ""
+
+#: src/Service/DashboardService.php:555
+msgid "Link up"
+msgstr ""
+
+#: templates/dashboard.html.twig:39
+msgid "Live view of your Grandstream cloud devices"
+msgstr ""
+
+#: templates/dashboard.html.twig:137
+msgid "Loading alerts…"
+msgstr ""
+
+#: src/Service/DashboardService.php:450 public/js/vis-network.min.js:33
+msgid "Location"
+msgstr ""
+
+#: templates/dashboard.html.twig:231
+msgid "MAC Address"
+msgstr ""
+
+#: templates/dashboard.html.twig:228 src/Service/DashboardService.php:154 src/Service/DashboardService.php:224 src/Service/DashboardService.php:253 src/Service/DashboardService.php:422 src/Sync.php:252 src/Sync.php:253 src/Sync.php:357 src/Sync.php:786 src/Sync.php:798 src/Sync.php:1252 src/API.php:47
+msgid "Model"
+msgstr ""
+
+#: src/Sync.php:896 src/Sync.php:1081 src/Sync.php:1100 src/Sync.php:1101 src/Sync.php:1102 src/Sync.php:1103 src/Sync.php:1104 src/API.php:136 src/API.php:137
+msgid "N/A"
+msgstr ""
+
+#: src/Service/DashboardService.php:573
+msgid "Negotiated speed"
+msgstr ""
+
+#: setup.php:84 templates/dashboard.html.twig:65 templates/dashboard.html.twig:70 templates/dashboard.html.twig:215 templates/dashboard.html.twig:229 templates/dashboard.html.twig:269 templates/dashboard.html.twig:440 templates/dashboard.html.twig:496 templates/dashboard.html.twig:509 templates/dashboard.html.twig:1047 templates/dashboard.html.twig:1635 templates/config_form.html.twig:106 templates/config_form.html.twig:111 templates/config_form.html.twig:121 templates/config_form.html.twig:130 templates/config_form.html.twig:135 templates/config_form.html.twig:211 src/Service/HistoryExportService.php:43 src/Service/ConfigService.php:217 src/Service/ConfigService.php:221 src/Service/ClientService.php:42 src/Service/DashboardService.php:95 src/Service/DashboardService.php:139 src/Service/DashboardService.php:154 src/Service/DashboardService.php:441 src/Service/DashboardService.php:495 src/Service/DashboardService.php:559 src/Service/DashboardService.php:560 src/Sync.php:6 src/Sync.php:9 src/Sync.php:257 src/Sync.php:268 src/Sync.php:308 src/Sync.php:354 src/Sync.php:356 src/Sync.php:358 src/Sync.php:435 src/Sync.php:439 src/Sync.php:665 src/Sync.php:765 src/Sync.php:893 src/Sync.php:1103 src/Sync.php:1208 src/Sync.php:1219 src/Sync.php:1379 src/Sync.php:1391 src/Sync.php:1394 src/Device.php:41 src/Device.php:44 src/Device.php:136 src/Device.php:144 src/Device.php:158 src/API.php:16 src/API.php:17 src/API.php:53 src/API.php:508 src/API.php:604 src/API.php:625 src/API.php:646 src/API.php:703 src/API.php:706 public/js/vis-network.min.js:33
+msgid "Network"
+msgstr ""
+
+#: templates/dashboard.html.twig:440
+msgid "Network Topology"
+msgstr ""
+
+#: templates/config_form.html.twig:211
+msgid "Network topology card"
+msgstr ""
+
+#: src/Service/DashboardService.php:560
+msgid "Network traffic"
+msgstr ""
+
+#: src/Service/DashboardService.php:441 src/Service/DashboardService.php:559
+msgid "Network usage"
+msgstr ""
+
+#: templates/dashboard.html.twig:65 templates/dashboard.html.twig:70 src/Service/DashboardService.php:495
+msgid "Networks"
+msgstr ""
+
+#: templates/dashboard.html.twig:409
+msgid "No GDMS devices found. Run a sync first."
+msgstr ""
+
+#: src/Sync.php:918
+msgid "No Internet"
+msgstr ""
+
+#: src/Service/DashboardService.php:594
+msgid "No clients connected"
+msgstr ""
+
+#: src/Service/DashboardService.php:557
+msgid "No internet"
+msgstr ""
+
+#: src/Service/DashboardService.php:558
+msgid "No ports found"
+msgstr ""
+
+#: src/Service/DashboardService.php:595
+msgid "No recent alerts"
+msgstr ""
+
+#: templates/config_form.html.twig:17
+msgid "Not configured"
+msgstr ""
+
+#: src/Service/DashboardService.php:576
+msgid "Official firmware"
+msgstr ""
+
+#: templates/dashboard.html.twig:80 templates/dashboard.html.twig:81 templates/dashboard.html.twig:82 templates/dashboard.html.twig:83 templates/dashboard.html.twig:207 templates/dashboard.html.twig:373 templates/dashboard.html.twig:1634 src/Service/DashboardService.php:346 src/Service/DashboardService.php:496 src/Service/DashboardService.php:497 src/Service/DashboardService.php:498 src/Service/DashboardService.php:499 src/Sync.php:17 src/Sync.php:91 src/Sync.php:210 src/Sync.php:214 src/Sync.php:216 src/Sync.php:719 src/Sync.php:734 src/Sync.php:998 src/Sync.php:1117 src/Sync.php:1152 src/Sync.php:1166 src/Sync.php:1266 src/Sync.php:1374
+msgid "Offline"
+msgstr ""
+
+#: templates/dashboard.html.twig:80 templates/dashboard.html.twig:81 templates/dashboard.html.twig:82 templates/dashboard.html.twig:83 templates/dashboard.html.twig:204 templates/dashboard.html.twig:373 templates/dashboard.html.twig:422 templates/dashboard.html.twig:964 templates/dashboard.html.twig:1633 src/Service/HistoryExportService.php:82 src/Service/DashboardService.php:109 src/Service/DashboardService.php:148 src/Service/DashboardService.php:178 src/Service/DashboardService.php:211 src/Service/DashboardService.php:346 src/Service/DashboardService.php:496 src/Service/DashboardService.php:497 src/Service/DashboardService.php:498 src/Service/DashboardService.php:499 src/Service/DashboardService.php:556 src/Service/DashboardService.php:563 src/Sync.php:17
+msgid "Online"
+msgstr ""
+
+#: templates/dashboard.html.twig:422
+msgid "Online %% — last %d days"
+msgstr ""
+
+#: setup.php:84 templates/dashboard.html.twig:83 templates/dashboard.html.twig:218 templates/dashboard.html.twig:248 templates/dashboard.html.twig:266 templates/dashboard.html.twig:267 templates/dashboard.html.twig:1194 templates/dashboard.html.twig:1636 templates/config_form.html.twig:146 templates/config_form.html.twig:317 src/Service/HistoryExportService.php:43 src/Service/ClientService.php:42 src/Service/FirmwareService.php:85 src/Service/DashboardService.php:95 src/Service/DashboardService.php:143 src/Service/DashboardService.php:154 src/Service/DashboardService.php:217 src/Service/DashboardService.php:218 src/Service/DashboardService.php:224 src/Service/DashboardService.php:253 src/Service/DashboardService.php:255 src/Service/DashboardService.php:264 src/Service/DashboardService.php:354 src/Service/DashboardService.php:355 src/Service/DashboardService.php:422 src/Service/DashboardService.php:499 src/Service/DashboardService.php:592 src/Sync.php:8 src/Sync.php:257 src/Sync.php:355 src/Sync.php:370 src/Sync.php:765 src/Sync.php:830 src/Sync.php:1208 src/Sync.php:1219 src/Sync.php:1379 src/Device.php:144 src/API.php:7 src/API.php:50
+msgid "Phone"
+msgstr ""
+
+#: templates/dashboard.html.twig:83 templates/config_form.html.twig:146 src/Service/DashboardService.php:499 src/Service/DashboardService.php:592
+msgid "Phones & PBX"
+msgstr ""
+
+#: src/Service/DashboardService.php:624
+msgid "Port Status"
+msgstr ""
+
+#: src/Service/DashboardService.php:574
+msgid "Port label"
+msgstr ""
+
+#: src/Service/DashboardService.php:572
+msgid "Port type"
+msgstr ""
+
+#: templates/dashboard.html.twig:234 templates/dashboard.html.twig:939 src/Service/DashboardService.php:558 src/Sync.php:489 src/Device.php:130
+msgid "Ports"
+msgstr ""
+
+#: templates/dashboard.html.twig:295 templates/dashboard.html.twig:298 templates/config_form.html.twig:223 templates/config_form.html.twig:228 src/Service/DashboardService.php:615 src/Sync.php:1102
+msgid "Private IP"
+msgstr ""
+
+#: templates/dashboard.html.twig:290 src/Service/DashboardService.php:641 src/Sync.php:1101
+msgid "Public IP"
+msgstr ""
+
+#: templates/dashboard.html.twig:274
+msgid "Copy model"
+msgstr ""
+
+#: templates/dashboard.html.twig:303 src/Service/DashboardService.php:640
+msgid "Copy MAC"
+msgstr ""
+
+#: templates/dashboard.html.twig:306
+msgid "Copy serial"
+msgstr ""
+
+#: templates/dashboard.html.twig:1417 src/Service/DashboardService.php:607 src/API.php:947
+msgid "Reason"
+msgstr ""
+
+#: templates/config_form.html.twig:198
+msgid "Recommended: 60 days. Values above 90 days may slow down the dashboard due to larger history queries."
+msgstr ""
+
+#: src/Service/DashboardService.php:549
+msgid "Request failed. Check connection."
+msgstr ""
+
+#: templates/dashboard.html.twig:80 templates/config_form.html.twig:111 templates/config_form.html.twig:327 src/Service/DashboardService.php:496 src/Service/DashboardService.php:589 src/Service/PortService.php:77 src/Service/PortService.php:78 src/Sync.php:96 src/Sync.php:443 src/Sync.php:1065 src/Sync.php:1071 src/Sync.php:1074 src/Sync.php:1075 src/Sync.php:1076 src/API.php:16 src/API.php:1013
+msgid "Router"
+msgstr ""
+
+#: templates/dashboard.html.twig:376
+msgid "SIP Extension"
+msgstr ""
+
+#: templates/dashboard.html.twig:157 templates/dashboard.html.twig:163 templates/dashboard.html.twig:241 src/Service/HistoryExportService.php:145 src/Service/DashboardService.php:58 src/Service/DashboardService.php:668 src/Sync.php:1321 src/Sync.php:1369
+msgid "SLA"
+msgstr ""
+
+#: templates/config_form.html.twig:5 templates/config_form.html.twig:441 src/Sync.php:219 src/API.php:715
+msgid "Save"
+msgstr ""
+
+#: templates/config_form.html.twig:5
+msgid "Saved — leave empty to keep"
+msgstr ""
+
+#: src/Service/DashboardService.php:620
+msgid "Schedule for"
+msgstr ""
+
+#: src/Service/DashboardService.php:552
+msgid "Schedule update"
+msgstr ""
+
+#: src/Service/DashboardService.php:553
+msgid "Scheduling…"
+msgstr ""
+
+#: templates/config_form.html.twig:179
+msgid "Secret Key from GDMS developer page"
+msgstr ""
+
+#: templates/config_form.html.twig:134
+msgid "Secret Key from GWN developer page"
+msgstr ""
+
+#: src/Service/DashboardService.php:580
+msgid "Select version"
+msgstr ""
+
+#: templates/dashboard.html.twig:232 src/Sync.php:332 src/Sync.php:335 src/Sync.php:893 src/Sync.php:1100
+msgid "Serial"
+msgstr ""
+
+#: templates/dashboard.html.twig:24
+msgid "Set up GDMS"
+msgstr ""
+
+#: templates/dashboard.html.twig:51
+msgid "Settings"
+msgstr ""
+
+#: src/Service/DashboardService.php:598 src/Sync.php:1391
+msgid "Severity"
+msgstr ""
+
+#: src/Service/DashboardService.php:621
+msgid "Show date picker"
+msgstr ""
+
+#: templates/config_form.html.twig:217
+msgid "Show topology card on dashboard"
+msgstr ""
+
+#: src/Service/DashboardService.php:604
+msgid "Signal"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:162 src/Sync.php:1364
+msgid "Silver"
+msgstr ""
+
+#: templates/dashboard.html.twig:236 templates/dashboard.html.twig:870 templates/dashboard.html.twig:898 templates/dashboard.html.twig:899 templates/dashboard.html.twig:908 templates/dashboard.html.twig:910 templates/dashboard.html.twig:912 templates/dashboard.html.twig:913 templates/dashboard.html.twig:916 templates/dashboard.html.twig:918 templates/dashboard.html.twig:982 templates/dashboard.html.twig:1240 src/Service/DashboardService.php:516 src/Service/DashboardService.php:571 src/Service/DashboardService.php:624 src/Service/DashboardService.php:636 src/Service/PortService.php:62 src/Service/PortService.php:91 src/Service/PortService.php:99 src/Service/PortService.php:100 src/Sync.php:221 src/Sync.php:224 src/Sync.php:424 src/Sync.php:428 src/Sync.php:458 src/Sync.php:464 src/Sync.php:465 src/Sync.php:471 src/Sync.php:515 src/Sync.php:540 src/Sync.php:555 src/Sync.php:557 src/Sync.php:558 src/Sync.php:564 src/Sync.php:584 src/Sync.php:585 src/Sync.php:594 src/Sync.php:616 src/Sync.php:620 src/Sync.php:645 src/Sync.php:688 src/Sync.php:689 src/Sync.php:706 src/Sync.php:707 src/Sync.php:733 src/Device.php:158
+msgid "Status"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:80 src/Service/HistoryExportService.php:139 src/Service/DashboardService.php:491
+msgid "Summary"
+msgstr ""
+
+#: templates/dashboard.html.twig:81 templates/config_form.html.twig:111 templates/config_form.html.twig:337 src/Service/DashboardService.php:497 src/Service/DashboardService.php:590 src/Service/PortService.php:52 src/Service/PortService.php:53 src/Sync.php:96 src/Sync.php:634 src/API.php:16 src/API.php:984 public/js/vis-network.min.js:33
+msgid "Switch"
+msgstr ""
+
+#: templates/dashboard.html.twig:48
+msgid "Sync now"
+msgstr ""
+
+#: src/Sync.php:45
+msgid "Synchronize GDMS cloud devices with GLPI"
+msgstr ""
+
+#: src/Service/DashboardService.php:547
+msgid "Syncing…"
+msgstr ""
+
+#: templates/config_form.html.twig:154
+msgid "Syncs GRP, GXP, GXV, WP phones and UCM PBX appliances."
+msgstr ""
+
+#: templates/config_form.html.twig:119
+msgid "Syncs GWN APs, switches and routers. No username or password required — only API credentials."
+msgstr ""
+
+#: templates/config_form.html.twig:203
+msgid "System / cron user (default)"
+msgstr ""
+
+#: src/Service/DashboardService.php:605 src/Service/DashboardService.php:630
+msgid "TX / RX"
+msgstr ""
+
+#: src/Service/DashboardService.php:630
+msgid "TX / RX packets"
+msgstr ""
+
+#: src/Service/DashboardService.php:442 src/Service/DashboardService.php:625
+msgid "Upload"
+msgstr ""
+
+#: templates/config_form.html.twig:377
+msgid "Max upload size (MB)"
+msgstr ""
+
+#: src/Service/DashboardService.php:548
+msgid "The device will reboot during the update. Schedule during a maintenance window."
+msgstr ""
+
+#: setup.php:40
+msgid "This plugin requires GLPI 11.0 or later."
+msgstr ""
+
+#: setup.php:44
+msgid "This plugin requires the PHP cURL extension."
+msgstr ""
+
+#: src/Sync.php:1107
+msgid "This ticket was automatically generated by the GDMS Integration plugin."
+msgstr ""
+
+#: templates/config_form.html.twig:208
+msgid "This user will be set as the requester on automatically generated incident tickets."
+msgstr ""
+
+#: templates/config_form.html.twig:201
+msgid "Ticket requester (user)"
+msgstr ""
+
+#: templates/dashboard.html.twig:469 templates/dashboard.html.twig:536 templates/dashboard.html.twig:598 templates/dashboard.html.twig:699 templates/dashboard.html.twig:709 templates/dashboard.html.twig:774 templates/dashboard.html.twig:835 templates/dashboard.html.twig:836 templates/dashboard.html.twig:881 templates/dashboard.html.twig:1294 templates/dashboard.html.twig:1301 templates/dashboard.html.twig:1304 templates/dashboard.html.twig:1337 templates/dashboard.html.twig:1346 templates/dashboard.html.twig:1390 templates/dashboard.html.twig:1403 templates/dashboard.html.twig:1412 templates/dashboard.html.twig:1494 templates/dashboard.html.twig:1532 templates/dashboard.html.twig:1543 templates/dashboard.html.twig:1546 templates/dashboard.html.twig:1547 templates/config_form.html.twig:501 templates/config_form.html.twig:511 src/Service/ConfigService.php:83 src/Service/ClientService.php:64 src/Service/ConfigService.php:124 src/Service/FirmwareService.php:15 src/Service/FirmwareService.php:296 src/Service/FirmwareService.php:297 src/Service/FirmwareService.php:298 src/Service/FirmwareService.php:300 src/Service/DashboardService.php:597 src/Service/AlertService.php:46 src/Service/AlertService.php:48 src/Sync.php:422 src/Sync.php:671 src/Sync.php:685 src/Sync.php:729 src/API.php:576 src/API.php:688 src/API.php:689 src/API.php:801 src/API.php:832 src/API.php:868 src/API.php:906 src/API.php:907 src/API.php:909 src/API.php:910 src/API.php:912 src/API.php:913 src/API.php:914 src/API.php:1187 src/API.php:1194 src/API.php:1195 src/API.php:1197 src/API.php:1214 src/API.php:1274 src/API.php:1275 public/js/vis-network.min.js:26 public/js/vis-network.min.js:33
+msgid "Time"
+msgstr ""
+
+#: templates/dashboard.html.twig:22
+msgid "To start syncing your Grandstream devices, you need to connect your GDMS Cloud account. It only takes a moment."
+msgstr ""
+
+#: src/Service/HistoryExportService.php:144 src/Service/DashboardService.php:495 src/Service/DashboardService.php:588
+msgid "Total"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:144
+msgid "Total days"
+msgstr ""
+
+#: templates/dashboard.html.twig:237
+msgid "Traffic ↑↓"
+msgstr ""
+
+#: templates/dashboard.html.twig:227 templates/dashboard.html.twig:851 templates/dashboard.html.twig:1006 templates/dashboard.html.twig:1035 templates/dashboard.html.twig:1414 src/Service/BulkService.php:2 src/Service/HistoryExportService.php:95 src/Service/HistoryExportService.php:117 src/Service/HistoryExportService.php:149 src/Service/HistoryExportService.php:173 src/Service/HistoryExportService.php:186 src/Service/SyncService.php:21 src/Service/NetworkLocationService.php:4 src/Service/ConfigService.php:138 src/Service/ClientService.php:11 src/Service/FirmwareService.php:31 src/Service/FirmwareService.php:431 src/Service/FirmwareService.php:456 src/Service/DashboardService.php:149 src/Service/DashboardService.php:161 src/Service/DashboardService.php:569 src/Service/DashboardService.php:572 src/Service/AlertService.php:11 src/Service/PortService.php:10 src/Service/PortService.php:101 src/History.php:13 src/Menu.php:7 src/Sync.php:284 src/Sync.php:293 src/Sync.php:294 src/Sync.php:298 src/Sync.php:467 src/Sync.php:675 src/Config.php:12 src/Device.php:13 src/Link.php:12 src/API.php:245 src/API.php:264 src/API.php:322 src/API.php:340 src/API.php:515 src/API.php:521 src/API.php:554 src/API.php:633 src/API.php:640 src/API.php:656 src/API.php:755 src/API.php:846 src/API.php:868 src/API.php:880 src/API.php:938 src/API.php:949 src/API.php:966 src/API.php:998 src/API.php:1027 src/API.php:1070 src/API.php:1152 src/API.php:1158 src/API.php:1207 src/API.php:1265 src/API.php:1267 src/API.php:1287 src/API.php:1299 src/API.php:1313 src/API.php:1315 src/API.php:1327 src/API.php:1338 src/API.php:1352 src/API.php:1354 src/API.php:1366 public/js/vis-network.min.js:26 public/js/vis-network.min.js:33
+msgid "Type"
+msgstr ""
+
+#: templates/dashboard.html.twig:966 src/Service/FirmwareService.php:481 src/Service/DashboardService.php:565 src/Service/DashboardService.php:575 src/Service/PortService.php:17 public/js/vis-network.min.js:33
+msgid "Unknown"
+msgstr ""
+
+#: src/Service/DashboardService.php:550
+msgid "Update scheduled successfully. The device will update shortly."
+msgstr ""
+
+#: templates/dashboard.html.twig:235 src/Service/DashboardService.php:91 src/Service/DashboardService.php:272 src/Sync.php:1321 src/Sync.php:1327 src/Sync.php:1346 src/Sync.php:1370
+msgid "Uptime"
+msgstr ""
+
+#: templates/config_form.html.twig:95
+msgid "Username (not email) to sign in to gdms.cloud."
+msgstr ""
+
+#: templates/dashboard.html.twig:764 templates/dashboard.html.twig:768 templates/dashboard.html.twig:1511 templates/config_form.html.twig:198 src/Service/HistoryExportService.php:85 src/Service/HistoryExportService.php:88 src/Service/HistoryExportService.php:102 src/Service/HistoryExportService.php:111 src/Service/HistoryExportService.php:140 src/Service/HistoryExportService.php:141 src/Service/HistoryExportService.php:142 src/Service/HistoryExportService.php:143 src/Service/HistoryExportService.php:144 src/Service/HistoryExportService.php:145 src/Service/HistoryExportService.php:164 src/Service/HistoryExportService.php:165 src/Service/HistoryExportService.php:166 src/Service/HistoryExportService.php:168 src/Service/HistoryExportService.php:169 src/Service/HistoryExportService.php:170 src/Service/ConfigService.php:51 src/Service/ConfigService.php:52 src/Service/ConfigService.php:60 src/Service/ConfigService.php:81 src/Service/ConfigService.php:87 src/Service/ConfigService.php:61 src/Service/ConfigService.php:62 src/Service/ConfigService.php:77 src/Service/ConfigService.php:120 src/Service/ConfigService.php:133 src/Sync.php:892 src/Sync.php:1098 public/js/vis-network.min.js:26 public/js/vis-network.min.js:33
+msgid "Value"
+msgstr ""
+
+#: templates/config_form.html.twig:272
+msgid "Verbose logging (debug mode)"
+msgstr ""
+
+#: src/Service/DashboardService.php:629
+msgid "WAN MAC"
+msgstr ""
+
+#: src/Sync.php:885
+msgid "WAN link is up but internet connectivity was lost (ISP / PPPoE failure)."
+msgstr ""
+
+#: src/Service/DashboardService.php:563
+msgid "WAN online"
+msgstr ""
+
+#: src/Service/DashboardService.php:462
+msgid "WAN port aggregate (sum of all WAN ports since last router reboot)"
+msgstr ""
+
+#: src/Sync.php:886
+msgid "WAN port physical link went down."
+msgstr ""
+
+#: templates/dashboard.html.twig:117 tests/regression_static.php:19 src/Service/DashboardService.php:564
+msgid "WAN up, no internet"
+msgstr ""
+
+#: src/Service/DashboardService.php:565
+msgid "WAN up, unknown"
+msgstr ""
+
+#: templates/config_form.html.twig:276
+msgid "When disabled, only errors and key sync results are logged."
+msgstr ""
+
+#: templates/config_form.html.twig:220
+msgid "When disabled, the topology graph is hidden and its data processing is skipped entirely."
+msgstr ""
+
+#: templates/config_form.html.twig:88
+msgid "Your gdms.cloud login credentials. Used to authenticate against the GDMS API."
+msgstr ""
+
+#: templates/config_form.html.twig:100
+msgid "Your gdms.cloud login password. Stored encrypted."
+msgstr ""
+
+#: templates/config_form.html.twig:99
+msgid "Your gdms.cloud password"
+msgstr ""
+
+#: templates/config_form.html.twig:94
+msgid "Your gdms.cloud username"
+msgstr ""
+
+#: templates/dashboard.html.twig:147 src/Service/FirmwareService.php:11 src/Service/FirmwareService.php:192 src/API.php:678 src/API.php:975
+msgid "all devices"
+msgstr ""
+
+#: templates/dashboard.html.twig:163 templates/dashboard.html.twig:206 templates/dashboard.html.twig:207 templates/dashboard.html.twig:1064 templates/dashboard.html.twig:1654 templates/config_form.html.twig:309 src/Service/ConfigService.php:95 src/Service/ConfigService.php:109 src/Service/ConfigService.php:146 src/Service/DashboardService.php:79 src/Service/DashboardService.php:148 src/Service/DashboardService.php:492 src/Service/DashboardService.php:587 src/Service/DashboardService.php:686 src/Sync.php:189 src/Sync.php:207 src/Sync.php:299 src/Sync.php:301 src/Sync.php:425 src/Sync.php:702 src/Sync.php:703 src/Sync.php:706 src/Sync.php:707 src/Sync.php:733 src/Sync.php:825 src/Sync.php:1016 src/Sync.php:1025 src/Sync.php:1096 src/Sync.php:1163 src/Sync.php:1264 src/Sync.php:1385 src/API.php:940
+msgid "offline"
+msgstr ""
+
+#: src/Service/DashboardService.php:636
+msgid "SIP Status"
+msgstr ""
+
+#: templates/dashboard.html.twig:359 src/Service/DashboardService.php:484 src/Service/DashboardService.php:644
+msgid "Do Not Disturb"
+msgstr ""
+
+#: templates/dashboard.html.twig:1235 src/Service/DashboardService.php:482 src/Service/DashboardService.php:634 public/js/vis-network.min.js:33
+msgid "Registered"
+msgstr ""
+
+#: templates/dashboard.html.twig:1235 src/Service/DashboardService.php:482 src/Service/DashboardService.php:635
+msgid "Unregistered"
+msgstr ""
+
+#: src/Service/DashboardService.php:647 src/Sync.php:697
+msgid "Synchronized"
+msgstr ""
+
+#: src/Service/DashboardService.php:650
+msgid "Sync Error"
+msgstr ""
+
+#: src/Service/DashboardService.php:651
+msgid "Scheduled Task"
+msgstr ""
+
+#: src/Service/DashboardService.php:652
+msgid "Pending"
+msgstr ""
+
+#: src/Service/DashboardService.php:653
+msgid "None"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:81 src/Service/HistoryExportService.php:182 src/Service/DashboardService.php:645 src/Sync.php:888 public/js/vis-network.min.js:26 public/js/vis-network.min.js:33
+msgid "Active"
+msgstr ""
+
+#: templates/dashboard.html.twig:80 templates/dashboard.html.twig:81 templates/dashboard.html.twig:82 templates/dashboard.html.twig:83 templates/dashboard.html.twig:207 templates/dashboard.html.twig:373 templates/dashboard.html.twig:1634 src/Service/HistoryExportService.php:4 src/Service/HistoryExportService.php:7 src/Service/HistoryExportService.php:8 src/Service/HistoryExportService.php:9 src/Service/HistoryExportService.php:10 src/Service/HistoryExportService.php:11 src/Service/HistoryExportService.php:12 src/Service/HistoryExportService.php:87 src/Service/HistoryExportService.php:92 src/Service/HistoryExportService.php:106 src/Service/HistoryExportService.php:126 src/Service/ConfigService.php:5 src/Service/ConfigService.php:6 src/Service/ConfigService.php:7 src/Service/ConfigService.php:46 src/Service/ConfigService.php:17 src/Service/ConfigService.php:18 src/Service/ConfigService.php:19 src/Service/ConfigService.php:22 src/Service/ConfigService.php:70 src/Service/DashboardService.php:346 src/Service/DashboardService.php:496 src/Service/DashboardService.php:497 src/Service/DashboardService.php:498 src/Service/DashboardService.php:499 src/Service/DashboardService.php:576 src/Service/DashboardService.php:646 src/Sync.php:17 src/Sync.php:91 src/Sync.php:210 src/Sync.php:214 src/Sync.php:216 src/Sync.php:284 src/Sync.php:719 src/Sync.php:734 src/Sync.php:998 src/Sync.php:1117 src/Sync.php:1152 src/Sync.php:1166 src/Sync.php:1266 src/Sync.php:1374 public/js/vis-network.min.js:33
+msgid "Off"
+msgstr ""
+
+#: templates/dashboard.html.twig:1293 templates/dashboard.html.twig:1336 src/Service/DashboardService.php:648 src/Service/DashboardService.php:656 src/Service/DashboardService.php:661
+msgid "Yes"
+msgstr ""
+
+#: setup.php:201 templates/dashboard.html.twig:359 templates/dashboard.html.twig:409 templates/dashboard.html.twig:621 templates/dashboard.html.twig:654 templates/dashboard.html.twig:690 templates/dashboard.html.twig:705 templates/dashboard.html.twig:713 templates/dashboard.html.twig:714 templates/dashboard.html.twig:730 templates/dashboard.html.twig:731 templates/dashboard.html.twig:732 templates/dashboard.html.twig:965 templates/dashboard.html.twig:1168 templates/dashboard.html.twig:1237 templates/dashboard.html.twig:1401 templates/config_form.html.twig:17 templates/config_form.html.twig:119 src/Service/ConfigService.php:32 src/Service/ConfigService.php:67 src/Service/ConfigService.php:153 src/Service/ConfigService.php:237 src/Service/ClientService.php:31 src/Service/ClientService.php:39 src/Service/ConfigService.php:35 src/Service/ConfigService.php:91 src/Service/FirmwareService.php:292 src/Service/DashboardService.php:484 src/Service/DashboardService.php:557 src/Service/DashboardService.php:558 src/Service/DashboardService.php:564 src/Service/DashboardService.php:579 src/Service/DashboardService.php:594 src/Service/DashboardService.php:595 src/Service/DashboardService.php:644 src/Service/DashboardService.php:649 src/Service/DashboardService.php:653 src/Sync.php:202 src/Sync.php:426 src/Sync.php:428 src/Sync.php:503 src/Sync.php:536 src/Sync.php:541 src/Sync.php:550 src/Sync.php:560 src/Sync.php:565 src/Sync.php:574 src/Sync.php:590 src/Sync.php:595 src/Sync.php:604 src/Sync.php:883 src/Sync.php:884 src/Sync.php:918 src/Sync.php:1294 src/Device.php:150 src/Device.php:152 src/API.php:387 src/API.php:683 src/API.php:900 src/API.php:901 public/js/vis-network.min.js:26 public/js/vis-network.min.js:33
+msgid "No"
+msgstr ""
+
+#: templates/dashboard.html.twig:376 src/Service/DashboardService.php:637 public/js/vis-network.min.js:33
+msgid "Extension"
+msgstr ""
+
+#: templates/config_form.html.twig:223
+msgid "Private IP display"
+msgstr ""
+
+#: templates/config_form.html.twig:225
+msgid "IPv4 (preferred, fallback to IPv6)"
+msgstr ""
+
+#: templates/config_form.html.twig:226
+msgid "IPv6 (preferred, fallback to IPv4)"
+msgstr ""
+
+#: templates/config_form.html.twig:228
+msgid "Which address to show in the Private IP column. If the preferred version is unavailable for a device, the other is shown as fallback."
+msgstr ""
+
+#: templates/dashboard.html.twig:153 templates/dashboard.html.twig:203 templates/dashboard.html.twig:204 templates/dashboard.html.twig:251 templates/dashboard.html.twig:357 templates/dashboard.html.twig:372 templates/dashboard.html.twig:373 templates/dashboard.html.twig:852 templates/dashboard.html.twig:912 templates/dashboard.html.twig:986 templates/dashboard.html.twig:1063 templates/dashboard.html.twig:1653 src/Service/HistoryExportService.php:56 src/Service/HistoryExportService.php:65 src/Service/HistoryExportService.php:67 src/Service/HistoryExportService.php:107 src/Service/HistoryExportService.php:108 src/Service/HistoryExportService.php:143 src/Service/HistoryExportService.php:154 src/Service/HistoryExportService.php:159 src/Service/HistoryExportService.php:161 src/Service/HistoryExportService.php:168 src/Service/ConfigService.php:95 src/Service/ClientService.php:64 src/Service/ConfigService.php:13 src/Service/ConfigService.php:108 src/Service/ConfigService.php:109 src/Service/ConfigService.php:112 src/Service/ConfigService.php:137 src/Service/ConfigService.php:146 src/Service/DashboardService.php:78 src/Service/DashboardService.php:109 src/Service/DashboardService.php:148 src/Service/DashboardService.php:178 src/Service/DashboardService.php:252 src/Service/DashboardService.php:287 src/Service/DashboardService.php:296 src/Service/DashboardService.php:298 src/Service/DashboardService.php:316 src/Service/DashboardService.php:317 src/Service/DashboardService.php:344 src/Service/DashboardService.php:346 src/Service/DashboardService.php:492 src/Service/DashboardService.php:493 src/Service/DashboardService.php:503 src/Service/DashboardService.php:509 src/Service/DashboardService.php:556 src/Service/DashboardService.php:563 src/Service/DashboardService.php:586 src/Service/DashboardService.php:685 src/Service/PortService.php:36 src/Service/PortService.php:37 src/Sync.php:299 src/Sync.php:300 src/Sync.php:301 src/Sync.php:436 src/Sync.php:440 src/Sync.php:702 src/Sync.php:706 src/Sync.php:733 src/Sync.php:1164 src/Sync.php:1187 src/Sync.php:1202 src/Sync.php:1332 src/Sync.php:1336 src/Sync.php:1341 src/Sync.php:1353 src/Sync.php:1355 src/Sync.php:1356 src/Sync.php:1359 src/Device.php:156
+msgid "online"
+msgstr ""
+
+#: setup.php:152 templates/dashboard.html.twig:173 templates/dashboard.html.twig:253 templates/dashboard.html.twig:365 templates/dashboard.html.twig:366 templates/dashboard.html.twig:368 templates/dashboard.html.twig:404 src/Service/DashboardService.php:89 src/Service/DashboardService.php:91 src/Service/DashboardService.php:110 src/Service/DashboardService.php:111 src/Service/DashboardService.php:124 src/Service/DashboardService.php:177 src/Service/DashboardService.php:179 src/Service/DashboardService.php:211 src/Service/DashboardService.php:416 src/Service/DashboardService.php:420 src/Service/DashboardService.php:421 src/Service/DashboardService.php:453 src/Service/DashboardService.php:510 src/Service/DashboardService.php:511 src/History.php:4 src/Sync.php:1008 src/Sync.php:1079 src/Sync.php:1080 src/Sync.php:1105 src/Sync.php:1362 src/Sync.php:1363 src/Sync.php:1364 src/Sync.php:1365 src/Device.php:50 src/Device.php:90 src/API.php:575 src/API.php:800
+msgid "uptime"
+msgstr ""
+
+#: src/Sync.php:1096
+msgid "went offline and is no longer reachable."
+msgstr ""
+
+#: src/Sync.php:1187
+msgid "✅ Device **%s** is back online as of %s. Ticket auto-resolved by GDMS Integration."
+msgstr ""
+
+#: src/Sync.php:985
+msgid "✅ WAN port **%s** on **%s** has recovered — link up and internet connectivity confirmed as of %s. Ticket auto-resolved by GDMS Integration."
+msgstr ""
+
+#: templates/dashboard.html.twig:226 templates/dashboard.html.twig:227 templates/dashboard.html.twig:228 templates/dashboard.html.twig:229 templates/dashboard.html.twig:236 templates/dashboard.html.twig:238 templates/dashboard.html.twig:239 templates/dashboard.html.twig:241
+msgid "Click to sort"
+msgstr ""
+
+#: src/Sync.php:1105
+msgid "Last uptime"
+msgstr ""
+
+#: src/Sync.php:893 src/Sync.php:1106
+msgid "Detected"
+msgstr ""
+
+#: templates/dashboard.html.twig:187 templates/dashboard.html.twig:188
+msgid "Reset sort"
+msgstr ""
+
+#: src/Service/DashboardService.php:608 src/Sync.php:466
+msgid "DHCP"
+msgstr ""
+
+#: templates/dashboard.html.twig:851 src/Service/DashboardService.php:609 src/Sync.php:466
+msgid "Static"
+msgstr ""
+
+#: src/Service/DashboardService.php:610 src/Sync.php:466 src/Sync.php:885
+msgid "PPPoE"
+msgstr ""
+
+#: src/Service/DashboardService.php:611 src/Sync.php:466
+msgid "PPTP"
+msgstr ""
+
+#: src/Service/DashboardService.php:612 src/Sync.php:466
+msgid "L2TP"
+msgstr ""
+
+#: templates/config_form.html.twig:281
+msgid "WAN no-internet debounce (seconds)"
+msgstr ""
+
+#: templates/config_form.html.twig:284
+msgid "Seconds to wait before opening a \"no internet\" WAN ticket. Prevents false alerts from transient high-latency events. 0 = open immediately. Default: 300."
+msgstr ""
+
+#: templates/config_form.html.twig:287
+msgid "Create WAN port tickets"
+msgstr ""
+
+#: templates/config_form.html.twig:293
+msgid "Open tickets on WAN port failures"
+msgstr ""
+
+#: templates/config_form.html.twig:296
+msgid "When enabled, the plugin automatically opens incident tickets when a WAN port reports link-down or internet loss. Disable to suppress all WAN port alert tickets."
+msgstr ""
+
+#: src/Service/DashboardService.php:638
+msgid "Site"
+msgstr ""
+
+#: src/Service/DashboardService.php:642
+msgid "Last Seen"
+msgstr ""
+
+#: src/Service/DashboardService.php:482
+msgid "SIP Registered"
+msgstr ""
+
+#: src/Service/DashboardService.php:482
+msgid "SIP Unregistered"
+msgstr ""
+
+#: templates/dashboard.html.twig:376 src/Service/DashboardService.php:483 src/Service/DashboardService.php:637 src/API.php:1080 public/js/vis-network.min.js:26 public/js/vis-network.min.js:33
+msgid "Ext"
+msgstr ""
+
+#: templates/config_form.html.twig:357 src/Service/DashboardService.php:643
+msgid "PBX / UCM"
+msgstr ""
+
+#: templates/config_form.html.twig:306
+msgid "Ticket creation by device type"
+msgstr ""
+
+#: templates/config_form.html.twig:309
+msgid "Controls which device types trigger offline incident tickets when they go offline. All types are enabled by default."
+msgstr ""
+
+#: templates/config_form.html.twig:317
+msgid "IP Phones (GRP, GXP, GXV, WP)"
+msgstr ""
+
+#: templates/config_form.html.twig:327
+msgid "Routers (GWN7001/7002/7003)"
+msgstr ""
+
+#: templates/config_form.html.twig:337
+msgid "Switches (GWN7800, GSS)"
+msgstr ""
+
+#: templates/config_form.html.twig:347
+msgid "Access Points (GWN76xx)"
+msgstr ""
+
+#: templates/config_form.html.twig:357
+msgid "IP PBX / UCM (UCM, GCC)"
+msgstr ""
+
+#: src/Service/DashboardService.php:616
+msgid "Copied!"
+msgstr ""
+
+#: src/Service/DashboardService.php:617
+msgid "Firmware downloads"
+msgstr ""
+
+#: templates/config_form.html.twig:372
+msgid "Import History"
+msgstr ""
+
+#: templates/config_form.html.twig:375
+msgid "Restore availability history from a previously exported XLSX file (gdms_history_*.xlsx). Days that already have data are skipped — no existing records are overwritten."
+msgstr ""
+
+#: templates/config_form.html.twig:368 templates/config_form.html.twig:372 templates/config_form.html.twig:386 templates/config_form.html.twig:422 templates/config_form.html.twig:429 src/Service/ConfigService.php:107 src/Service/ConfigService.php:2 src/Service/ConfigService.php:158
+msgid "Import"
+msgstr ""
+
+#: templates/config_form.html.twig:394 templates/config_form.html.twig:398
+msgid "Configuration Backup"
+msgstr ""
+
+#: templates/config_form.html.twig:401
+msgid "Export all plugin settings to a JSON file, or restore them from a backup. API credentials and secrets are excluded from exports for security."
+msgstr ""
+
+#: templates/config_form.html.twig:404
+msgid "Export settings"
+msgstr ""
+
+#: templates/config_form.html.twig:417
+msgid "Download JSON"
+msgstr ""
+
+#: templates/config_form.html.twig:422
+msgid "Import settings"
+msgstr ""
+
+#: src/Service/ConfigService.php:32 src/Service/ConfigService.php:153 src/Service/ConfigService.php:35
+msgid "No file received or upload error."
+msgstr ""
+
+#: src/Service/ConfigService.php:37 src/Service/ConfigService.php:44
+msgid "Could not read file:"
+msgstr ""
+
+#: src/Service/ConfigService.php:42 src/Service/ConfigService.php:50
+msgid "File must contain at least 2 sheets (pivot + summary)."
+msgstr ""
+
+#: src/Service/ConfigService.php:67 src/Service/ConfigService.php:91
+msgid "No recognizable device columns found. Ensure the file was exported by this plugin."
+msgstr ""
+
+#: src/Service/ConfigService.php:107 src/Service/ConfigService.php:158
+msgid "Import complete: %d device-days imported (%d records each), %d device-days skipped (already had data)."
+msgstr ""
+
+#: src/Service/ConfigService.php:157
+msgid "Invalid or unrecognised configuration file."
+msgstr ""
+
+#: src/Service/ConfigService.php:172
+msgid "Configuration imported. API credentials were not changed — re-enter them if needed."
+msgstr ""
+
+#: templates/config_form.html.twig:411
+msgid "Include API credentials (username, keys, secrets)"
+msgstr ""
+
+#: templates/dashboard.html.twig:201 templates/dashboard.html.twig:212 templates/dashboard.html.twig:616 templates/dashboard.html.twig:626 templates/dashboard.html.twig:815 templates/dashboard.html.twig:817 templates/dashboard.html.twig:1567 templates/dashboard.html.twig:1575 templates/dashboard.html.twig:1591 templates/dashboard.html.twig:1605 templates/dashboard.html.twig:1608 templates/dashboard.html.twig:1632 templates/dashboard.html.twig:1650 templates/config_form.html.twig:309 templates/config_form.html.twig:452 templates/config_form.html.twig:460 src/Service/ConfigService.php:286 src/Service/FirmwareService.php:7 src/Sync.php:1254 src/API.php:481 public/js/vis-network.min.js:26 public/js/vis-network.min.js:33
+msgid "All"
+msgstr ""
+
+#: src/Service/DashboardService.php:665 public/js/vis-network.min.js:33
+msgid "Cancel"
+msgstr ""
+
+#: src/Sync.php:1391
+msgid "Cloud alert reported by GDMS Networking."
+msgstr ""
+
+#: templates/dashboard.html.twig:1276 templates/dashboard.html.twig:1293 templates/dashboard.html.twig:1336 src/Service/DashboardService.php:656 src/Service/DashboardService.php:660 src/Service/DashboardService.php:661 src/Service/DashboardService.php:664
+msgid "Confirm"
+msgstr ""
+
+#: src/Sync.php:1391
+msgid "Detail"
+msgstr ""
+
+#: templates/config_form.html.twig:164
+msgid "Europe (eu.gdms.cloud)"
+msgstr ""
+
+#: src/Service/DashboardService.php:654
+msgid "Factory Reset"
+msgstr ""
+
+#: src/Service/DashboardService.php:657
+msgid "Factory reset task created. Device will restart and restore factory defaults."
+msgstr ""
+
+#: templates/config_form.html.twig:161
+msgid "GDMS account region"
+msgstr ""
+
+#: src/Device.php:157
+msgid "Grandstream cloud snapshot"
+msgstr ""
+
+#: src/Device.php:142 src/Device.php:144
+msgid "Grandstream diagnostics"
+msgstr ""
+
+#: src/Service/DashboardService.php:656
+msgid "I understand — Reset now"
+msgstr ""
+
+#: templates/dashboard.html.twig:106
+msgid "Infrastructure health"
+msgstr ""
+
+#: src/Service/DashboardService.php:577
+msgid "Latest available"
+msgstr ""
+
+
+#: templates/dashboard.html.twig:231 templates/dashboard.html.twig:303 templates/dashboard.html.twig:1171 tests/regression_static.php:11 src/Service/HistoryExportService.php:33 src/Service/HistoryExportService.php:50 src/Service/HistoryExportService.php:141 src/Service/ClientService.php:31 src/Service/ConfigService.php:10 src/Service/ConfigService.php:14 src/Service/ConfigService.php:55 src/Service/ConfigService.php:74 src/Service/ConfigService.php:82 src/Service/ConfigService.php:97 src/Service/FirmwareService.php:292 src/Service/FirmwareService.php:294 src/Service/FirmwareService.php:305 src/Service/FirmwareService.php:342 src/Service/FirmwareService.php:358 src/Service/FirmwareService.php:370 src/Service/FirmwareService.php:446 src/Service/FirmwareService.php:471 src/Service/DashboardService.php:87 src/Service/DashboardService.php:89 src/Service/DashboardService.php:93 src/Service/DashboardService.php:129 src/Service/DashboardService.php:303 src/Service/DashboardService.php:582 src/Service/DashboardService.php:629 src/Service/DashboardService.php:639 src/Service/DashboardService.php:640 src/Sync.php:13 src/Sync.php:89 src/Sync.php:256 src/Sync.php:259 src/Sync.php:313 src/Sync.php:325 src/Sync.php:347 src/Sync.php:474 src/Sync.php:790 src/Sync.php:806 src/Sync.php:820 src/Sync.php:893 src/Sync.php:1086 src/Sync.php:1226 src/Sync.php:1231 src/Sync.php:1297 src/Sync.php:1325 src/Device.php:4 src/API.php:617 src/API.php:830 src/API.php:1010 src/API.php:1182 src/API.php:1215 src/API.php:1243
+msgid "MAC"
+msgstr ""
+
+#: src/Device.php:150 src/Device.php:152
+msgid "No Grandstream cloud data linked to this asset."
+msgstr ""
+
+#: src/Device.php:161
+msgid "Read-only diagnostic snapshot from the last successful cloud synchronization. Destructive diagnostics are intentionally not exposed here."
+msgstr ""
+
+#: templates/dashboard.html.twig:1277 templates/dashboard.html.twig:1282 src/Service/BulkService.php:10 src/Service/FirmwareService.php:446 src/Service/FirmwareService.php:447 src/Service/FirmwareService.php:449 src/Service/DashboardService.php:659 src/Service/DashboardService.php:660 src/Service/DashboardService.php:662 src/Service/DashboardService.php:663 src/API.php:1298 src/API.php:1301
+msgid "Reboot"
+msgstr ""
+
+#: src/Service/DashboardService.php:662
+msgid "Reboot task created. Device will restart shortly."
+msgstr ""
+
+#: src/Service/DashboardService.php:660
+msgid "Reboot this device?"
+msgstr ""
+
+#: src/Service/DashboardService.php:663
+msgid "Rebooting…"
+msgstr ""
+
+#: src/Service/DashboardService.php:658
+msgid "Resetting…"
+msgstr ""
+
+#: templates/config_form.html.twig:166
+msgid "Select the region where the GDMS Unified Communications account is hosted. The endpoint is fixed by the plugin for security."
+msgstr ""
+
+#: templates/config_form.html.twig:163
+msgid "United States / Americas (www.gdms.cloud)"
+msgstr ""
+
+msgid "Availability at last synchronization"
+msgstr ""
+
+#: src/Service/DashboardService.php:613
+msgid "Updating…"
+msgstr ""
+
+msgid "WAN"
+msgstr ""
+
+#: src/Device.php:160
+msgid "WAN diagnostics"
+msgstr ""
+
+#: templates/dashboard.html.twig:116
+msgid "WAN links up / down"
+msgstr ""
+
+#: templates/dashboard.html.twig:114 src/API.php:1009
+msgid "WAN status"
+msgstr ""
+
+#: src/Service/DashboardService.php:655
+msgid "WARNING: Factory reset will permanently erase ALL device configuration, SIP accounts, contacts, and customizations. The device will restart and return to factory defaults. This action cannot be undone."
+msgstr ""
+
+#: src/Service/DashboardService.php:661
+msgid "Yes, reboot now"
+msgstr ""
+
+#: templates/config_form.html.twig:261
+msgid "Operational history retention (days)"
+msgstr ""
+
+#: templates/config_form.html.twig:263
+msgid "Keeps client association and action audit history for this many days. Default: 90."
+msgstr ""
+
+#: templates/config_form.html.twig:233
+msgid "Ticket category — network equipment"
+msgstr ""
+
+#: templates/config_form.html.twig:243
+msgid "Ticket category — Grandstream telephony"
+msgstr ""
+
+#: templates/config_form.html.twig:235 templates/config_form.html.twig:245
+msgid "Do not assign a category"
+msgstr ""
+
+#: templates/config_form.html.twig:240
+msgid "Applied to automatically generated tickets for routers, switches, access points and WAN failures."
+msgstr ""
+
+#: templates/config_form.html.twig:250
+msgid "Applied to automatically generated tickets for IP phones and PBX/UCM devices."
+msgstr ""
+
+#: templates/dashboard.html.twig:65
+msgid "Networks & clients"
+msgstr ""
+
+#: templates/dashboard.html.twig:108
+msgid "Based on availability and synchronization — last %d days."
+msgstr ""
+
+#: templates/dashboard.html.twig
+
+#: templates/config_form.html.twig:33 templates/config_form.html.twig:37
+msgid "Plugin updates"
+msgstr ""
+
+#: templates/config_form.html.twig:44
+msgid "A new plugin version is available."
+msgstr ""
+
+#: templates/config_form.html.twig:46 templates/config_form.html.twig:62
+msgid "Installed version:"
+msgstr ""
+
+#: templates/config_form.html.twig:47 templates/config_form.html.twig:63
+msgid "Latest version:"
+msgstr ""
+
+#: templates/config_form.html.twig:51
+msgid "View release"
+msgstr ""
+
+#: templates/config_form.html.twig:60
+msgid "Plugin is up to date."
+msgstr ""
+
+#: templates/config_form.html.twig:70
+msgid "The latest plugin version could not be checked right now. Your configuration is not affected."
+msgstr ""
+
+#: templates/config_form.html.twig:75
+msgid "Last checked:"
+msgstr ""
