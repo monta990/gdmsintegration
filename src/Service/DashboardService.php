@@ -191,11 +191,23 @@ final class DashboardService
                     // WAN aggregate: sum txBytes/rxBytes from all WAN ports (more accurate than ap/list usage field)
                     'wan_tx_bytes'   => (function() use ($state): int {
                         $ports = json_decode($state['wan_ports_json'] ?? '', true) ?? [];
-                        $tx = 0; foreach ($ports as $p) { if (($p['role'] ?? 0) == 1) $tx += (int)($p['txBytes'] ?? 0); } return $tx;
+                        $tx = 0; foreach ($ports as $p) {
+                            // wan_ports_json contains normalized WAN and LAN records.
+                            // connectStatus/wanType/gateway are present on LAN records too
+                            // (with sentinel values), so they must never be used to classify
+                            // a stored port as WAN.
+                            if ((int)($p['role'] ?? 0) === 1) {
+                                $tx += (int)($p['txBytes'] ?? 0);
+                            }
+                        } return $tx;
                     })(),
                     'wan_rx_bytes'   => (function() use ($state): int {
                         $ports = json_decode($state['wan_ports_json'] ?? '', true) ?? [];
-                        $rx = 0; foreach ($ports as $p) { if (($p['role'] ?? 0) == 1) $rx += (int)($p['rxBytes'] ?? 0); } return $rx;
+                        $rx = 0; foreach ($ports as $p) {
+                            if ((int)($p['role'] ?? 0) === 1) {
+                                $rx += (int)($p['rxBytes'] ?? 0);
+                            }
+                        } return $rx;
                     })(),
                     // Parsed WAN ports are also exposed to the operational summary. Previously
                     // only byte aggregates were built, so the WAN card always saw an empty array.
@@ -518,6 +530,8 @@ final class DashboardService
                 if (!empty($rr['sync_failure_msg'])) $score -= 10;
                 $rr['health'] = max(0, $score); $health_sum += $rr['health'];
                 foreach (($rr['wan_ports'] ?? []) as $wp) {
+                    // Use the normalized role written by Sync. LAN records also carry
+                    // connectStatus/wanType/gateway keys, so those fields are not WAN markers.
                     if ((int)($wp['role'] ?? 0) !== 1) continue;
                     $link = (int)($wp['link'] ?? 0); $conn = (int)($wp['connectStatus'] ?? 0);
                     $ip = trim((string)($wp['ip'] ?? $wp['ipv4'] ?? ''));

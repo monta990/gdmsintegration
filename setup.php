@@ -14,7 +14,7 @@ require_once __DIR__ . '/hook.php';
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.6.0');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.6.1');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI',  '11.0');
 define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '12.99');
 
