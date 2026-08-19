@@ -321,20 +321,6 @@ The result is cached in the current GLPI session for six hours. A GitHub or netw
 
 ---
 
-## Architecture and GLPI 11/12 compatibility
-
-This plugin targets **GLPI 11.x and 12.x**. Its HTTP entry points use GLPI plugin Controllers under `src/Controller/`, with Symfony routing attributes and `Glpi\Controller\AbstractController`. Controllers are auto-discovered by GLPI; no manual route registration is required. For GLPI 11.0 through 11.0.6, mutating routes use GLPI's documented `GET`+`POST` compatibility workaround and reject non-POST requests inside the service layer; GLPI 11.0.7+ and GLPI 12 use the same routes without needing the workaround at the router level.
-
-The HTTP layer follows a strict separation of responsibilities:
-
-- `src/Controller/` owns routing, `Request` input and `Response` output.
-- `src/Service/` contains dashboard/configuration/API endpoint orchestration and does not read PHP HTTP superglobals.
-- `src/` contains the plugin domain/API classes using PSR-4 autoloading.
-- `hook.php` owns installation, migration and uninstallation lifecycle work.
-- `setup.php` is limited to metadata, prerequisites, runtime initialization and hook/class registration.
-
-The plugin does not depend on legacy `front/` or `ajax/` entry points, and no runtime code includes procedural endpoint scripts. This keeps the web layer aligned with the Controller architecture documented for GLPI 11+. Database access remains through GLPI's database abstractions/query builder and plugin-owned lifecycle migrations; runtime requests do not perform schema changes.
-
 ## Installation
 
 1. Download the ZIP and extract it so the folder is named **`gdmsintegration`** inside `glpi/plugins/`.
@@ -438,7 +424,7 @@ The *Model* column in the NOC dashboard resolves first from the GLPI asset catal
 The GWN Cloud API requires the OAuth2 `client_credentials` grant as a `GET` request — this is Grandstream's mandated format. Credentials are encrypted at rest with `GLPIKey` and transmitted only over TLS.
 
 ### JavaScript libraries
-vis-network 10.1.1 is bundled as a public static asset under `public/js/` and is served by GLPI at `/plugins/gdmsintegration/js/vis-network.min.js`. Chart rendering uses **ECharts 5** and date picking uses **Flatpickr** — both are already bundled with GLPI and loaded on demand via `Html::requireJs('charts')` and `Html::requireJs('flatpickr')`. No external CDN requests are made.
+vis-network is bundled as a public static asset. Chart rendering uses **ECharts 5** and date picking uses **Flatpickr** — both are already bundled with GLPI and loaded on demand. No external CDN requests are made.
 
 ## API Authentication
 
@@ -493,8 +479,3 @@ GPL v3+ — see [LICENSE](LICENSE).
 ## Issues
 
 Report bugs or request features on the [issue tracker](https://github.com/monta990/gdmsintegration/issues).
-
-
-### GLPI 11/12 controllers
-
-All web endpoints are exposed through the plugin controller system under `/plugins/gdmsintegration/*`. The plugin no longer uses `front/` or `ajax/` scripts for its web entry points. This follows GLPI's controller architecture for GLPI 11 and later.
