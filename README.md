@@ -11,9 +11,30 @@
   <a href="https://github.com/monta990/gdmsintegration/releases" target="_blank"><img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/monta990/gdmsintegration/total"></a>
 </p>
 
-**Current release:** `1.6.0`
+**Current release:** `1.6.1`
 
 ---
+
+## 1.6.1 — 2026-08-19
+
+### Fixed
+
+- Fixed automatic offline incident tickets so the configured network ITIL category is applied consistently to network equipment.
+- Fixed GWN router WAN detection when the API does not provide a reliable explicit WAN role; WAN-specific metadata is used only as a safe fallback.
+- Fixed WAN dashboard totals and traffic aggregation for stored port records with incomplete role data while preserving explicit `role=1` classification for WAN ports.
+- Fixed WAN accounting for routers that are offline: the last known WAN inventory is retained and known WAN links are shown as down instead of disappearing from the total.
+- Fixed WAN incident handling after a router recovers from an offline state: WAN Link Down incidents are evaluated immediately, while WAN links that are up but without Internet enter the configured debounce before creating a ticket.
+- WAN incidents are never created while the parent network equipment is offline; only the device-level offline incident is generated.
+- Fixed the NOC dashboard WAN counters and WAN traffic aggregates so LAN ports are not counted as WAN merely because normalized LAN records contain `connectStatus`, `wanType`, `gateway`, or IP fields.
+- Fixed WAN no-Internet debounce recovery for states persisted without a `no_inet_since` timestamp.
+- WAN ticket handling remains limited to ports explicitly classified as `role=1`, preserving LAN ports out of WAN counts and ticket generation.
+- Preserved the configured WAN debounce, failover detection, ticket deduplication, and automatic recovery behavior.
+- Replaced spreadsheet-brand wording with neutral **XLSX** terminology across the dashboard, configuration, documentation, metadata, and translations.
+- Fixed dashboard and Cloud Alerts tooltips to use GLPI's native `initTooltips()` behavior, including dismissal of the last alert without leaving an orphaned tooltip.
+
+### Compatibility
+
+- Validated with **GLPI 11** and **GLPI 12**.
 
 ## Overview
 
@@ -275,6 +296,7 @@ An amber **⬆** icon appears next to the firmware version only when the current
 
 ### Incident Tickets
 
+- **Parent-device protection** — WAN incidents are suppressed while the parent network equipment is offline. The device-level offline ticket is the only incident opened for that outage; the last known WAN links remain visible in the dashboard as down and are re-evaluated when the router returns online.
 - **Auto-open** — `[GDMS]` incident ticket created on:
   - Device `online → offline` transition (device unreachable).
   - WAN port physical link-down (`linkStatus` 1 → 0) — opens immediately.
@@ -286,6 +308,7 @@ An amber **⬆** icon appears next to the firmware version only when the current
 - **Rich body** — table with MAC, serial, IP, network/site, firmware, last uptime, detection timestamp.
 - **Location** — if the GLPI asset has a location set, the ticket inherits that `locations_id`.
 - **Asset element** — asset linked as `Item_Ticket` affected item.
+- **ITIL category** — when a network-equipment category is configured, device and WAN incidents use the configured network ITIL category of the affected `NetworkEquipment`; telephony categories remain separate.
 - **Duplicate guard** — skips creation if an open `[GDMS]` ticket already exists for that asset or port.
 - **Auto-resolve** — on recovery: adds followup note and sets ticket to Solved.
 

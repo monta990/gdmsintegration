@@ -430,17 +430,42 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 "  STATE {$name}: prev=" . ($prevStatus ?? 'null') . " → new={$status}{$stateNote}"
             );
 
-            // For routers/switches: fetch port info and check for state changes
+            // For routers/switches: fetch port info and check for state changes.
+            // When a router is offline, GWN does not return portInfo. Preserve the
+            // last known port inventory and mark its WAN ports as physically down so
+            // the dashboard can still count those WANs as down instead of dropping
+            // them from the totals. No WAN ticket is generated here; the device
+            // offline ticket remains the single incident for the offline router.
             $wan_ports_json = '';
             $network_id_val = (int)($d['networkId'] ?? 0);
+            if (!$is_online
+                && $matched_type === 'NetworkEquipment'
+                && preg_match('/^GWN700[123]/i', $gdms_model)
+                && !empty($mac)
+            ) {
+                $previous_wan_ports_json = $state->getWanPortsJson($mac);
+                if ($previous_wan_ports_json !== '') {
+                    $previous_ports = json_decode($previous_wan_ports_json, true);
+                    if (is_array($previous_ports)) {
+                        foreach ($previous_ports as &$previous_port) {
+                            if ((int)($previous_port['role'] ?? 0) !== 1) continue;
+                            $previous_port['link'] = 0;
+                            $previous_port['connectStatus'] = 0;
+                            $previous_port['connectDuration'] = 0;
+                            $previous_port['no_inet_since'] = null;
+                        }
+                        unset($previous_port);
+                        $wan_ports_json = json_encode($previous_ports);
+                    }
+                }
+            }
             $is_gwn_switch  = !empty($d['networkId']) && !empty($mac)
                               && ($matched_type === 'NetworkEquipment')
                               && $is_online
                               && preg_match('/^GWN78|^GSS/i', $gdms_model);
             $is_gwn_router  = !empty($d['networkId']) && !empty($mac)
                               && ($matched_type === 'NetworkEquipment')
-                              && $is_online
-                              && preg_match('/^GWN700[123]/i', $gdms_model); // explicit router prefix — APs/UCM excluded
+                              && preg_match('/^GWN700[123]/i', $gdms_model); // explicit router prefix — APs/UCM excluded; port inventory is useful even while offline
             if ($is_gwn_router && !empty($config_data['gwn_client_id'])) {
                 $port_data = \GlpiPlugin\Gdmsintegration\API::gwnGetRouterPortInfo(
                     $config_data, strtoupper(str_replace(':', '', $mac)), $network_id_val
@@ -450,17 +475,26 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                     $wan_summary = [];
                     foreach ($port_data['portInfo'] as $port) {
                         $role        = (int)($port['role']     ?? 0);
-                        $embedded    = $port['ipv4Info']          ?? [];
+                        $embedded    = is_array($port['ipv4Info'] ?? null) ? $port['ipv4Info'] : [];
                         $agg = $port['aggregate'] ?? [];
                         $wan_summary[] = [
                             'id'              => $port['portId']         ?? $port['silkScreenPort'] ?? '',
                             'name'            => $port['portName']        ?? '',
                             'silk'            => $port['silkScreenPort']  ?? '',
-                            'role'            => $role,
+                            // GWN normally exposes role=1 for WAN. If a response omits
+                            // the role, use WAN-specific identifiers only. Do NOT use the
+                            // presence of ipv4Info/connectStatus/wanType/gateway because
+                            // those fields are not sufficient to distinguish LAN records.
+                            'role'            => (
+                                $role === 1
+                                || trim((string)($port['wanName'] ?? '')) !== ''
+                                || array_key_exists('wanId', $port)
+                            ) ? 1 : 0,
                             'link'            => (int)($port['linkStatus'] ?? 0),
                             'speed'           => (int)($port['portSpeed']  ?? 0),
                             'type'            => ($port['type'] ?? 0) == 1 ? 'SFP' : 'GE',
                             'wanName'         => $port['wanName']          ?? '',
+                            'wanId'           => $port['wanId']            ?? '',
                             'connectDuration' => (int)($port['connectDuration'] ?? 0),
                             'ip'              => $embedded['ip4Address']   ?? '',
                             'connectStatus'   => isset($embedded['connectStatus'])
@@ -487,11 +521,25 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                             'rxPackets'       => (int)($agg['rxPackets']   ?? 0),
                         ];
                     }
+                    // When the router itself is offline, keep the WAN inventory but force
+                    // its known WAN links to the red/down state. No WAN ticket processing
+                    // occurs while offline; the device-level offline ticket is the only incident.
+                    if (!$is_online) {
+                        foreach ($wan_summary as &$offline_wp) {
+                            if ((int)($offline_wp['role'] ?? 0) !== 1) continue;
+                            $offline_wp['link'] = 0;
+                            $offline_wp['connectStatus'] = 0;
+                            $offline_wp['connectDuration'] = 0;
+                            $offline_wp['no_inet_since'] = null;
+                        }
+                        unset($offline_wp);
+                    }
                     // Check for WAN port state changes and create tickets
                     $prev_ports_json = $state->getWanPortsJson($mac);
-                    if ($glpi_id > 0) {
+                    if ($glpi_id > 0 && $is_online) {
                         $prev_ports = !empty($prev_ports_json) ? (json_decode($prev_ports_json, true) ?? []) : [];
                         $prev_map   = array_column($prev_ports, null, 'id');
+                        $device_recovered = ($prevStatus === 'offline');
                         $debounce_secs       = max(0, (int)($config_data['wan_debounce_seconds'] ?? 300));
                         $wan_tickets_enabled = (int)($config_data['wan_tickets_enabled'] ?? 1) === 1;
                         foreach ($wan_summary as &$wp) {
@@ -501,6 +549,41 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                             $prev_wp     = $prev_map[$wp['id']] ?? null;
                             $portLabel   = $wp['silk'] ?: $wp['name'];
                             $networkName = $d['networkName'] ?? $d['siteName'] ?? '';
+
+                            // If the router itself was offline, its previous WAN snapshot was
+                            // intentionally marked down. On recovery, treat the first live WAN
+                            // observation as a fresh state: a down WAN gets a ticket immediately,
+                            // while a link-up/no-internet WAN starts the configured debounce.
+                            if ($device_recovered) {
+                                $wp['no_inet_since'] = null;
+                                if ($wp['link'] == 0) {
+                                    if ($wan_tickets_enabled) {
+                                        self::createWanDownTicket(
+                                            $ticket_name, $mac, $serial, $entities_id,
+                                            $matched_type, $glpi_id,
+                                            $portLabel, $wp['wanName'] ?? '', $networkName,
+                                            'link_down', ''
+                                        );
+                                    }
+                                } elseif (($wp['connectStatus'] ?? -1) == 0) {
+                                    if ($debounce_secs === 0) {
+                                        if ($wan_tickets_enabled) {
+                                            self::createWanDownTicket(
+                                                $ticket_name, $mac, $serial, $entities_id,
+                                                $matched_type, $glpi_id,
+                                                $portLabel, $wp['wanName'] ?? '', $networkName,
+                                                'no_internet', ''
+                                            );
+                                        }
+                                    } else {
+                                        $wp['no_inet_since'] = time();
+                                        \GlpiPlugin\Gdmsintegration\Utils::log(
+                                            "GDMS: WAN no-internet debounce started after device recovery — {$name} port {$portLabel} (waiting " . ($debounce_secs / 60) . " min)"
+                                        );
+                                    }
+                                }
+                                continue;
+                            }
 
                             // No previous state — first time we see this port.
                             if (!$prev_wp) {
@@ -584,33 +667,60 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
 
                             // Case B2: internet still down — check if debounce window has expired
                             elseif ($wp['link'] == 1 && ($wp['connectStatus'] ?? -1) == 0
-                                 && ($prev_wp['connectStatus'] ?? -1) == 0
-                                 && isset($prev_wp['no_inet_since'])) {
-                                $elapsed = time() - (int)$prev_wp['no_inet_since'];
-                                if ($elapsed >= $debounce_secs) {
-                                    // Debounce expired — open ticket; duplicate guard prevents re-open on subsequent syncs
-                                    $failoverNote = '';
-                                    foreach ($wan_summary as $other) {
-                                        if ($other['id'] === $wp['id']) continue;
-                                        if ($other['role'] != 1) continue;
-                                        if ($other['link'] == 1 && ($other['connectStatus'] ?? -1) == 1) {
-                                            $failoverNote = $other['wanName'] ?: ('Port ' . ($other['silk'] ?: $other['id']));
-                                            break;
+                                 && ($prev_wp['connectStatus'] ?? -1) == 0) {
+                                // The port was already in a no-internet state. Older stored
+                                // snapshots may not contain no_inet_since, so initialize the
+                                // timer instead of silently getting stuck forever.
+                                if (!isset($prev_wp['no_inet_since'])) {
+                                    if ($debounce_secs === 0) {
+                                        $failoverNote = '';
+                                        foreach ($wan_summary as $other) {
+                                            if ($other['id'] === $wp['id']) continue;
+                                            if ($other['role'] != 1) continue;
+                                            if ($other['link'] == 1 && ($other['connectStatus'] ?? -1) == 1) {
+                                                $failoverNote = $other['wanName'] ?: ('Port ' . ($other['silk'] ?: $other['id']));
+                                                break;
+                                            }
                                         }
-                                    }
-                                    if ($wan_tickets_enabled) {
-                                    self::createWanDownTicket(
-                                        $ticket_name, $mac, $serial, $entities_id,
-                                        $matched_type, $glpi_id,
-                                        $portLabel, $wp['wanName'] ?? '', $networkName,
-                                        'no_internet', $failoverNote
-                                    );
+                                        if ($wan_tickets_enabled) {
+                                        self::createWanDownTicket(
+                                            $ticket_name, $mac, $serial, $entities_id,
+                                            $matched_type, $glpi_id,
+                                            $portLabel, $wp['wanName'] ?? '', $networkName,
+                                            'no_internet', $failoverNote
+                                        );
+                                        }
+                                    } else {
+                                        $wp['no_inet_since'] = time();
+                                        \GlpiPlugin\Gdmsintegration\Utils::log("GDMS: WAN no-internet debounce initialized for existing failed state — {$name} port {$portLabel} (waiting {$debounce_secs}s)");
                                     }
                                 } else {
-                                    // Still within debounce window — carry forward the timer
-                                    $wp['no_inet_since'] = $prev_wp['no_inet_since'];
-                                    $remaining = (int)ceil($debounce_secs - $elapsed);
-                                    \GlpiPlugin\Gdmsintegration\Utils::log("GDMS: WAN no-internet debounce pending — {$name} port {$portLabel} (~{$remaining}s remaining)");
+                                    $elapsed = time() - (int)$prev_wp['no_inet_since'];
+                                    if ($elapsed >= $debounce_secs) {
+                                        // Debounce expired — open ticket; duplicate guard prevents re-open on subsequent syncs
+                                        $failoverNote = '';
+                                        foreach ($wan_summary as $other) {
+                                            if ($other['id'] === $wp['id']) continue;
+                                            if ($other['role'] != 1) continue;
+                                            if ($other['link'] == 1 && ($other['connectStatus'] ?? -1) == 1) {
+                                                $failoverNote = $other['wanName'] ?: ('Port ' . ($other['silk'] ?: $other['id']));
+                                                break;
+                                            }
+                                        }
+                                        if ($wan_tickets_enabled) {
+                                        self::createWanDownTicket(
+                                            $ticket_name, $mac, $serial, $entities_id,
+                                            $matched_type, $glpi_id,
+                                            $portLabel, $wp['wanName'] ?? '', $networkName,
+                                            'no_internet', $failoverNote
+                                        );
+                                        }
+                                    } else {
+                                        // Still within debounce window — carry forward the timer
+                                        $wp['no_inet_since'] = $prev_wp['no_inet_since'];
+                                        $remaining = (int)ceil($debounce_secs - $elapsed);
+                                        \GlpiPlugin\Gdmsintegration\Utils::log("GDMS: WAN no-internet debounce pending — {$name} port {$portLabel} (~{$remaining}s remaining)");
+                                    }
                                 }
                             }
 
@@ -1098,6 +1208,11 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             );
 
             $cfg_req      = \GlpiPlugin\Gdmsintegration\Config::getConfigByEntity($entities_id);
+            // Use the same configured ITIL category as WAN incidents. This keeps
+            // automatically generated offline tickets classified consistently
+            // without changing the existing category configuration.
+            $ticket_category_id = self::getConfiguredTicketCategory($cfg_req, $entities_id, $itemtype);
+
             // Asset's assigned user takes priority over the entity-level default requester
             $requester_id = $asset_user_id > 0
                 ? $asset_user_id
@@ -1115,6 +1230,9 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             ];
             if ($locations_id > 0) {
                 $ticket_data['locations_id'] = $locations_id;
+            }
+            if ($ticket_category_id > 0) {
+                $ticket_data['itilcategories_id'] = $ticket_category_id;
             }
             if ($tech_id > 0) {
                 $ticket_data['_actors']['assign'] = [
