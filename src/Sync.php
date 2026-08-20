@@ -946,6 +946,18 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             : 0;
     }
 
+    /** Resolve the configured GLPI request source for an automatically generated ticket. */
+    private static function getConfiguredRequestType(array $config, int $entities_id): int {
+        $request_type_id = (int)($config['ticket_requesttype_id'] ?? 0);
+        $request_type_id = $request_type_id > 0
+            ? \GlpiPlugin\Gdmsintegration\Config::validateRequestTypeId($request_type_id, $entities_id)
+            : 0;
+
+        return $request_type_id > 0
+            ? $request_type_id
+            : \GlpiPlugin\Gdmsintegration\Config::ensureGdmsRequestType();
+    }
+
     private static function createWanDownTicket(
         string $deviceName,
         string $mac,
@@ -1017,6 +1029,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
         }
         $cfg_req      = \GlpiPlugin\Gdmsintegration\Config::getConfigByEntity($entities_id);
         $ticket_category_id = self::getConfiguredTicketCategory($cfg_req, $entities_id, $itemtype);
+        $ticket_requesttype_id = self::getConfiguredRequestType($cfg_req, $entities_id);
         // Asset's assigned user takes priority over the entity-level default requester
         $requester_id = $asset_user_id > 0
             ? $asset_user_id
@@ -1031,6 +1044,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             'impact'      => 4,
             'priority'    => 4,
             'type'        => \Ticket::INCIDENT_TYPE,
+            'requesttypes_id' => $ticket_requesttype_id,
             'status'      => ($tech_id > 0) ? \Ticket::ASSIGNED : \Ticket::INCOMING,
         ];
         if ($ticket_category_id > 0) {
@@ -1212,6 +1226,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             // automatically generated offline tickets classified consistently
             // without changing the existing category configuration.
             $ticket_category_id = self::getConfiguredTicketCategory($cfg_req, $entities_id, $itemtype);
+            $ticket_requesttype_id = self::getConfiguredRequestType($cfg_req, $entities_id);
 
             // Asset's assigned user takes priority over the entity-level default requester
             $requester_id = $asset_user_id > 0
@@ -1226,6 +1241,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 'impact'      => $impact,
                 'priority'    => $priority,
                 'type'        => \Ticket::INCIDENT_TYPE,
+                'requesttypes_id' => $ticket_requesttype_id,
                 'status'      => ($tech_id > 0) ? \Ticket::ASSIGNED : \Ticket::INCOMING,
             ];
             if ($locations_id > 0) {
@@ -1497,7 +1513,8 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 $alert_category_id = $asset
                     ? self::getConfiguredTicketCategory($config, $entities_id, $asset[0])
                     : self::getConfiguredTicketCategory($config, $entities_id, 'NetworkEquipment');
-                $alert_ticket_data = ['name'=>'[GDMS] '.$name.' — '.$desc.' '.$marker,'content'=>$content,'entities_id'=>$entities_id,'status'=>\Ticket::INCOMING,'urgency'=>$sev==='critical'?5:4,'impact'=>$sev==='critical'?4:3,'type'=>\Ticket::INCIDENT_TYPE];
+                $alert_requesttype_id = self::getConfiguredRequestType($config, $entities_id);
+                $alert_ticket_data = ['name'=>'[GDMS] '.$name.' — '.$desc.' '.$marker,'content'=>$content,'entities_id'=>$entities_id,'status'=>\Ticket::INCOMING,'urgency'=>$sev==='critical'?5:4,'impact'=>$sev==='critical'?4:3,'type'=>\Ticket::INCIDENT_TYPE,'requesttypes_id'=>$alert_requesttype_id];
                 if ($alert_category_id > 0) {
                     $alert_ticket_data['itilcategories_id'] = $alert_category_id;
                 }

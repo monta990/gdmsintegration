@@ -209,6 +209,15 @@
                <small class="text-muted d-block mt-1">{{ __('This user will be set as the requester on automatically generated incident tickets.', 'gdmsintegration') }}</small>
             </div>
             <div class="col-md-4">
+               <label class="form-label fw-semibold" for="gdms_ticket_requesttype_id">{{ __('Request source for tickets', 'gdmsintegration') }}</label>
+               <select class="form-select" name="ticket_requesttype_id" id="gdms_ticket_requesttype_id">
+                  {% for request_type in ticket_requesttype_options %}
+                  <option value="{{ request_type.id }}"{% if request_type.id == ticket_requesttype_id %} selected{% endif %}>{{ request_type.label|e }}</option>
+                  {% endfor %}
+               </select>
+               <small class="text-muted d-block mt-1">{{ __('Used for automatically generated GDMS tickets. The default is GDMS; if you change it, future plugin updates will preserve your selection.', 'gdmsintegration') }}</small>
+            </div>
+            <div class="col-md-4">
                <label class="form-label fw-semibold d-block" for="gdms_show_topology">{{ __('Network topology card', 'gdmsintegration') }}</label>
                <div class="form-check form-switch mt-2">
                   <input class="form-check-input" type="checkbox" name="show_topology"

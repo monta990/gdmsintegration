@@ -15,6 +15,120 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
         return __('GDMS Configuration', 'gdmsintegration');
     }
 
+    /**
+     * Ensure the plugin-owned request source exists as a native GLPI RequestType.
+     * Request sources are global GLPI dropdown values, so the same GDMS entry is
+     * reused by every configured entity.
+     */
+    public static function ensureGdmsRequestType(): int {
+        if (!class_exists('RequestType')) {
+            return 0;
+        }
+
+        $requestType = new \RequestType();
+        if ($requestType->getFromDBByCrit(['name' => 'GDMS'])) {
+            $id = (int)($requestType->fields['id'] ?? 0);
+            if ($id > 0) {
+                // Do not overwrite an administrator's state on an existing
+                // native request source. If it is inactive/non-ticket-visible,
+                // it will simply not be used as the default until re-enabled.
+                return $id;
+            }
+        }
+
+        return (int)$requestType->add([
+            'name'                  => 'GDMS',
+            'is_active'             => 1,
+            'is_ticketheader'      => 1,
+            'is_itilfollowup'      => 1,
+            'is_helpdesk_default'  => 0,
+            'is_followup_default'  => 0,
+            'is_mail_default'      => 0,
+            'is_mailfollowup_default' => 0,
+            'comment'              => 'Request source used by the GDMS Integration plugin.',
+        ]);
+    }
+
+    /** Return active GLPI request sources usable on ticket headers. */
+    public static function getRequestTypeOptions(int $entities_id = 0): array {
+        if (!class_exists('RequestType')) {
+            return [];
+        }
+
+        global $DB;
+        if (!isset($DB)) {
+            return [];
+        }
+
+        $rows = $DB->request([
+            'SELECT' => ['id', 'name'],
+            'FROM'   => \RequestType::getTable(),
+            'WHERE'  => ['is_active' => 1, 'is_ticketheader' => 1],
+            'ORDER'  => 'name',
+        ]);
+
+        $options = [];
+        foreach ($rows as $row) {
+            $id = (int)($row['id'] ?? 0);
+            $name = trim((string)($row['name'] ?? ''));
+            if ($id > 0 && $name !== '') {
+                $options[] = ['id' => $id, 'label' => $name];
+            }
+        }
+
+        return $options;
+    }
+
+    /** Validate a request source against GLPI's native ticket-header sources. */
+    public static function validateRequestTypeId(int $request_type_id, int $entities_id = 0): int {
+        if ($request_type_id <= 0 || !class_exists('RequestType')) {
+            return 0;
+        }
+
+        global $DB;
+        $row = $DB->request([
+            'SELECT' => ['id'],
+            'FROM'   => \RequestType::getTable(),
+            'WHERE'  => ['id' => $request_type_id, 'is_active' => 1, 'is_ticketheader' => 1],
+            'LIMIT'  => 1,
+        ])->current();
+
+        return !empty($row['id']) ? (int)$row['id'] : 0;
+    }
+
+    /**
+     * Create/reuse GDMS and initialize new request-source settings without
+     * overwriting a value that an administrator has already changed.
+     */
+    public static function ensureRequestTypeConfiguration(): void {
+        $gdms_id = self::ensureGdmsRequestType();
+        if ($gdms_id <= 0) {
+            return;
+        }
+
+        $self = new self();
+        foreach ($self->find() as $row) {
+            $id = (int)($row['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+
+            $current = (int)($row['ticket_requesttype_id'] ?? 0);
+            $default = (int)($row['ticket_requesttype_default_id'] ?? 0);
+
+            // First install/upgrade: initialize the new setting to GDMS.
+            // Later upgrades only refresh it while it still matches the
+            // previous plugin-managed default; a different value is a user choice.
+            if ($current <= 0 || $default <= 0 || $current === $default) {
+                $self->update([
+                    'id' => $id,
+                    'ticket_requesttype_id' => $gdms_id,
+                    'ticket_requesttype_default_id' => $gdms_id,
+                ]);
+            }
+        }
+    }
+
     /** Determine whether an ITIL category is visible for the configured entity. */
     private static function isTicketCategoryVisibleForEntity(array $row, int $entities_id): bool {
         $category_entity = (int)($row['entities_id'] ?? 0);
@@ -272,6 +386,17 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
             : (int)($existing_row['ticket_category_telephony_id'] ?? 0);
         $input['ticket_category_network_id'] = self::validateTicketCategoryId($network_category, (int)$input['entities_id']);
         $input['ticket_category_telephony_id'] = self::validateTicketCategoryId($telephony_category, (int)$input['entities_id']);
+
+        $request_type_id = array_key_exists('ticket_requesttype_id', $input)
+            ? (int)$input['ticket_requesttype_id']
+            : (int)($existing_row['ticket_requesttype_id'] ?? 0);
+        $request_type_id = self::validateRequestTypeId($request_type_id, (int)$input['entities_id']);
+        if ($request_type_id <= 0) {
+            $request_type_id = self::ensureGdmsRequestType();
+        }
+        $previous_default = (int)($existing_row['ticket_requesttype_default_id'] ?? 0);
+        $input['ticket_requesttype_id'] = $request_type_id;
+        $input['ticket_requesttype_default_id'] = $previous_default > 0 ? $previous_default : $request_type_id;
 
         $input['gdms_region']    = in_array(strtolower((string)($input['gdms_region'] ?? 'us')), ['us', 'eu'], true) ? strtolower((string)$input['gdms_region']) : 'us';
         $input['history_retention_days'] = max(7, min(3650, (int)($input['history_retention_days'] ?? 90)));

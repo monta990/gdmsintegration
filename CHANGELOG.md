@@ -3,7 +3,14 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.6.1] — 2026-08-19
+## [1.6.1] — 2026-08-20
+
+### Added
+
+- Added a native GLPI request source named `GDMS` for automatically generated tickets.
+- Added a configuration selector for the ticket request source, using GLPI's native `RequestType` catalog.
+- Added upgrade-safe request-source handling: new installations and untouched configurations default to `GDMS`, while an administrator's selected source is preserved across plugin updates.
+- Preserved the `GDMS` request source during plugin uninstallation so historical tickets retain their request source and reinstallations can reuse the same native GLPI entry.
 
 ### Fixed
 

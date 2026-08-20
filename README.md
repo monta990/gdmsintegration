@@ -282,10 +282,12 @@ An amber **⬆** icon appears next to the firmware version only when the current
 - **Urgency routing** — High (4) for routers; Medium (3) for switches and phones.
 - **Tech assignment** — if the GLPI asset has a technician set (`users_id_tech`), the ticket is automatically assigned to that user and opens with status "Assigned".
 - **Configurable requester** — a GLPI user can be set as ticket requester in the plugin config (defaults to system/cron user).
+- **Configurable request source** — automatically generated GDMS tickets use the native GLPI request source `GDMS` by default. The source can be changed per configured entity to any active GLPI ticket source; the selected value is preserved across plugin updates.
 - **Rich body** — table with MAC, serial, IP, network/site, firmware, last uptime, detection timestamp.
 - **Location** — if the GLPI asset has a location set, the ticket inherits that `locations_id`.
 - **Asset element** — asset linked as `Item_Ticket` affected item.
 - **ITIL category** — when a network-equipment category is configured, device and WAN incidents use the configured network ITIL category of the affected `NetworkEquipment`; telephony categories remain separate.
+- **Request source** — tickets use the configured native GLPI request source. `GDMS` is created/reused as the default source and is retained when the plugin is uninstalled so historical tickets keep a valid source.
 - **Duplicate guard** — skips creation if an open `[GDMS]` ticket already exists for that asset or port.
 - **Auto-resolve** — on recovery: adds followup note and sets ticket to Solved.
 
@@ -358,6 +360,7 @@ The result is cached in the current GLPI session for six hours. A GitHub or netw
 | Debug logging | Toggle verbose logging |
 | Availability chart days | Days of history used by the availability chart and XLSX export (7–365, default 60). The same period is used for the Infrastructure health context. Values > 90 may slow the dashboard. |
 | Ticket requester | GLPI user set as requester on auto-generated incident tickets. Asset's assigned user (`users_id`) takes priority when set. |
+| Request source | Native GLPI request source used on automatically generated GDMS tickets. Defaults to `GDMS`; an administrator can select another active source and that selection is preserved across plugin updates. |
 | Ticket device name | Auto-generated tickets use the GLPI asset name when the device is already registered in GLPI; falls back to the GDMS cloud name for unregistered devices. |
 | Show topology card | Toggle the vis-network topology graph. Disabling skips all topology data processing. |
 | Ticket category — network equipment | Selects a real GLPI ITIL incident category for automatically generated tickets related to routers, switches, access points, and WAN failures. The option is optional. |

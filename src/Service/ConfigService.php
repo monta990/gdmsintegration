@@ -132,7 +132,7 @@ final class ConfigService
                     'username'=>$cfg2['username']??'','gdms_region'=>$cfg2['gdms_region']??'us','refresh_interval'=>(int)($cfg2['refresh_interval']??300),
                     'ip_version'=>$cfg2['ip_version']??'ipv4','debug_logging'=>(int)($cfg2['debug_logging']??0),
                     'chart_days'=>(int)($cfg2['chart_days']??60),'show_topology'=>(int)($cfg2['show_topology']??1),
-                    'ticket_requester_id'=>(int)($cfg2['ticket_requester_id']??0),'ticket_category_network_id'=>(int)($cfg2['ticket_category_network_id']??0),'ticket_category_telephony_id'=>(int)($cfg2['ticket_category_telephony_id']??0),'wan_debounce_seconds'=>(int)($cfg2['wan_debounce_seconds']??300),
+                    'ticket_requester_id'=>(int)($cfg2['ticket_requester_id']??0),'ticket_requesttype_id'=>(int)($cfg2['ticket_requesttype_id']??0),'ticket_category_network_id'=>(int)($cfg2['ticket_category_network_id']??0),'ticket_category_telephony_id'=>(int)($cfg2['ticket_category_telephony_id']??0),'wan_debounce_seconds'=>(int)($cfg2['wan_debounce_seconds']??300),
                     'wan_tickets_enabled'=>(int)($cfg2['wan_tickets_enabled']??1),'tickets_phone'=>(int)($cfg2['tickets_phone']??1),
                     'tickets_router'=>(int)($cfg2['tickets_router']??1),'tickets_switch'=>(int)($cfg2['tickets_switch']??1),
                     'tickets_ap'=>(int)($cfg2['tickets_ap']??1),'tickets_pbx'=>(int)($cfg2['tickets_pbx']??1),
@@ -166,7 +166,7 @@ final class ConfigService
                     } else {
                         $eid2 = (int)$request->request->get('entities_id', $data['entities_id'] ?? \Session::getActiveEntity());
                         $inp = ['entities_id'=>$eid2];
-                        foreach (['refresh_interval','gdms_region','ip_version','debug_logging','chart_days','show_topology','ticket_requester_id','ticket_category_network_id','ticket_category_telephony_id','wan_debounce_seconds','wan_tickets_enabled','tickets_phone','tickets_router','tickets_switch','tickets_ap','tickets_pbx','max_xlsx_size_mb','history_retention_days'] as $k) {
+                        foreach (['refresh_interval','gdms_region','ip_version','debug_logging','chart_days','show_topology','ticket_requester_id','ticket_requesttype_id','ticket_category_network_id','ticket_category_telephony_id','wan_debounce_seconds','wan_tickets_enabled','tickets_phone','tickets_router','tickets_switch','tickets_ap','tickets_pbx','max_xlsx_size_mb','history_retention_days'] as $k) {
                             if (array_key_exists($k,$data)) $inp[$k]=$data[$k];
                         }
                         if (!empty($data['username'])) $inp['username']=$data['username'];
@@ -200,6 +200,7 @@ final class ConfigService
                     'chart_days'          => max(7, min(365, (int)($request->request->get('chart_days', 60)))),
                     'show_topology'       => $request->request->has('show_topology') ? 1 : 0,
                     'ticket_requester_id'  => (int)($request->request->get('ticket_requester_id', 0)),
+                    'ticket_requesttype_id' => (int)($request->request->get('ticket_requesttype_id', 0)),
                     'ticket_category_network_id' => (int)($request->request->get('ticket_category_network_id', 0)),
                     'ticket_category_telephony_id' => (int)($request->request->get('ticket_category_telephony_id', 0)),
                     'wan_debounce_seconds' => max(0, min(3600, (int)($request->request->get('wan_debounce_seconds', 300)))),
@@ -263,6 +264,11 @@ final class ConfigService
             $show_topology        = (int)($cur['show_topology'] ?? 1);
             $ip_version           = in_array($cur['ip_version'] ?? '', ['ipv4', 'ipv6'], true) ? $cur['ip_version'] : 'ipv4';
             $ticket_requester_id  = (int)($cur['ticket_requester_id'] ?? 0);
+            $ticket_requesttype_id = \GlpiPlugin\Gdmsintegration\Config::validateRequestTypeId((int)($cur['ticket_requesttype_id'] ?? 0), $entities_id);
+            if ($ticket_requesttype_id <= 0) {
+                $ticket_requesttype_id = \GlpiPlugin\Gdmsintegration\Config::ensureGdmsRequestType();
+            }
+            $ticket_requesttype_options = \GlpiPlugin\Gdmsintegration\Config::getRequestTypeOptions($entities_id);
             $ticket_category_network_id = \GlpiPlugin\Gdmsintegration\Config::validateTicketCategoryId((int)($cur['ticket_category_network_id'] ?? 0), $entities_id);
             $ticket_category_telephony_id = \GlpiPlugin\Gdmsintegration\Config::validateTicketCategoryId((int)($cur['ticket_category_telephony_id'] ?? 0), $entities_id);
             $ticket_category_options = \GlpiPlugin\Gdmsintegration\Config::getTicketCategoryOptions($entities_id);
@@ -310,6 +316,8 @@ final class ConfigService
                 'show_topology'        => $show_topology,
                 'ip_version'           => $ip_version,
                 'ticket_requester_id'  => $ticket_requester_id,
+                'ticket_requesttype_id' => $ticket_requesttype_id,
+                'ticket_requesttype_options' => $ticket_requesttype_options,
                 'ticket_category_network_id' => $ticket_category_network_id,
                 'ticket_category_telephony_id' => $ticket_category_telephony_id,
                 'ticket_category_options' => $ticket_category_options,

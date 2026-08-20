@@ -6,7 +6,7 @@ msgstr ""
 "Project-Id-Version: gdmsintegration 1.6.1\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-12 00:00+0000\n"
-"PO-Revision-Date: 2026-08-19 00:00+0000\n"
+"PO-Revision-Date: 2026-08-20 00:00+0000\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language: de_DE\n"
 "Language-Team: de_DE\n"
@@ -1968,4 +1968,13 @@ msgstr "Zuletzt geprüft:"
 
 msgid "Availability at last synchronization"
 msgstr "Verfügbarkeit bei der letzten Synchronisierung"
+
+
+#: templates/config_form.html.twig
+msgid "Request source for tickets"
+msgstr "Anfragequelle für Tickets"
+
+#: templates/config_form.html.twig
+msgid "Used for automatically generated GDMS tickets. The default is GDMS; if you change it, future plugin updates will preserve your selection."
+msgstr "Wird für automatisch erstellte GDMS-Tickets verwendet. Der Standardwert ist GDMS; wenn Sie ihn ändern, behalten zukünftige Plugin-Updates Ihre Auswahl bei."
 

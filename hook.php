@@ -44,6 +44,8 @@ function plugin_gdmsintegration_install(): bool {
             `chart_days` smallint unsigned NOT NULL DEFAULT 60,
             `show_topology` tinyint unsigned NOT NULL DEFAULT 1,
             `ticket_requester_id` int unsigned NOT NULL DEFAULT 0,
+            `ticket_requesttype_id` int unsigned NOT NULL DEFAULT 0,
+            `ticket_requesttype_default_id` int unsigned NOT NULL DEFAULT 0,
             `wan_debounce_seconds` smallint unsigned NOT NULL DEFAULT 300,
             `wan_tickets_enabled` tinyint unsigned NOT NULL DEFAULT 1,
             `tickets_phone` tinyint unsigned NOT NULL DEFAULT 1,
@@ -191,6 +193,8 @@ function plugin_gdmsintegration_install(): bool {
         'chart_days' => ['smallint unsigned NOT NULL DEFAULT 60'],
         'show_topology' => ['tinyint unsigned NOT NULL DEFAULT 1'],
         'ticket_requester_id' => ['int unsigned NOT NULL DEFAULT 0'],
+        'ticket_requesttype_id' => ['int unsigned NOT NULL DEFAULT 0'],
+        'ticket_requesttype_default_id' => ['int unsigned NOT NULL DEFAULT 0'],
         'wan_debounce_seconds' => ['smallint unsigned NOT NULL DEFAULT 300'],
         'wan_tickets_enabled' => ['tinyint unsigned NOT NULL DEFAULT 1'],
         'tickets_phone' => ['tinyint unsigned NOT NULL DEFAULT 1'],
@@ -255,6 +259,11 @@ function plugin_gdmsintegration_install(): bool {
     }
 
     $migration->executeMigration();
+
+    // Register/reuse the native GLPI request source and initialize defaults.
+    // The request source is deliberately not removed during uninstall so
+    // historical tickets keep a valid source value.
+    \GlpiPlugin\Gdmsintegration\Config::ensureRequestTypeConfiguration();
 
     // Remove the obsolete task name shipped by an earlier 1.6.0 build, then
     // register the task using GLPI's documented CronTask API. No direct writes
