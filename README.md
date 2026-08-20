@@ -125,6 +125,8 @@ Every online GWN router shows one colour-coded dot per physical port in the Port
 |--------|---------|
 | 🟢 Green | WAN port — link up, internet confirmed (`connectStatus=1`) |
 | 🟠 Orange | WAN port — link up, no internet (`connectStatus=0`) |
+
+> **Dashboard WAN count:** a WAN with its physical port up but without Internet is counted as **down operationally**. The dashboard still shows the separate **WAN up, no internet** clarification so the physical link state is not lost.
 | 🟡 Amber | WAN port — link up, status unknown |
 | 🔵 Teal | LAN port — link up |
 | ⚫ Gray | Link down (any port type) |

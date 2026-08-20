@@ -542,8 +542,13 @@ final class DashboardService
             }
             unset($rr);
             $health_score = $total > 0 ? round($health_sum / $total, 1) : 100.0;
-            $wan_active = $wan_up + $wan_degraded;
-            $ops_summary = ['health'=>$health_score,'wan_up'=>$wan_up,'wan_active'=>$wan_active,'wan_down'=>$wan_down,'wan_degraded'=>$wan_degraded];
+            // Operational WAN state is based on Internet availability, not only the
+            // physical Ethernet link. A port with link up but connectStatus=0 is
+            // operationally DOWN (no Internet), while wan_degraded keeps the
+            // useful clarification that the physical port itself remains active.
+            $wan_down_total = $wan_down + $wan_degraded;
+            $wan_active = $wan_up;
+            $ops_summary = ['health'=>$health_score,'wan_up'=>$wan_up,'wan_active'=>$wan_active,'wan_down'=>$wan_down_total,'wan_degraded'=>$wan_degraded];
 
             // ---- URL map ----
             $_base = $_plugin_web . '/';

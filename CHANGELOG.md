@@ -3,7 +3,7 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.6.1] — 2026-08-20
+## [1.6.1] — 2026-08-19
 
 ### Added
 
@@ -14,6 +14,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Fixed the NOC dashboard WAN operational counters so a WAN with a physically active port but no Internet (`connectStatus=0`) is counted as **down**, while retaining the separate **WAN up, no internet** clarification for visibility of the physical link state.
+- Fixed WAN no-Internet ticket localization: removed duplicated Spanish/French/German/Portuguese translations in the WAN event description and localized the WAN ticket labels and automatic-generation footer using the plugin translation catalog.
 - Fixed automatic offline incident tickets so the configured network ITIL category is applied consistently to network equipment.
 - Fixed GWN router WAN detection when the API does not provide a reliable explicit WAN role; WAN-specific metadata is used only as a safe fallback.
 - Fixed WAN dashboard totals and traffic aggregation for stored port records with incomplete role data while preserving explicit `role=1` classification for WAN ports.
