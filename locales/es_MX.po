@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.1\n"
+"Project-Id-Version: gdmsintegration 1.6.2\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-12 00:00+0000\n"
-"PO-Revision-Date: 2026-08-20 00:00+0000\n"
+"PO-Revision-Date: 2026-09-17 00:00+0000\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language: es_MX\n"
 "Language-Team: es_MX\n"
@@ -1982,3 +1982,91 @@ msgstr "Puerto WAN"
 #: src/Sync.php:1000
 msgid "Failover"
 msgstr "Failover"
+
+msgid "Ticket ID"
+msgstr "ID del ticket"
+
+msgid "Created"
+msgstr "Creado"
+
+msgid "Updated"
+msgstr "Actualizado"
+
+msgid "Title"
+msgstr "Título"
+
+msgid "Urgency"
+msgstr "Urgencia"
+
+msgid "Impact"
+msgstr "Impacto"
+
+msgid "Priority"
+msgstr "Prioridad"
+
+msgid "Request source"
+msgstr "Origen de la solicitud"
+
+msgid "Requester"
+msgstr "Solicitante"
+
+msgid "Assigned technician"
+msgstr "Técnico asignado"
+
+msgid "Asset type"
+msgstr "Tipo de activo"
+
+msgid "Asset"
+msgstr "Activo"
+
+msgid "MAC / UUID"
+msgstr "MAC / UUID"
+
+msgid "Event"
+msgstr "Evento"
+
+msgid "Solved"
+msgstr "Resuelto"
+
+msgid "Closed"
+msgstr "Cerrado"
+
+msgid "Elapsed"
+msgstr "Tiempo transcurrido"
+
+
+msgid "GWN Alert"
+msgstr "Alerta GWN"
+
+msgid "WAN - No Internet"
+msgstr "WAN - Sin Internet"
+
+msgid "WAN - Link Down"
+msgstr "WAN - Enlace caído"
+
+msgid "New"
+msgstr "Nuevo"
+
+msgid "Assigned"
+msgstr "Asignado"
+
+msgid "Planned"
+msgstr "Planificado"
+
+msgid "Request"
+msgstr "Solicitud"
+
+msgid "Incident"
+msgstr "Incidente"
+
+msgid "The API returned a partial client list. Please try again."
+msgstr "La API devolvió una lista parcial de clientes. Intenta de nuevo."
+
+msgid "The API returned a partial client list; some clients may not be shown."
+msgstr "La API devolvió una lista parcial de clientes; algunos pueden no mostrarse."
+
+msgid "The API returned partial alerts. Please try again."
+msgstr "La API devolvió alertas parciales. Intenta de nuevo."
+
+msgid "The alert list is partial; some alerts may not be shown."
+msgstr "La lista de alertas es parcial; algunas pueden no mostrarse."

@@ -3,7 +3,7 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.1\n"
+"Project-Id-Version: gdmsintegration 1.6.2\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-12 00:00+0000\n"
 "PO-Revision-Date: 2026-08-20 00:00+0000\n"
@@ -1984,3 +1984,90 @@ msgstr "WAN-Port"
 #: src/Sync.php:1000
 msgid "Failover"
 msgstr "Failover"
+
+msgid "Title"
+msgstr "Titel"
+
+msgid "The API returned a partial client list. Please try again."
+msgstr "Die API hat eine unvollständige Kundenliste zurückgegeben. Bitte versuchen Sie es erneut."
+
+msgid "The API returned a partial client list; some clients may not be shown."
+msgstr "Die API hat eine unvollständige Kundenliste zurückgegeben; einige Kunden werden möglicherweise nicht angezeigt."
+
+msgid "The API returned partial alerts. Please try again."
+msgstr "Die API hat unvollständige Warnmeldungen zurückgegeben. Bitte versuchen Sie es erneut."
+
+msgid "The alert list is partial; some alerts may not be shown."
+msgstr "Die Warnungsliste ist unvollständig; einige Warnmeldungen werden möglicherweise nicht angezeigt."
+
+msgid "Ticket ID"
+msgstr "Ticket-ID"
+
+msgid "Created"
+msgstr "Erstellt"
+
+msgid "Updated"
+msgstr "Aktualisiert"
+
+msgid "Urgency"
+msgstr "Dringlichkeit"
+
+msgid "Impact"
+msgstr "Auswirkung"
+
+msgid "Priority"
+msgstr "Priorität"
+
+msgid "Request source"
+msgstr "Anfragequelle"
+
+msgid "Requester"
+msgstr "Anforderer"
+
+msgid "Assigned technician"
+msgstr "Zugewiesener Techniker"
+
+msgid "Asset type"
+msgstr "Asset-Typ"
+
+msgid "Asset"
+msgstr "Asset"
+
+msgid "MAC / UUID"
+msgstr "MAC / UUID"
+
+msgid "Event"
+msgstr "Ereignis"
+
+msgid "Solved"
+msgstr "Gelöst"
+
+msgid "Closed"
+msgstr "Geschlossen"
+
+msgid "Elapsed"
+msgstr "Vergangene Zeit"
+
+msgid "GWN Alert"
+msgstr "GWN-Warnung"
+
+msgid "WAN - No Internet"
+msgstr "WAN - Kein Internet"
+
+msgid "WAN - Link Down"
+msgstr "WAN - Verbindung unterbrochen"
+
+msgid "New"
+msgstr "Neu"
+
+msgid "Assigned"
+msgstr "Zugewiesen"
+
+msgid "Planned"
+msgstr "Geplant"
+
+msgid "Request"
+msgstr "Anfrage"
+
+msgid "Incident"
+msgstr "Störung"

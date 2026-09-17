@@ -3,7 +3,7 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.1\n"
+"Project-Id-Version: gdmsintegration 1.6.2\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-12 00:00+0000\n"
 "PO-Revision-Date: 2026-08-20 00:00+0000\n"
@@ -1984,3 +1984,90 @@ msgstr "Port WAN"
 #: src/Sync.php:1000
 msgid "Failover"
 msgstr "Basculement"
+
+msgid "Title"
+msgstr "Titre"
+
+msgid "The API returned a partial client list. Please try again."
+msgstr "L’API a renvoyé une liste partielle de clients. Veuillez réessayer."
+
+msgid "The API returned a partial client list; some clients may not be shown."
+msgstr "L’API a renvoyé une liste partielle de clients ; certains clients peuvent ne pas être affichés."
+
+msgid "The API returned partial alerts. Please try again."
+msgstr "L’API a renvoyé des alertes partielles. Veuillez réessayer."
+
+msgid "The alert list is partial; some alerts may not be shown."
+msgstr "La liste des alertes est partielle ; certaines alertes peuvent ne pas être affichées."
+
+msgid "Ticket ID"
+msgstr "ID du ticket"
+
+msgid "Created"
+msgstr "Créé"
+
+msgid "Updated"
+msgstr "Mis à jour"
+
+msgid "Urgency"
+msgstr "Urgence"
+
+msgid "Impact"
+msgstr "Impact"
+
+msgid "Priority"
+msgstr "Priorité"
+
+msgid "Request source"
+msgstr "Source de la demande"
+
+msgid "Requester"
+msgstr "Demandeur"
+
+msgid "Assigned technician"
+msgstr "Technicien assigné"
+
+msgid "Asset type"
+msgstr "Type d’actif"
+
+msgid "Asset"
+msgstr "Actif"
+
+msgid "MAC / UUID"
+msgstr "MAC / UUID"
+
+msgid "Event"
+msgstr "Événement"
+
+msgid "Solved"
+msgstr "Résolu"
+
+msgid "Closed"
+msgstr "Fermé"
+
+msgid "Elapsed"
+msgstr "Temps écoulé"
+
+msgid "GWN Alert"
+msgstr "Alerte GWN"
+
+msgid "WAN - No Internet"
+msgstr "WAN - Pas d’Internet"
+
+msgid "WAN - Link Down"
+msgstr "WAN - Liaison interrompue"
+
+msgid "New"
+msgstr "Nouveau"
+
+msgid "Assigned"
+msgstr "Assigné"
+
+msgid "Planned"
+msgstr "Planifié"
+
+msgid "Request"
+msgstr "Demande"
+
+msgid "Incident"
+msgstr "Incident"

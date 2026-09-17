@@ -1198,12 +1198,12 @@
             .then(function(resp) {
                 var list = resp.data;
                 if (!Array.isArray(list) || !list.length) {
-                    if (resp.partial) { body.innerHTML = '<p class="text-warning text-center py-3">La API devolvió una lista parcial de clientes. Intenta de nuevo.</p>'; return; }
+                    if (resp.partial) { body.innerHTML = '<p class="text-warning text-center py-3">' + STR.clientsPartialRetry + '</p>'; return; }
                     body.innerHTML = '<p class="text-muted text-center py-3">' + STR.noClients + '</p>';
                     return;
                 }
                 var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || '—'))); return d.innerHTML; };
-                var html = (resp.partial ? '<div class="alert alert-warning py-2 px-3 m-2 small">La API devolvió una lista parcial de clientes; algunos pueden no mostrarse.</div>' : '') + '<div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead><tr>'
+                var html = (resp.partial ? '<div class="alert alert-warning py-2 px-3 m-2 small">' + STR.clientsPartialNotice + '</div>' : '') + '<div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead><tr>'
                     + '<th class="ps-3">' + STR.hostname + '</th>'
                     + '<th>IP</th><th>MAC</th>'
                     + '<th>' + STR.band + ' / SSID</th>'
@@ -1449,13 +1449,13 @@
                 .then(function(resp) {
                     var list = resp.data;
                     if (!Array.isArray(list) || !list.length) {
-                        if (resp.partial) { alertsBody.innerHTML = '<p class="text-warning text-center py-2 small mb-0">La API devolvió alertas parciales. Intenta de nuevo.</p>'; return; }
+                        if (resp.partial) { alertsBody.innerHTML = '<p class="text-warning text-center py-2 small mb-0">' + STR.alertsPartialRetry + '</p>'; return; }
                         alertsBody.innerHTML = '<p class="text-muted text-center py-2 small mb-0">' + STR.noAlerts + '</p>';
                         return;
                     }
 var sevColor = {'critical':'danger','warning':'warning','medium':'warning','info':'info','low':'secondary','error':'danger'};
                     var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s||''))); return d.innerHTML; };
-                    var html = (resp.partial ? '<div class="alert alert-warning py-2 px-3 m-2 small">La lista de alertas es parcial; algunas pueden no mostrarse.</div>' : '') + '<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle"><thead><tr>'
+                    var html = (resp.partial ? '<div class="alert alert-warning py-2 px-3 m-2 small">' + STR.alertsPartialNotice + '</div>' : '') + '<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle"><thead><tr>'
                       + '<th class="ps-3" style="white-space:nowrap">' + STR.alertTime + '</th>'
                       + '<th>' + STR.alertSev + '</th>'
                       + '<th>' + STR.alertDevice + '</th>'
