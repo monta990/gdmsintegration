@@ -3,9 +3,9 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.1\n"
+"Project-Id-Version: gdmsintegration 1.6.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-20 00:00+0000\n"
+"POT-Creation-Date: 2026-09-17 05:00+0000\n"
 "PO-Revision-Date: 2026-08-19 00:00+0000\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language-Team: \n"
@@ -1319,4 +1319,120 @@ msgstr ""
 
 #: src/Sync.php:1000
 msgid "Failover"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Ticket ID"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Created"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Updated"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Urgency"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Impact"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Priority"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Request source"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Requester"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Assigned technician"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Asset type"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Asset"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "MAC / UUID"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Event"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Solved"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Closed"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Elapsed"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "GWN Alert"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "WAN - No Internet"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "WAN - Link Down"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "New"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Assigned"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Planned"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Request"
+msgstr ""
+
+#: src/Service/HistoryExportService.php
+msgid "Incident"
+msgstr ""
+
+#: src/Service/HistoryExportService.php:349
+msgid "Title"
+msgstr ""
+
+#: src/Service/DashboardService.php:691
+msgid "The API returned a partial client list. Please try again."
+msgstr ""
+
+#: src/Service/DashboardService.php:692
+msgid "The API returned a partial client list; some clients may not be shown."
+msgstr ""
+
+#: src/Service/DashboardService.php:693
+msgid "The API returned partial alerts. Please try again."
+msgstr ""
+
+#: src/Service/DashboardService.php:694
+msgid "The alert list is partial; some alerts may not be shown."
 msgstr ""

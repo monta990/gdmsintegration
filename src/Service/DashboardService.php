@@ -377,8 +377,8 @@ final class DashboardService
                     $p = explode('.', $ip);
                     return count($p) === 4 ? $p[0] . '.' . $p[1] . '.' . $p[2] : '';
                 };
-                $_pbx_by_subnet  = []; // /24 â†’ mac
-                $_pbx_by_netname = []; // network_name â†’ mac  (fallback, first-UCM-wins)
+                $_pbx_by_subnet  = []; // /24 → mac
+                $_pbx_by_netname = []; // network_name → mac  (fallback, first-UCM-wins)
                 foreach ($rows as $_r) {
                     if (!preg_match('/^UCM|^GCC|^CLOUDUCM/i', $_r['raw_model'] ?? '') || empty($_r['mac'])) continue;
                     $_sn = $_subnet($_r['private_ip'] ?: $_r['ip']);
@@ -498,8 +498,8 @@ final class DashboardService
                 $_sip_tip    = '';
                 if (!empty($r['sip_status'])) {
                     $_sip_tip  = $r['sip_status'] === 'registered' ? __('SIP Registered', 'gdmsintegration') : __('SIP Unregistered', 'gdmsintegration');
-                    if (!empty($r['sip_extension'])) $_sip_tip .= ' Â· ' . __('Ext', 'gdmsintegration') . ': ' . $r['sip_extension'];
-                    if (!empty($r['dnd']))           $_sip_tip .= ' Â· ' . __('Do Not Disturb', 'gdmsintegration');
+                    if (!empty($r['sip_extension'])) $_sip_tip .= ' · ' . __('Ext', 'gdmsintegration') . ': ' . $r['sip_extension'];
+                    if (!empty($r['dnd']))           $_sip_tip .= ' · ' . __('Do Not Disturb', 'gdmsintegration');
                 }
                 $r['_sip_tip']   = $_sip_tip;
                 $r['_sip_color'] = ($r['sip_status'] ?? '') === 'registered' ? '#28a745' : '#dc3545';
@@ -688,6 +688,10 @@ final class DashboardService
                 'rebooting'       => __('Rebooting…',                                                             'gdmsintegration'),
                 'confirm'         => __('Confirm',                                                                'gdmsintegration'),
                 'cancel'          => __('Cancel',                                                                 'gdmsintegration'),
+                'clientsPartialRetry' => __('The API returned a partial client list. Please try again.',          'gdmsintegration'),
+                'clientsPartialNotice' => __('The API returned a partial client list; some clients may not be shown.', 'gdmsintegration'),
+                'alertsPartialRetry' => __('The API returned partial alerts. Please try again.',                 'gdmsintegration'),
+                'alertsPartialNotice' => __('The alert list is partial; some alerts may not be shown.',          'gdmsintegration'),
             ];
 
             $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES;

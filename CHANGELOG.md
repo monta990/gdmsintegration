@@ -3,6 +3,31 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.6.2] — 2026-09-16
+
+### Added
+
+- Added a third `Tickets` worksheet to the XLSX history export.
+- The worksheet includes GDMS-generated GLPI tickets created within the configured `chart_days` reporting period.
+- Added the native GLPI ticket ID as a direct hyperlink to each ticket.
+- Added objective ticket details including creation/update dates, status, title, type, urgency, impact, priority, category, request source, requester, assigned technician, linked Grandstream asset, event type, solved/closed dates, and elapsed time when a resolution/closure date exists.
+- Added filtering and frozen headers to the `Tickets` worksheet for easier operational review.
+
+### Fixed
+
+- Fixed XLSX history export on GLPI 12 by replacing the removed `Ticket::REQUEST_TYPE` constant with GLPI-compatible `Ticket::INCIDENT_TYPE` and `Ticket::DEMAND_TYPE` constants; this remains compatible with GLPI 11.
+- Fixed missing `Tickets` worksheet translations in French, German, and Brazilian Portuguese.
+- Added the `Title` translation entry to the master catalog so it is generated consistently for all supported locales.
+- Moved partial-client and partial-alert dashboard messages into the plugin translation catalog so they follow the active GLPI language.
+- Fixed a UTF-8 mojibake character in the SIP dashboard tooltip.
+- Removed the obsolete `GLPI ticket` translation entry that is no longer used by the XLSX exporter.
+
+### Compatibility
+
+- Compatible with **GLPI 11** and **GLPI 12**.
+
+---
+
 ## [1.6.1] — 2026-08-19
 
 ### Added
@@ -11,9 +36,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added a configuration selector for the ticket request source, using GLPI's native `RequestType` catalog.
 - Added upgrade-safe request-source handling: new installations and untouched configurations default to `GDMS`, while an administrator's selected source is preserved across plugin updates.
 - Preserved the `GDMS` request source during plugin uninstallation so historical tickets retain their request source and reinstallations can reuse the same native GLPI entry.
-
-### Fixed
-
 - Fixed the NOC dashboard WAN operational counters so a WAN with a physically active port but no Internet (`connectStatus=0`) is counted as **down**, while retaining the separate **WAN up, no internet** clarification for visibility of the physical link state.
 - Fixed WAN no-Internet ticket localization: removed duplicated Spanish/French/German/Portuguese translations in the WAN event description and localized the WAN ticket labels and automatic-generation footer using the plugin translation catalog.
 - Fixed automatic offline incident tickets so the configured network ITIL category is applied consistently to network equipment.
@@ -32,6 +54,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Compatibility
 
 - Validated with **GLPI 11** and **GLPI 12**.
+
+---
 
 ## [1.6.0] — 2026-08-15
 
@@ -71,7 +95,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Updated the topology loader to use vis-network 10.1.1 with cache-busting and safer initialization.
 - Updated the README and translation catalogs to document the current 1.6.0 behavior.
 - Changed plugin schema management to use GLPI Migration during installation and updates instead of request-time self-healing schema changes.
-
 - Added a GDMS region selector (US/Americas or Europe) and fixed all GDMS API/task endpoints to use the selected fixed allow-listed host.
 - Added encrypted cross-process GDMS OAuth token/refresh-token caching with expiry safety margin; refresh-token grant is preferred and password grant is retained as fallback. Tokens are invalidated when configuration is saved.
 - Added bounded retry/backoff with jitter for safe API reads on cURL failures and HTTP 429/502/503/504, including Retry-After handling. Destructive actions are not automatically retried.
@@ -116,7 +139,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fixed the bulk GDMS reboot endpoint input parsing and made it explicitly POST-only, with CSRF enforcement provided by GLPI's Controller CSRF validation.
 - Fixed synchronization CSRF handling by enforcing POST-only behavior in the service layer while relying on GLPI's Controller CSRF validation, including the documented GLPI 11.0-11.0.6 routing workaround.
 - Hardened firmware mutation endpoints with explicit GLPI CSRF validation for upgrade, reboot, and factory-reset actions.
-
 - **Safe GDMS partial-pagination handling** — `gdmsGetDevices()` now reports whether the returned list is complete while preserving its existing array return value. Transport failures and non-zero GDMS responses no longer make a partial list authoritative for removal detection. Returned devices are still synchronized normally.
 - **5,000-device pagination ceiling no longer causes false removals** — reaching the 50-page safety ceiling with a full page marks the GDMS result as incomplete. The current batch is processed, but `markRemovedDevicesOffline()` is skipped for that cycle so devices beyond the ceiling are never falsely marked offline/removed.
 - **Twig output escaping hardened** — device/cloud/GLPI values are now passed to Twig as raw data and escaped by Twig according to HTML/attribute context instead of relying on manual `htmlspecialchars()` plus `|raw`. JavaScript payloads and endpoint URLs are pre-encoded with `JSON_HEX_TAG`, `JSON_HEX_AMP`, `JSON_HEX_APOS`, and `JSON_HEX_QUOT` before the small number of intentional `|raw` script insertions, preventing script-context breakout without changing dashboard behavior.
@@ -439,15 +461,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 
 - **Removed devices stay visible on dashboard** — `syncEntity()` now collects all MAC addresses returned by the API in a given cycle (`$seen_macs`). After both GWN and GDMS batches complete, `markRemovedDevicesOffline()` queries the plugin DB for any device whose MAC was not present in the cycle, marks it `offline`, writes a history entry, and opens an incident ticket if it was previously `online`. This handles device deletion from GWN Cloud / GDMS without any manual intervention in GLPI.
-
 - **TIMESTAMP DST crash on cron** — all `date('Y-m-d H:i:s')` calls in `sync.class.php`, `dashboard.php`, and `history_export.php` replaced with `gmdate()`. On hosting environments with `Europe/London` timezone (and any DST-observing timezone), the MySQL 1299 *Invalid TIMESTAMP value* warning fired every cron run on the DST transition day when local times 01:00–01:59 don't exist. Using UTC avoids the gap entirely.
 
 ### Changed
 
 - **ECharts 5 replaces Chart.js** — the availability history chart now uses GLPI's bundled ECharts 5 library (`lib/echarts.js`) instead of the previously self-hosted Chart.js 4.5.1. Automatically adapts to GLPI's dark/light theme via `data-bs-theme`. Removed `front/chartjs.php`, `js/chart.umd.min.js` and the corresponding stateless route.
-
 - **GLPI's native Flatpickr replaces bundled copy** — the firmware schedule datetime picker now uses GLPI's own Flatpickr 4.6 instance (loaded via `Html::requireJs('flatpickr')`). Removed `front/flatpickr.php`, `front/flatpickrcss.php`, `js/flatpickr.min.js`, `css/flatpickr.min.css` and their stateless routes. The `css/` directory has been removed entirely.
-
 - **Cron frequency reduced to 10 minutes** — the `syncDevices` automatic action is now registered and force-updated to run every 10 minutes on install/upgrade (previously 30 minutes).
 
 ---
@@ -459,11 +478,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Firmware modal title size** — the modal header was rendered at a smaller size than other modals due to a spurious `fs-6` Bootstrap class. Removed; title now uses the standard `h5` size consistent with the rest of the UI.
 
 - **`taskType` corrected for GDMS firmware upgrade** — `task/add` was being sent with `taskType: 2` (Factory Reset) instead of `taskType: 1` (Upgrade), causing GDMS to reject the request with `reset task not support ucm`. All GDMS upgrade tasks now use `taskType: 1`.
-
 - **Button text colors in firmware modal** — `btn-success` now carries an explicit `text-white` class and `btn-warning` carries `text-dark` to prevent dark-theme overrides from making text invisible. The beta version code color was also changed from a hardcoded hex to a CSS variable (`--bs-warning-text`) so it adapts to the active GLPI theme.
-
 - **Action buttons stacked vertically** — the three action buttons in the firmware modal footer (Apply now, Schedule, Close) are now arranged vertically with full width (`w-100`) so that translated labels are never truncated.
-
 - **Datetime picker replaced with Flatpickr** — the native `datetime-local` input (which renders differently in every browser and has no time picker on some platforms) is replaced with Flatpickr 4.6.13 served locally from `js/flatpickr.min.js` and `css/flatpickr.min.css` (same stateless-route pattern as Chart.js and vis-network). The picker shows a calendar + 24 h clock, enforces a minimum date of now + 5 minutes, and adapts its color scheme to the active GLPI theme via CSS variable overrides.
 
 ### Changed
@@ -479,25 +495,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - **Firmware updates for all device types** — the firmware check and upgrade flow now covers every Grandstream device family in the dashboard, not only GWN routers. This applies uniformly to:
-  - **GWN routers, switches, and APs** — version data comes from the GWN Cloud API (`/upgrade/version`), same as before.
-  - **UCM / GCC PBX appliances** — version data scraped from `grandstream.com/support/firmware` (UCM6300/UCM62xx/UCM61xx/UCM6510/GCC601x/GCC602x pages).
-  - **GRP IP phones** — version data scraped from the GRP260x firmware page.
-  - **GXV video phones** — version data scraped from the GXV34xx firmware page.
-  - **WP Wi-Fi phones** — version data scraped from the WP8x6 firmware page.
-  - **HT ATAs** — version data scraped from the HT8xxV2 firmware page.
-
+- **GWN routers, switches, and APs** — version data comes from the GWN Cloud API (`/upgrade/version`), same as before.
+- **UCM / GCC PBX appliances** — version data scraped from `grandstream.com/support/firmware` (UCM6300/UCM62xx/UCM61xx/UCM6510/GCC601x/GCC602x pages).
+- **GRP IP phones** — version data scraped from the GRP260x firmware page.
+- **GXV video phones** — version data scraped from the GXV34xx firmware page.
+- **WP Wi-Fi phones** — version data scraped from the WP8x6 firmware page.
+- **HT ATAs** — version data scraped from the HT8xxV2 firmware page.
 - **Official + Beta firmware options in upgrade modal** — the firmware upgrade modal now shows both the official and beta versions when available for the device's model family. The user selects which version to install via a radio button before clicking Apply or Schedule. The `Official firmware` badge (green) marks the stable release; the `Beta firmware` badge (yellow) marks the pre-release.
-
 - **Upgrade applies to all device families (ASAP or scheduled)** — the Apply now (ASAP) and Schedule update buttons work identically for all device types:
-  - GWN devices call the existing GWN Cloud `/upgrade/add` endpoint.
-  - All other devices (UCM/GCC/GRP/GXP/WP/HT) create a GDMS UC `task/add` task with `taskName=UPGRADE` and the selected firmware version. The GDMS task supports both immediate and scheduled execution via the `scheduleTime` field (milliseconds epoch).
-
+- GWN devices call the existing GWN Cloud `/upgrade/add` endpoint.
+- All other devices (UCM/GCC/GRP/GXP/WP/HT) create a GDMS UC `task/add` task with `taskName=UPGRADE` and the selected firmware version. The GDMS task supports both immediate and scheduled execution via the `scheduleTime` field (milliseconds epoch).
 - **`firmware.ajax.php?action=check_all`** — new AJAX action that fetches firmware versions for all tracked devices in one call. GWN devices use the GWN Cloud API; UC/phone devices use scraping with a per-slug cache to avoid duplicate HTTP requests for the same model family.
-
 - **`firmware.ajax.php?action=upgrade_gdms`** — new AJAX action that creates a GDMS upgrade task for UC and phone devices. Accepts `mac` (colon or plain format), `version`, and optional `scheduleMs`.
-
 - **`PluginGdmsintegrationAPI::gdmsCreateUpgradeTask()`** — new method in `api.class.php`. Uses a different HMAC signature scheme from `device/list`: `SHA256(&access_token=…&client_id=…&client_secret=…&timestamp=…&SHA256(body)&)`.
-
 - **`PluginGdmsintegrationAPI::scrapeFirmwareVersions()`** — new method that fetches the official and beta firmware pages from `grandstream.com/support/firmware/{slug}-official-firmware` and `{slug}-beta-firmware` and extracts the version string via regex. Uses a private `curlGet()` helper with TLS verification.
 
 ### Changed
@@ -516,38 +526,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **WiFi channel per device** — `channel_2g` and `channel_5g` columns added and synced. Displayed in the uptime tooltip.
 - **First seen / Last seen timestamps** — `first_seen` and `last_seen` columns added and synced from GWN `firstSeen`/`lastSeen` epoch ms fields. Displayed in the uptime tooltip and in the port modal.
 - **Management IP** — `mgmt_ip` column added (device LAN management address, separate from public IP). Available in the DB for future use.
-
 - **Uptime cell tooltip** — hovering over the uptime value in the device table now shows a multi-line tooltip with:
-  - **Network usage** — `↑ Upload / ↓ Download` in auto-scaled KB/MB/GB (only shown when traffic data is available).
-  - **WiFi channels** — `2.4 GHz chN` and/or `5 GHz chN` (only shown when the device reports active channels).
-  - **First seen** — date and time the device first appeared in the cloud.
-  - **Last seen** — most recent timestamp reported by the cloud API.
-
+- **Network usage** — `↑ Upload / ↓ Download` in auto-scaled KB/MB/GB (only shown when traffic data is available).
+- **WiFi channels** — `2.4 GHz chN` and/or `5 GHz chN` (only shown when the device reports active channels).
+- **First seen** — date and time the device first appeared in the cloud.
+- **Last seen** — most recent timestamp reported by the cloud API.
 - **Network name click → network modal** — the network name in the device table is now a clickable link. Clicking it opens a Bootstrap modal showing:
-  - A row for each device category (Router / Switch / AP / Phones & PBX) that has at least one device in that network, with an online/offline badge pair and a colour-coded availability progress bar (green ≥ 80 %, yellow ≥ 50 %, red < 50 %).
-  - **Clients** badge — total connected wireless clients for the network.
-  - **Network traffic** row — aggregate `↑ Upload` and `↓ Download` for all devices in that network combined, shown only when traffic data exists.
-  - Empty categories (zero devices of that type) are filtered out automatically.
-
+- A row for each device category (Router / Switch / AP / Phones & PBX) that has at least one device in that network, with an online/offline badge pair and a colour-coded availability progress bar (green ≥ 80 %, yellow ≥ 50 %, red < 50 %).
+- **Clients** badge — total connected wireless clients for the network.
+- **Network traffic** row — aggregate `↑ Upload` and `↓ Download` for all devices in that network combined, shown only when traffic data exists.
+- Empty categories (zero devices of that type) are filtered out automatically.
 - **Port modal traffic and timestamp block** — clicking any port dot now opens a detail modal that shows, **above the port legend**:
-  - `↑ Upload` and `↓ Download` in auto-scaled KB/MB/GB (shown only when traffic data exists).
-  - **First seen** and **Last seen** timestamps for the device.
-  - If none of those fields have data, the block is omitted entirely and the modal starts directly with the port legend.
-
+- `↑ Upload` and `↓ Download` in auto-scaled KB/MB/GB (shown only when traffic data exists).
+- **First seen** and **Last seen** timestamps for the device.
+- If none of those fields have data, the block is omitted entirely and the modal starts directly with the port legend.
 - **Phones & PBX card now counts PBX appliances** — UCM/GCC devices registered as `NetworkEquipment` in GLPI were never counted in the Phones & PBX summary card. Fixed by accumulating `phone_on`/`phone_off` from `$net_stats` (which correctly classifies UCM/GCC by model prefix) rather than iterating `$rows` and filtering by `type === 'Phone'`.
-
 - **Phones & PBX row in network modal** — the network detail modal now includes a Phones & PBX row, using the correct per-network `phone_on`/`phone_off` counts from the sync data.
-
 - **Six summary stat cards** — the dashboard header row now shows six category cards in the Grandstream Cloud style:
-  - **Networks** (total count)
-  - **Router** (online / offline)
-  - **Switch** (online / offline)
-  - **AP** (online / offline)
-  - **Phones & PBX** (online / offline) — includes both GRP/GXP/WP phones and UCM/GCC PBX appliances
-  - **Clients** (connected wireless clients)
-
+- **Networks** (total count)
+- **Router** (online / offline)
+- **Switch** (online / offline)
+- **AP** (online / offline)
+- **Phones & PBX** (online / offline) — includes both GRP/GXP/WP phones and UCM/GCC PBX appliances
+- **Clients** (connected wireless clients)
 - **Chart.js and vis-network bundled locally** — both JavaScript libraries are now served from the plugin's own `js/` folder via PHP stateless routes (`front/chartjs.php`, `front/visnetwork.php`), registered in `setup.php`. No external CDN requests are made by the dashboard. This resolves loading failures in environments that block external connections.
-
 - **Self-healing column check on dashboard load** — `dashboard.php` runs `ALTER TABLE … ADD COLUMN IF NOT EXISTS` for all v1.2.0 columns on every page load. This ensures the new columns exist even on FTP-only deployments that do not run the GLPI plugin update flow.
 
 ### Changed
@@ -652,8 +654,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 #### Firmware update check & scheduling (GDMS Networking only)
 
 - `front/firmware.ajax.php` with two actions:
-  - `check` — calls `POST /oapi/v1.0.0/upgrade/version {networkId}` for every tracked network; flags only **stable releases** (no `beta`, `rc`, `dev`, `alpha`).
-  - `upgrade` — calls `POST /oapi/v1.0.0/upgrade/add {macs:[...]}` to schedule an official firmware update via GWN Cloud.
+- `check` — calls `POST /oapi/v1.0.0/upgrade/version {networkId}` for every tracked network; flags only **stable releases** (no `beta`, `rc`, `dev`, `alpha`).
+- `upgrade` — calls `POST /oapi/v1.0.0/upgrade/add {macs:[...]}` to schedule an official firmware update via GWN Cloud.
 - Dashboard firmware column: shows amber `⬆` icon next to the current version when a stable update is available.
 - Bootstrap modal on icon click: current vs. latest firmware, `Official` badge, reboot warning, and **Schedule update** button.
 - Firmware check fires 2 seconds after page load in background — does not block the dashboard.

@@ -3,7 +3,7 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: GDMS Integration 1.6.1\n"
+"Project-Id-Version: GDMS Integration 1.6.2\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-12 00:00+0000\n"
 "PO-Revision-Date: 2026-08-20 00:00+0000\n"
@@ -1985,3 +1985,90 @@ msgstr "Porta WAN"
 #: src/Sync.php:1000
 msgid "Failover"
 msgstr "Failover"
+
+msgid "Title"
+msgstr "Título"
+
+msgid "The API returned a partial client list. Please try again."
+msgstr "A API retornou uma lista parcial de clientes. Tente novamente."
+
+msgid "The API returned a partial client list; some clients may not be shown."
+msgstr "A API retornou uma lista parcial de clientes; alguns clientes podem não ser exibidos."
+
+msgid "The API returned partial alerts. Please try again."
+msgstr "A API retornou alertas parciais. Tente novamente."
+
+msgid "The alert list is partial; some alerts may not be shown."
+msgstr "A lista de alertas está incompleta; alguns alertas podem não ser exibidos."
+
+msgid "Ticket ID"
+msgstr "ID do ticket"
+
+msgid "Created"
+msgstr "Criado"
+
+msgid "Updated"
+msgstr "Atualizado"
+
+msgid "Urgency"
+msgstr "Urgência"
+
+msgid "Impact"
+msgstr "Impacto"
+
+msgid "Priority"
+msgstr "Prioridade"
+
+msgid "Request source"
+msgstr "Origem da solicitação"
+
+msgid "Requester"
+msgstr "Solicitante"
+
+msgid "Assigned technician"
+msgstr "Técnico atribuído"
+
+msgid "Asset type"
+msgstr "Tipo de ativo"
+
+msgid "Asset"
+msgstr "Ativo"
+
+msgid "MAC / UUID"
+msgstr "MAC / UUID"
+
+msgid "Event"
+msgstr "Evento"
+
+msgid "Solved"
+msgstr "Resolvido"
+
+msgid "Closed"
+msgstr "Fechado"
+
+msgid "Elapsed"
+msgstr "Tempo decorrido"
+
+msgid "GWN Alert"
+msgstr "Alerta GWN"
+
+msgid "WAN - No Internet"
+msgstr "WAN - Sem Internet"
+
+msgid "WAN - Link Down"
+msgstr "WAN - Link indisponível"
+
+msgid "New"
+msgstr "Novo"
+
+msgid "Assigned"
+msgstr "Atribuído"
+
+msgid "Planned"
+msgstr "Planejado"
+
+msgid "Request"
+msgstr "Solicitação"
+
+msgid "Incident"
+msgstr "Incidente"

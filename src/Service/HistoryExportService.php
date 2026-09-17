@@ -184,6 +184,9 @@ final class HistoryExportService
             $sum->getColumnDimension($col)->setWidth($w);
         }
 
+        // ─── Sheet 3: GDMS tickets for the same chart_days reporting window ─────────
+        self::addTicketsSheet($spreadsheet, $entities_id, $chart_days);
+
         // ─── Output ──────────────────────────────────────────────────────────────────
         $spreadsheet->setActiveSheetIndex(0);
 
@@ -206,4 +209,309 @@ final class HistoryExportService
         $response->deleteFileAfterSend(true);
         return $response;
     }
+
+    /**
+     * Add a flat export of GDMS-generated GLPI tickets for the same
+     * chart_days reporting window used by the availability history.
+     *
+     * The sheet exposes objective GLPI/GDMS data only. It does not evaluate
+     * KPI, SLA or compliance status.
+     */
+    private static function addTicketsSheet(Spreadsheet $spreadsheet, int $entities_id, int $chart_days): void {
+        global $DB;
+
+        $sheet = $spreadsheet->createSheet();
+        $sheet->setTitle('Tickets');
+
+        $from = gmdate('Y-m-d H:i:s', strtotime("-{$chart_days} days"));
+
+        $ticket_rows = [];
+        try {
+            $ticket_rows = $DB->request([
+                'SELECT' => [
+                    'id', 'name', 'content', 'date', 'date_mod', 'status', 'type',
+                    'urgency', 'impact', 'priority', 'entities_id',
+                    'itilcategories_id', 'requesttypes_id', 'users_id_recipient',
+                    'solvedate', 'closedate',
+                ],
+                'FROM'   => \Ticket::getTable(),
+                'WHERE'  => [
+                    'entities_id' => $entities_id,
+                    'date'        => ['>=', $from],
+                    'name'        => ['LIKE', '[GDMS]%'],
+                ],
+                'ORDER'  => ['date DESC', 'id DESC'],
+            ]);
+        } catch (\Throwable $e) {
+            \GlpiPlugin\Gdmsintegration\Utils::debug('XLSX ticket export query failed: ' . $e->getMessage());
+            return;
+        }
+
+        $tickets = [];
+        $ticket_ids = [];
+        $user_ids = [];
+        $category_ids = [];
+        $requesttype_ids = [];
+
+        foreach ($ticket_rows as $row) {
+            $id = (int)($row['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $tickets[$id] = $row;
+            $ticket_ids[] = $id;
+            $v = (int)($row['users_id_recipient'] ?? 0);
+            if ($v > 0) $user_ids[$v] = true;
+            $v = (int)($row['itilcategories_id'] ?? 0);
+            if ($v > 0) $category_ids[$v] = true;
+            $v = (int)($row['requesttypes_id'] ?? 0);
+            if ($v > 0) $requesttype_ids[$v] = true;
+        }
+
+        $users = self::loadNamedRows(\User::getTable(), $user_ids);
+        $categories = self::loadNamedRows(\ITILCategory::getTable(), $category_ids);
+        $request_types = self::loadNamedRows(\RequestType::getTable(), $requesttype_ids);
+
+        $assignments = [];
+        if ($ticket_ids) {
+            try {
+                $rows = $DB->request([
+                    'SELECT' => ['tickets_id', 'users_id'],
+                    'FROM'   => \Ticket_User::getTable(),
+                    'WHERE'  => [
+                        'tickets_id' => $ticket_ids,
+                        'type'      => \Ticket_User::ASSIGN,
+                    ],
+                ]);
+                foreach ($rows as $row) {
+                    $tid = (int)($row['tickets_id'] ?? 0);
+                    $uid = (int)($row['users_id'] ?? 0);
+                    if ($tid > 0 && $uid > 0) {
+                        $assignments[$tid][] = $uid;
+                    }
+                }
+            } catch (\Throwable $e) {
+                \GlpiPlugin\Gdmsintegration\Utils::debug('XLSX ticket assignment query failed: ' . $e->getMessage());
+            }
+        }
+        $assignment_user_ids = [];
+        foreach ($assignments as $uids) foreach ($uids as $uid) $assignment_user_ids[$uid] = true;
+        $assigned_users = self::loadNamedRows(\User::getTable(), $assignment_user_ids);
+
+        $relations = [];
+        $item_ids_by_type = ['NetworkEquipment' => [], 'Phone' => []];
+        if ($ticket_ids) {
+            try {
+                $rows = $DB->request([
+                    'SELECT' => ['tickets_id', 'itemtype', 'items_id'],
+                    'FROM'   => \Item_Ticket::getTable(),
+                    'WHERE'  => ['tickets_id' => $ticket_ids],
+                    'ORDER'  => ['id ASC'],
+                ]);
+                foreach ($rows as $row) {
+                    $tid = (int)($row['tickets_id'] ?? 0);
+                    $type = (string)($row['itemtype'] ?? '');
+                    $item_id = (int)($row['items_id'] ?? 0);
+                    if ($tid <= 0 || $item_id <= 0 || !isset($item_ids_by_type[$type])) continue;
+                    if (!isset($relations[$tid])) $relations[$tid] = [];
+                    $relations[$tid][] = [$type, $item_id];
+                    $item_ids_by_type[$type][$item_id] = true;
+                }
+            } catch (\Throwable $e) {
+                \GlpiPlugin\Gdmsintegration\Utils::debug('XLSX ticket item relation query failed: ' . $e->getMessage());
+            }
+        }
+
+        $assets = [];
+        foreach ($item_ids_by_type as $itemtype => $ids_map) {
+            if (!$ids_map) continue;
+            try {
+                $obj = new $itemtype();
+                foreach ($obj->find(['id' => array_keys($ids_map)]) as $asset) {
+                    $id = (int)($asset['id'] ?? 0);
+                    if ($id <= 0) continue;
+                    $assets[$itemtype . ':' . $id] = [
+                        'name' => (string)($asset['name'] ?? ''),
+                        'serial' => (string)($asset['serial'] ?? ''),
+                        'uuid' => (string)($asset['uuid'] ?? ''),
+                    ];
+                }
+            } catch (\Throwable $e) {
+                \GlpiPlugin\Gdmsintegration\Utils::debug('XLSX ticket asset lookup failed for ' . $itemtype . ': ' . $e->getMessage());
+            }
+        }
+
+        $headers = [
+            __('Ticket ID', 'gdmsintegration'),
+            __('Created', 'gdmsintegration'),
+            __('Updated', 'gdmsintegration'),
+            __('Status', 'gdmsintegration'),
+            __('Title', 'gdmsintegration'),
+            __('Description', 'gdmsintegration'),
+            __('Type', 'gdmsintegration'),
+            __('Urgency', 'gdmsintegration'),
+            __('Impact', 'gdmsintegration'),
+            __('Priority', 'gdmsintegration'),
+            __('Category', 'gdmsintegration'),
+            __('Request source', 'gdmsintegration'),
+            __('Requester', 'gdmsintegration'),
+            __('Assigned technician', 'gdmsintegration'),
+            __('Asset type', 'gdmsintegration'),
+            __('Asset', 'gdmsintegration'),
+            __('MAC / UUID', 'gdmsintegration'),
+            __('Serial', 'gdmsintegration'),
+            __('Event', 'gdmsintegration'),
+            __('Solved', 'gdmsintegration'),
+            __('Closed', 'gdmsintegration'),
+            __('Elapsed', 'gdmsintegration'),
+        ];
+        $sheet->fromArray($headers, null, 'A1');
+        $sheet->getStyle('A1:V1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1A56DB']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+        ]);
+
+        $row_num = 2;
+        foreach ($tickets as $row) {
+            $tid = (int)$row['id'];
+            $created = (string)($row['date'] ?? '');
+            $updated = (string)($row['date_mod'] ?? '');
+            $solved = (string)($row['solvedate'] ?? '');
+            $closed = (string)($row['closedate'] ?? '');
+            $event = self::detectTicketEvent((string)($row['name'] ?? ''));
+
+            $asset_type = '';
+            $asset_name = '';
+            $asset_uuid = '';
+            $asset_serial = '';
+            foreach ($relations[$tid] ?? [] as [$it, $iid]) {
+                $key = $it . ':' . $iid;
+                if (!isset($assets[$key])) continue;
+                if ($asset_name !== '') continue;
+                $asset_type = $it;
+                $asset_name = $assets[$key]['name'];
+                $asset_uuid = $assets[$key]['uuid'];
+                $asset_serial = $assets[$key]['serial'];
+            }
+
+            $requester_id = (int)($row['users_id_recipient'] ?? 0);
+            $requester = $requester_id > 0 ? ($users[$requester_id] ?? '') : '';
+            $tech_names = [];
+            foreach ($assignments[$tid] ?? [] as $uid) {
+                if (!empty($assigned_users[$uid])) $tech_names[] = $assigned_users[$uid];
+            }
+
+            $elapsed_seconds = '';
+            $end = $closed !== '' ? $closed : ($solved !== '' ? $solved : '');
+            if ($end !== '' && $created !== '') {
+                $start_ts = strtotime($created);
+                $end_ts = strtotime($end);
+                if ($start_ts !== false && $end_ts !== false && $end_ts >= $start_ts) {
+                    $elapsed_seconds = $end_ts - $start_ts;
+                }
+            }
+
+            $url = \Ticket::getFormURLWithID($tid);
+
+            $values = [
+                $tid,
+                $created,
+                $updated,
+                self::ticketStatusLabel((int)($row['status'] ?? 0)),
+                (string)($row['name'] ?? ''),
+                (string)($row['content'] ?? ''),
+                self::ticketTypeLabel((int)($row['type'] ?? 0)),
+                (int)($row['urgency'] ?? 0),
+                (int)($row['impact'] ?? 0),
+                (int)($row['priority'] ?? 0),
+                $categories[(int)($row['itilcategories_id'] ?? 0)] ?? '',
+                $request_types[(int)($row['requesttypes_id'] ?? 0)] ?? '',
+                $requester,
+                implode(', ', $tech_names),
+                $asset_type,
+                $asset_name,
+                $asset_uuid !== '' ? strtoupper($asset_uuid) : '',
+                $asset_serial !== '' ? strtoupper($asset_serial) : '',
+                $event,
+                $solved,
+                $closed,
+                $elapsed_seconds,
+            ];
+            $sheet->fromArray($values, null, 'A' . $row_num);
+
+            $sheet->getCell('A' . $row_num)->getHyperlink()->setUrl($url);
+            $sheet->getStyle('A' . $row_num)->getFont()->setUnderline(Font::UNDERLINE_SINGLE);
+
+            foreach (['B', 'C', 'T', 'U'] as $col) {
+                if ($sheet->getCell($col . $row_num)->getValue() !== '') {
+                    $sheet->getStyle($col . $row_num)->getNumberFormat()->setFormatCode('yyyy-mm-dd hh:mm');
+                }
+            }
+            if ($elapsed_seconds !== '') {
+                $sheet->getCell('V' . $row_num)->setValue($elapsed_seconds / 86400);
+                $sheet->getStyle('V' . $row_num)->getNumberFormat()->setFormatCode('[hh]:mm:ss');
+            }
+            $row_num++;
+        }
+
+        $last_row = max(1, $row_num - 1);
+        $sheet->setAutoFilter('A1:V' . $last_row);
+        $sheet->freezePane('A2');
+        $widths = [10, 20, 20, 16, 42, 50, 14, 10, 10, 10, 28, 22, 24, 28, 20, 30, 24, 20, 22, 20, 20, 16];
+        foreach ($widths as $i => $width) {
+            $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i + 1);
+            $sheet->getColumnDimension($col)->setWidth($width);
+        }
+        $sheet->getStyle('E2:F' . $last_row)->getAlignment()->setWrapText(true);
+        $sheet->getStyle('A1:V' . $last_row)->getAlignment()->setVertical(Alignment::VERTICAL_TOP);
+    }
+
+    /** @param array<int,bool> $ids @return array<int,string> */
+    private static function loadNamedRows(string $table, array $ids): array {
+        global $DB;
+        if (!$ids) return [];
+        $result = [];
+        try {
+            foreach ($DB->request([
+                'SELECT' => ['id', 'name'],
+                'FROM'   => $table,
+                'WHERE'  => ['id' => array_keys($ids)],
+            ]) as $row) {
+                $id = (int)($row['id'] ?? 0);
+                if ($id > 0) $result[$id] = (string)($row['name'] ?? '');
+            }
+        } catch (\Throwable $e) {
+            \GlpiPlugin\Gdmsintegration\Utils::debug('XLSX named-row lookup failed for ' . $table . ': ' . $e->getMessage());
+        }
+        return $result;
+    }
+
+    private static function detectTicketEvent(string $title): string {
+        if (str_contains($title, '[GWN-ALERT:')) return __('GWN Alert', 'gdmsintegration');
+        if (str_contains($title, '[GDMS-WAN-NOINET:')) return __('WAN - No Internet', 'gdmsintegration');
+        if (str_contains($title, '[GDMS-WAN:')) return __('WAN - Link Down', 'gdmsintegration');
+        return __('Device Offline', 'gdmsintegration');
+    }
+
+    private static function ticketStatusLabel(int $status): string {
+        return match ($status) {
+            \Ticket::INCOMING => __('New', 'gdmsintegration'),
+            \Ticket::ASSIGNED => __('Assigned', 'gdmsintegration'),
+            \Ticket::PLANNED => __('Planned', 'gdmsintegration'),
+            \Ticket::WAITING => __('Pending', 'gdmsintegration'),
+            \Ticket::SOLVED => __('Solved', 'gdmsintegration'),
+            \Ticket::CLOSED => __('Closed', 'gdmsintegration'),
+            default => (string)$status,
+        };
+    }
+
+    private static function ticketTypeLabel(int $type): string {
+        return match ($type) {
+            \Ticket::INCIDENT_TYPE => __('Incident', 'gdmsintegration'),
+            \Ticket::DEMAND_TYPE   => __('Request', 'gdmsintegration'),
+            default                 => (string) $type,
+        };
+    }
+
 }
