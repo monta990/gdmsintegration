@@ -3,11 +3,13 @@
 namespace GlpiPlugin\Gdmsintegration\Service;
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Font;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use Glpi\Search\Output\SpreadsheetValueBinder;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
@@ -31,10 +33,10 @@ final class HistoryExportService
 
         // ── Build data ──────────────────────────────────────────────────────────────
         $state_obj   = new \GlpiPlugin\Gdmsintegration\Device();
-        $all_states  = $state_obj->find();
+        $all_states  = $state_obj->find(AccessService::entityCriteria($state_obj->getTable(), $entities_id));
         $history_obj = new \GlpiPlugin\Gdmsintegration\History();
         $history_ago = gmdate('Y-m-d H:i:s', strtotime("-{$chart_days} days"));
-        $hist_rows   = $history_obj->find(['date' => ['>', $history_ago]], ['date ASC']);
+        $hist_rows   = $history_obj->find(['date' => ['>', $history_ago]] + AccessService::entityCriteria($history_obj->getTable(), $entities_id), ['date ASC']);
 
         // MAC → device name (GLPI first, then cloud_name stored by sync, then MAC)
         $mac_to_name = [];
@@ -48,7 +50,7 @@ final class HistoryExportService
         // GLPI asset names override cloud_name
         foreach (['NetworkEquipment', 'Phone'] as $itemtype) {
             $obj = new $itemtype();
-            foreach ($obj->find() as $row) {
+            foreach ($obj->find(\getEntitiesRestrictCriteria($obj->getTable(), 'entities_id', $entities_id, true)) as $row) {
                 $m = strtolower(trim($row['uuid'] ?? ''));
                 if ($m && !empty($row['name'])) $mac_to_name[$m] = $row['name'];
             }
@@ -78,6 +80,7 @@ final class HistoryExportService
 
         // ── Spreadsheet ─────────────────────────────────────────────────────────────
         $spreadsheet = new Spreadsheet();
+        $spreadsheet->setValueBinder(new SpreadsheetValueBinder());
         $spreadsheet->getProperties()
             ->setCreator('GDMS Integration — GLPI')
             ->setTitle(__('Device Availability', 'gdmsintegration'))
@@ -226,7 +229,44 @@ final class HistoryExportService
         $from = gmdate('Y-m-d H:i:s', strtotime("-{$chart_days} days"));
 
         $ticket_rows = [];
+        $requesttype_ids = [];
         try {
+            // Use the request source currently configured by the plugin and keep the
+            // native GDMS source as a compatibility fallback for historical tickets.
+            $cfg = (new \GlpiPlugin\Gdmsintegration\Config())->getConfigByEntity($entities_id);
+            $configured_requesttype_id = (int)($cfg['ticket_requesttype_id'] ?? 0);
+            $requesttype_ids[0] = true; // Legacy GDMS-generated tickets before request-source support.
+            if ($configured_requesttype_id > 0) {
+                $requesttype_ids[$configured_requesttype_id] = true;
+            }
+
+            $request_type_row = $DB->request([
+                'SELECT' => ['id'],
+                'FROM'   => \RequestType::getTable(),
+                'WHERE'  => ['name' => 'GDMS', 'is_ticketheader' => 1],
+                'LIMIT'  => 1,
+            ])->current();
+            $native_gdms_requesttype_id = (int)($request_type_row['id'] ?? 0);
+            if ($native_gdms_requesttype_id > 0) {
+                $requesttype_ids[$native_gdms_requesttype_id] = true;
+            }
+        } catch (\Throwable $e) {
+            \GlpiPlugin\Gdmsintegration\Utils::debug('XLSX GDMS request source lookup failed: ' . $e->getMessage());
+        }
+
+        try {
+            // `[GDMS]` is retained as a legacy marker because older generated tickets
+            // may have requesttypes_id=0. For current tickets the request source also
+            // has to match the plugin-configured/native GDMS source.
+            $ticket_where = [
+                'date' => ['>=', $from],
+                'name' => ['LIKE', '[GDMS]%'],
+            ] + AccessService::entityCriteria(\Ticket::getTable(), $entities_id);
+            // Current tickets use a configured/native GDMS request source.
+            // Keep requesttypes_id=0 as an explicit legacy bucket for tickets
+            // created before the native request source was introduced in 1.6.1.
+            $requesttype_ids[0] = true;
+            $ticket_where['requesttypes_id'] = array_keys($requesttype_ids);
             $ticket_rows = $DB->request([
                 'SELECT' => [
                     'id', 'name', 'content', 'date', 'date_mod', 'status', 'type',
@@ -235,16 +275,12 @@ final class HistoryExportService
                     'solvedate', 'closedate',
                 ],
                 'FROM'   => \Ticket::getTable(),
-                'WHERE'  => [
-                    'entities_id' => $entities_id,
-                    'date'        => ['>=', $from],
-                    'name'        => ['LIKE', '[GDMS]%'],
-                ],
+                'WHERE'  => $ticket_where,
                 'ORDER'  => ['date DESC', 'id DESC'],
             ]);
         } catch (\Throwable $e) {
             \GlpiPlugin\Gdmsintegration\Utils::debug('XLSX ticket export query failed: ' . $e->getMessage());
-            return;
+            $ticket_rows = [];
         }
 
         $tickets = [];
@@ -256,6 +292,16 @@ final class HistoryExportService
         foreach ($ticket_rows as $row) {
             $id = (int)($row['id'] ?? 0);
             if ($id <= 0) {
+                continue;
+            }
+            $ticket_obj = new \Ticket();
+            if (
+                !$ticket_obj->getFromDB($id)
+                // `canViewItem()` checks entity visibility, but does not replace
+                // the item's READ right or ticket-specific visibility checks.
+                || !$ticket_obj->can($id, READ)
+                || !$ticket_obj->canViewItem()
+            ) {
                 continue;
             }
             $tickets[$id] = $row;
@@ -327,7 +373,7 @@ final class HistoryExportService
             if (!$ids_map) continue;
             try {
                 $obj = new $itemtype();
-                foreach ($obj->find(['id' => array_keys($ids_map)]) as $asset) {
+                foreach ($obj->find(['id' => array_keys($ids_map)] + AccessService::entityCriteria($obj->getTable(), $entities_id)) as $asset) {
                     $id = (int)($asset['id'] ?? 0);
                     if ($id <= 0) continue;
                     $assets[$itemtype . ':' . $id] = [
@@ -439,6 +485,13 @@ final class HistoryExportService
                 $elapsed_seconds,
             ];
             $sheet->fromArray($values, null, 'A' . $row_num);
+
+            // Ticket title and content are user-controlled. Even though GLPI's
+            // SpreadsheetValueBinder already treats formula-like values as text,
+            // enforce string cell types explicitly as defense in depth. This keeps
+            // imported/human-created ticket text from becoming an XLSX formula.
+            $sheet->setCellValueExplicit('E' . $row_num, (string) ($row['name'] ?? ''), DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit('F' . $row_num, (string) ($row['content'] ?? ''), DataType::TYPE_STRING);
 
             $sheet->getCell('A' . $row_num)->getHyperlink()->setUrl($url);
             $sheet->getStyle('A' . $row_num)->getFont()->setUnderline(Font::UNDERLINE_SINGLE);

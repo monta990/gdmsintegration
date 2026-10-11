@@ -16,23 +16,33 @@ class Device extends \GlpiPlugin\Gdmsintegration\BaseTM {
         return 'GDMS Device State';
     }
 
-    // In-process cache: mac → row. Populated by primeCache() once per sync cycle.
+    // In-process cache: entity + MAC → row. Populated by primeCache() once per sync cycle.
     private static array $stateCache = [];
 
-    public static function primeCache(): void {
+    private static function cacheKey(string $mac, ?int $entities_id): string {
+        return ($entities_id === null ? '*' : (string)$entities_id) . '|' . strtolower(trim($mac));
+    }
+
+    public static function primeCache(?int $entities_id = null): void {
         self::$stateCache = [];
         $obj = new self();
-        foreach ($obj->find() as $row) {
-            self::$stateCache[strtolower($row['mac'])] = $row;
+        $criteria = $entities_id === null ? [] : ['entities_id' => $entities_id];
+        foreach ($obj->find($criteria) as $row) {
+            self::$stateCache[self::cacheKey((string)($row['mac'] ?? ''), $entities_id)] = $row;
         }
     }
 
-    public function getState(string $mac): ?string {
-        if (isset(self::$stateCache[$mac])) {
-            return self::$stateCache[$mac]['status'] ?? null;
+    public function getState(string $mac, ?int $entities_id = null): ?string {
+        $key = self::cacheKey($mac, $entities_id);
+        if (isset(self::$stateCache[$key])) {
+            return self::$stateCache[$key]['status'] ?? null;
         }
         $fresh = new self();
-        $rows  = $fresh->find(['mac' => $mac]);
+        $criteria = ['mac' => $mac];
+        if ($entities_id !== null) {
+            $criteria['entities_id'] = $entities_id;
+        }
+        $rows = $fresh->find($criteria);
         if (empty($rows)) {
             return null;
         }
@@ -72,12 +82,13 @@ class Device extends \GlpiPlugin\Gdmsintegration\BaseTM {
         string $sync_failure_msg = '',
         int    $scheduled_task  = 0
     ): bool {
+        $cache_key = self::cacheKey($mac, $entities_id);
         // Use in-process cache to skip a DB round-trip when primeCache() was called
-        if (isset(self::$stateCache[$mac])) {
-            $cached = self::$stateCache[$mac];
+        if (isset(self::$stateCache[$cache_key])) {
+            $cached = self::$stateCache[$cache_key];
             $rows   = [$cached['id'] => $cached];
         } else {
-            $rows = $this->find(['mac' => $mac]);
+            $rows = $this->find(['mac' => $mac, 'entities_id' => $entities_id]);
         }
         $data = [
             'status'          => $status,
@@ -115,19 +126,30 @@ class Device extends \GlpiPlugin\Gdmsintegration\BaseTM {
         if (!empty($rows)) {
             $id  = array_key_first($rows);
             $ok  = (bool) $this->update(array_merge(['id' => $id], $data));
-            self::$stateCache[$mac] = array_merge($rows[$id], $data, ['id' => $id]);
+            self::$stateCache[$cache_key] = array_merge($rows[$id], $data, ['id' => $id]);
             return $ok;
         }
         $new_id = (int) $this->add(array_merge(['mac' => $mac, 'entities_id' => $entities_id], $data));
         if ($new_id > 0) {
-            self::$stateCache[$mac] = array_merge(['mac' => $mac, 'id' => $new_id, 'entities_id' => $entities_id], $data);
+            self::$stateCache[$cache_key] = array_merge(['mac' => $mac, 'id' => $new_id, 'entities_id' => $entities_id], $data);
         }
         return $new_id > 0;
     }
 
-    public function getWanPortsJson(string $mac): string {
+    public function getWanPortsJson(string $mac, ?int $entities_id = null): string {
+        // Sync primes this cache once per entity. Reuse the cached snapshot instead
+        // of issuing additional reads for every router/port while processing a sync.
+        $cache_key = self::cacheKey($mac, $entities_id);
+        if (isset(self::$stateCache[$cache_key])) {
+            return (string) (self::$stateCache[$cache_key]['wan_ports_json'] ?? '');
+        }
+
         $fresh = new self();
-        $rows  = $fresh->find(['mac' => $mac]);
+        $criteria = ['mac' => $mac];
+        if ($entities_id !== null) {
+            $criteria['entities_id'] = $entities_id;
+        }
+        $rows = $fresh->find($criteria);
         return empty($rows) ? '' : (reset($rows)['wan_ports_json'] ?? '');
     }
 
@@ -206,7 +228,7 @@ class Device extends \GlpiPlugin\Gdmsintegration\BaseTM {
         // Reuse the same availability/SLA calculation used by the NOC dashboard.
         // The previous 0-100 "Health" score was a local heuristic unrelated to
         // the dashboard SLA tiers, which made the diagnostic value ambiguous.
-        $availability = \GlpiPlugin\Gdmsintegration\Sync::calculateUptime((string)($d['mac'] ?? ''));
+        $availability = \GlpiPlugin\Gdmsintegration\Sync::calculateUptime((string)($d['mac'] ?? ''), (int)($d['entities_id'] ?? 0));
         $sla = \GlpiPlugin\Gdmsintegration\Sync::slaLabel($availability);
 
         // Only valid IP literals become links. IPv6 addresses are bracketed in URLs.

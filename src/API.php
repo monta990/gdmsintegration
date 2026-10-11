@@ -26,7 +26,7 @@ class API {
     private const GDMS_BASE_EU = 'https://eu.gdms.cloud/oapi';
     private const GWN_BASE  = 'https://www.gwn.cloud';
     private const VERSION   = 'v1.0.0';
-    private const TIMEOUT   = 25;
+    private const TIMEOUT   = 12;
     private const MAX_PAGES = 50;
     private const INFO_BATCH_SIZE = 40;
 
@@ -84,11 +84,14 @@ class API {
         ?string $body = null,
         bool $retrySafe = false
     ): array|false {
-        $attempts = $retrySafe ? 3 : 1;
+        // Keep retries bounded so a transient cloud/API problem cannot make a
+        // browser-triggered sync or external cron appear to hang for minutes.
+        $attempts = $retrySafe ? 2 : 1;
         for ($attempt = 1; $attempt <= $attempts; $attempt++) {
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT  => 4,
                 CURLOPT_TIMEOUT        => self::TIMEOUT,
                 CURLOPT_HTTPHEADER     => $headers,
                 CURLOPT_SSL_VERIFYPEER => true,
@@ -613,44 +616,86 @@ class API {
             \GlpiPlugin\Gdmsintegration\Utils::debug("GWN: no networks configured — skipping devices");
             return [];
         }
-        // Pre-fetch token once — reuse for all page requests and info batches
-        $token = self::gwnGetToken($config) ?: '';
 
-        // Pre-load SN cache for all managed MACs — avoids one DB query per device below.
+        // Reuse a single access token for all network/page requests and SN enrichment.
+        $token = self::gwnGetToken($config) ?: '';
+        if ($token !== '') {
+            $config['gwn_access_token'] = $token;
+        }
+
+        // Pre-load SN cache for all managed MACs — avoids a DB query per device.
         $_snCache = [];
         foreach ((new \GlpiPlugin\Gdmsintegration\Device())->find(['entities_id' => (int)($config['entities_id'] ?? 0)]) as $_row) {
             $_m = strtolower(trim($_row['mac'] ?? ''));
             if ($_m && !empty($_row['sn_cloud'])) $_snCache[$_m] = $_row['sn_cloud'];
         }
 
-        $all            = [];
+        // The old implementation visited networks one at a time. A slow ap/list
+        // request in one network therefore delayed every network after it. Fetch
+        // the current page of multiple networks concurrently, then paginate only
+        // the networks which reported another page.
+        $all = [];
         $hadNetworkError = false;
+        $active = [];
         foreach ($networkMap as $networkId => $networkName) {
-            $page = 1;
-            do {
-                $body = json_encode(['networkId' => $networkId, 'pageNum' => $page, 'pageSize' => 100]);
-                $url  = self::gwnSignedUrl('/ap/list', $config, $body);
-                \GlpiPlugin\Gdmsintegration\Utils::debug("GWN ap/list URL: {$url}");
-                \GlpiPlugin\Gdmsintegration\Utils::debug("GWN ap/list body: {$body}");
-                $data = self::curl($url, ['Content-Type: application/json'], $body, true);
-                if ($data === false) {
-                    $newToken = self::gwnGetToken($config, true);
-                    if ($newToken !== false) {
-                        $config['gwn_access_token'] = $newToken;
-                        $token = $newToken;
-                        $url = self::gwnSignedUrl('/ap/list', $config, $body);
-                        $data = self::curl($url, ['Content-Type: application/json'], $body, true);
-                    }
+            $active[] = [
+                'networkId' => (int) $networkId,
+                'networkName' => (string) $networkName,
+                'page' => 1,
+            ];
+        }
+        $refreshAttempted = false;
+
+        for ($roundPage = 1; $roundPage <= self::MAX_PAGES && $active !== []; $roundPage++) {
+            [$pageResults, $failed] = self::gwnGetDevicesPageBatchRound($config, $active);
+            if ($failed !== []) {
+                // Retry failed pages together rather than waiting separately for each network.
+                [$retryResults, $stillFailed] = self::gwnGetDevicesPageBatchRound($config, $failed);
+                $pageResults += $retryResults;
+                $failed = $stillFailed;
+            }
+            if ($failed !== [] && !$refreshAttempted) {
+                $newToken = self::gwnGetToken($config, true);
+                $refreshAttempted = true;
+                if ($newToken !== false) {
+                    $config['gwn_access_token'] = $newToken;
+                    $token = $newToken;
+                    [$retryResults, $stillFailed] = self::gwnGetDevicesPageBatchRound($config, $failed);
+                    $pageResults += $retryResults;
+                    $failed = $stillFailed;
                 }
-                \GlpiPlugin\Gdmsintegration\Utils::debug("GWN ap/list network {$networkId} page {$page} response: " . json_encode($data));
-                if ($data === false || (int)($data['retCode'] ?? -1) !== 0) {
-                    \GlpiPlugin\Gdmsintegration\Utils::log("GWN ap/list error network {$networkId}: " . ($data['msg'] ?? ''));
+            }
+
+            $failedByKey = [];
+            foreach ($failed as $request) {
+                $key = (int) $request['networkId'] . '|' . (int) $request['page'];
+                $failedByKey[$key] = true;
+                $hadNetworkError = true;
+                \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
+                    'GWN ap/list error network %d page %d: %s',
+                    (int) $request['networkId'],
+                    (int) $request['page'],
+                    (string) ($request['error'] ?? 'transport/API error after retries')
+                ));
+            }
+
+            $next = [];
+            foreach ($active as $request) {
+                $networkId = (int) $request['networkId'];
+                $networkName = (string) $request['networkName'];
+                $page = (int) $request['page'];
+                $key = $networkId . '|' . $page;
+                if (isset($failedByKey[$key]) || !isset($pageResults[$key])) {
+                    // A partial list must never be treated as authoritative for removals.
                     $hadNetworkError = true;
-                    break;
+                    continue;
                 }
-                $raw   = $data['data']['result'] ?? $data['data'] ?? [];
+
+                $data = $pageResults[$key];
+                $raw = $data['data']['result'] ?? $data['data'] ?? [];
                 $batch = is_array($raw) ? $raw : [];
                 \GlpiPlugin\Gdmsintegration\Utils::log("GWN network {$networkId} page {$page}: " . count($batch) . " device(s)");
+
                 if (!empty($batch)) {
                     $batch = array_map(static function (array $d) use ($networkId, $networkName): array {
                         return array_merge($d, [
@@ -663,54 +708,144 @@ class API {
                             'location'    => $d['location'] ?? $d['site'] ?? '',
                         ]);
                     }, $batch);
-                    // Enrich SN via device/info — use pre-loaded cache first, parallel curl_multi for misses.
-                    $needsInfo = [];
-                    foreach ($batch as $idx => $dev) {
-                        $devMac = strtolower(trim($dev['mac'] ?? ''));
-                        if (empty($dev['sn']) && !empty($devMac)) {
-                            if (!empty($_snCache[$devMac])) {
-                                $batch[$idx]['sn'] = $_snCache[$devMac];
-                                \GlpiPlugin\Gdmsintegration\Utils::debug("GWN SN cached for {$devMac}: {$_snCache[$devMac]}");
-                            } else {
-                                $needsInfo[$idx] = $dev;
-                            }
-                        }
-                    }
-
-                    // Parallel fetch device/info for all devices needing SN
-                    if (!empty($needsInfo)) {
-                        $infoResults = self::gwnGetDeviceInfoBatch($config, $needsInfo, $networkId, $token ?? '');
-                        foreach ($infoResults as $idx => $info) {
-                            if ($info === null) continue;
-                            $sn = $info['sn'] ?? $info['SN'] ?? $info['serialNo'] ?? $info['serial'] ?? '';
-                            $batch[$idx]['sn'] = $sn;
-                            if (empty($batch[$idx]['versionFirmware']) && !empty($info['firmwareVersion'])) {
-                                $batch[$idx]['versionFirmware'] = $info['firmwareVersion'];
-                            }
-                            if (empty($batch[$idx]['upTime']) && !empty($info['upTime'])) {
-                                $batch[$idx]['upTime'] = (int)$info['upTime'];
-                            }
-                        }
-                    }
                     $all = array_merge($all, array_values($batch));
                 }
+
                 $meta = $data['data'] ?? [];
-                $totalPage = (int)($meta['totalPage'] ?? 0);
-                $currentPage = (int)($meta['currentPage'] ?? $page);
+                $totalPage = (int) ($meta['totalPage'] ?? 0);
+                $currentPage = (int) ($meta['currentPage'] ?? $page);
                 $isLastPage = ($totalPage > 0 && $currentPage >= $totalPage) || count($batch) < 100;
-                $page++;
-            } while (!$isLastPage && !empty($batch) && $page <= self::MAX_PAGES);
-            if (!$isLastPage && !empty($batch) && count($batch) >= 100 && $page > self::MAX_PAGES) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("GWN ap/list network {$networkId} reached pagination safety ceiling; list is partial.");
-                $hadNetworkError = true;
+                if (!$isLastPage && !empty($batch)) {
+                    if ($page < self::MAX_PAGES) {
+                        $next[] = [
+                            'networkId' => $networkId,
+                            'networkName' => $networkName,
+                            'page' => $page + 1,
+                        ];
+                    } else {
+                        $hadNetworkError = true;
+                        \GlpiPlugin\Gdmsintegration\Utils::log(
+                            "GWN ap/list network {$networkId} reached pagination safety ceiling; list is partial."
+                        );
+                    }
+                }
+            }
+            $active = $next;
+        }
+
+        // Enrich missing serial numbers after all networks have been listed so
+        // device/info calls can be batched across network boundaries too.
+        $needsInfo = [];
+        foreach ($all as $idx => $dev) {
+            $devMac = strtolower(trim((string) ($dev['mac'] ?? '')));
+            if (!empty($dev['sn']) || $devMac === '') {
+                continue;
+            }
+            if (!empty($_snCache[$devMac])) {
+                $all[$idx]['sn'] = $_snCache[$devMac];
+                \GlpiPlugin\Gdmsintegration\Utils::debug("GWN SN cached for {$devMac}: {$_snCache[$devMac]}");
+            } else {
+                $needsInfo[$idx] = $dev;
             }
         }
+
+        if ($needsInfo !== []) {
+            $infoResults = self::gwnGetDeviceInfoBatch($config, $needsInfo, 0, $token);
+            foreach ($infoResults as $idx => $info) {
+                if ($info === null || !isset($all[$idx])) continue;
+                $sn = $info['sn'] ?? $info['SN'] ?? $info['serialNo'] ?? $info['serial'] ?? '';
+                $all[$idx]['sn'] = $sn;
+                if (empty($all[$idx]['versionFirmware']) && !empty($info['firmwareVersion'])) {
+                    $all[$idx]['versionFirmware'] = $info['firmwareVersion'];
+                }
+                if (empty($all[$idx]['upTime']) && !empty($info['upTime'])) {
+                    $all[$idx]['upTime'] = (int) $info['upTime'];
+                }
+            }
+        }
+
         if ($hadNetworkError) {
             $complete = false;
             return empty($all) ? false : $all;
         }
         $complete = $networkListComplete;
         return $all;
+    }
+
+    /**
+     * Fetch one page of GWN devices for a bounded set of networks concurrently.
+     * @param array<int, array{networkId:int,networkName:string,page:int}> $requests
+     * @return array{0:array<string,array>,1:array<int,array{networkId:int,networkName:string,page:int,error?:string}>}
+     */
+    private static function gwnGetDevicesPageBatchRound(array $config, array $requests): array
+    {
+        $results = [];
+        $failed = [];
+        foreach (array_chunk($requests, 10) as $chunk) {
+            $multi = curl_multi_init();
+            $handles = [];
+            foreach ($chunk as $request) {
+                $networkId = (int) $request['networkId'];
+                $page = (int) $request['page'];
+                $body = json_encode(['networkId' => $networkId, 'pageNum' => $page, 'pageSize' => 100]);
+                if (!is_string($body)) {
+                    $failed[] = array_merge($request, ['error' => 'Unable to encode request body']);
+                    continue;
+                }
+                $url = self::gwnSignedUrl('/ap/list', $config, $body);
+                $handle = curl_init($url);
+                curl_setopt_array($handle, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => $body,
+                    CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                    CURLOPT_CONNECTTIMEOUT => 4,
+                    CURLOPT_TIMEOUT => 12,
+                    CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_SSL_VERIFYHOST => 2,
+                ]);
+                curl_multi_add_handle($multi, $handle);
+                $handles[$networkId . '|' . $page] = ['handle' => $handle, 'request' => $request];
+            }
+
+            $running = null;
+            do {
+                $multiCode = curl_multi_exec($multi, $running);
+                if ($running > 0 && $multiCode === CURLM_OK) {
+                    $selected = curl_multi_select($multi, 0.5);
+                    if ($selected === -1) usleep(10000);
+                }
+            } while ($running > 0);
+
+            foreach ($handles as $key => $entry) {
+                $handle = $entry['handle'];
+                $request = $entry['request'];
+                $raw = curl_multi_getcontent($handle);
+                $httpCode = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($handle);
+                $data = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+                if (
+                    $curlError !== ''
+                    || $httpCode < 200
+                    || $httpCode >= 300
+                    || !is_array($data)
+                    || (int) ($data['retCode'] ?? -1) !== 0
+                ) {
+                    $error = $curlError !== ''
+                        ? $curlError
+                        : (is_array($data)
+                            ? (string) ($data['msg'] ?? $data['retMsg'] ?? ('retCode=' . ($data['retCode'] ?? 'unknown')))
+                            : ('HTTP ' . $httpCode));
+                    $failed[] = array_merge($request, ['error' => $error]);
+                } else {
+                    $results[$key] = $data;
+                }
+                curl_multi_remove_handle($multi, $handle);
+                curl_close($handle);
+            }
+            curl_multi_close($multi);
+        }
+        return [$results, $failed];
     }
 
     // -----------------------------------------------------------------------
@@ -721,11 +856,11 @@ class API {
      * Batch parallel device/info using curl_multi — all requests fire simultaneously.
      * @param array $devices  [idx => device_row] only devices needing SN enrichment
      */
-    private static function gwnGetDeviceInfoBatch(array $config, array $devices, int $networkId, string $cachedToken = ''): array {
+    private static function gwnGetDeviceInfoBatch(array $config, array $devices, int $networkId, string $cachedToken = '', int $attempt = 0): array {
         if (count($devices) > self::INFO_BATCH_SIZE) {
             $merged = [];
             foreach (array_chunk($devices, self::INFO_BATCH_SIZE, true) as $chunk) {
-                $merged += self::gwnGetDeviceInfoBatch($config, $chunk, $networkId, $cachedToken);
+                $merged = array_replace($merged, self::gwnGetDeviceInfoBatch($config, $chunk, $networkId, $cachedToken, $attempt));
             }
             return $merged;
         }
@@ -740,7 +875,8 @@ class API {
 
         foreach ($devices as $idx => $dev) {
             $mac     = $dev['mac'];
-            $body    = json_encode(['mac' => $mac, 'networkId' => $networkId]);
+            $deviceNetworkId = (int) ($dev['networkId'] ?? $dev['network_id'] ?? $networkId);
+            $body    = json_encode(['mac' => $mac, 'networkId' => $deviceNetworkId]);
             $ts      = (int)(microtime(true) * 1000);
             $bHash   = hash('sha256', $body);
             $sigIn   = "&access_token={$token}&appID={$appId}&secretKey={$secret}&timestamp={$ts}&{$bHash}&";
@@ -755,6 +891,7 @@ class API {
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => $body,
                 CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+                CURLOPT_CONNECTTIMEOUT => 3,
                 CURLOPT_TIMEOUT        => 8,
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2,
@@ -770,17 +907,20 @@ class API {
         } while ($running > 0);
 
         $results = [];
+        $failedDevices = [];
         foreach ($handles as $idx => $ch) {
             $raw  = curl_multi_getcontent($ch);
             $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curlErr  = curl_error($ch);
             $data = $raw ? json_decode($raw, true) : null;
             $info = null;
-            if ($curlErr !== '' || $httpCode >= 400 || !is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
-                // Fall back through the hardened single-request path. It provides
-                // bounded retry/backoff and keeps this enrichment non-destructive.
-                $mac = (string)($devices[$idx]['mac'] ?? '');
-                $info = $mac !== '' ? self::gwnGetDeviceInfo($config, $mac, (string)$networkId) : null;
+            if ($curlErr !== '' || $httpCode < 200 || $httpCode >= 300 || !is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
+                // Retry failed enrichment requests as a batch below. A single-request
+                // fallback here would serialize failures and could stall the whole
+                // sync for several seconds per missing serial number.
+                if (isset($devices[$idx])) {
+                    $failedDevices[$idx] = $devices[$idx];
+                }
                 $data = null;
             }
             if ($info === null && is_array($data)) {
@@ -825,6 +965,28 @@ class API {
             curl_close($ch);
         }
         curl_multi_close($mh);
+
+        // Preserve recovery behavior without sequential per-device fallbacks: retry
+        // failures once with the current token, then once after a token refresh.
+        if ($failedDevices !== [] && $attempt < 2) {
+            $retryToken = $token;
+            if ($attempt === 1) {
+                $refreshedToken = self::gwnGetToken($config, true);
+                if ($refreshedToken === false || $refreshedToken === '') {
+                    return $results;
+                }
+                $config['gwn_access_token'] = $refreshedToken;
+                $retryToken = $refreshedToken;
+            }
+            $retryResults = self::gwnGetDeviceInfoBatch(
+                $config,
+                $failedDevices,
+                $networkId,
+                $retryToken,
+                $attempt + 1
+            );
+            $results = array_replace($results, $retryResults);
+        }
         return $results;
     }
 
@@ -895,6 +1057,13 @@ class API {
                 \GlpiPlugin\Gdmsintegration\Utils::log("GWN alert/list truncated at safety limit for network {$networkId}; result is partial.");
             }
         }
+        return self::normalizeGwnAlerts($raw, $networkId);
+    }
+
+
+    /** Normalize GWN alert payloads shared by single-network and batched queries. */
+    private static function normalizeGwnAlerts(array $raw, int $networkId): array
+    {
         // Log raw structure once per call to help identify field names
         if (!empty($raw)) {
             \GlpiPlugin\Gdmsintegration\Utils::debug("GWN alert sample (network {$networkId}): " . json_encode($raw[0]));
@@ -953,6 +1122,197 @@ class API {
         }
         unset($a);
         return $raw;
+    }
+
+
+    /**
+     * Fetch alert pages from multiple networks concurrently while preserving the
+     * same pagination and normalization semantics as gwnGetAlerts().
+     * Results are keyed by network ID. Failed networks return the alerts read so
+     * far (usually an empty list) and are logged; other networks continue.
+     *
+     * @param array<int, int|string> $networkIds
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    public static function gwnGetAlertsBatch(array $config, array $networkIds, int $pageSize = 50, ?array &$completeByNetwork = null): array
+    {
+        $completeByNetwork = [];
+        $networkIds = array_values(array_unique(array_filter(
+            array_map('intval', $networkIds),
+            static fn(int $id): bool => $id > 0
+        )));
+        if ($networkIds === []) {
+            return [];
+        }
+
+        $token = self::gwnGetToken($config);
+        if (!$token) {
+            $completeByNetwork = array_fill_keys($networkIds, false);
+            return array_fill_keys($networkIds, []);
+        }
+        $config['gwn_access_token'] = $token;
+        $pageSize = max(1, min(200, $pageSize));
+        $completeByNetwork = array_fill_keys($networkIds, true);
+        $rawByNetwork = array_fill_keys($networkIds, []);
+        $active = array_map(
+            static fn(int $networkId): array => [
+                'networkId' => $networkId,
+                'page' => 1,
+                'pageSize' => $pageSize,
+            ],
+            $networkIds
+        );
+        $refreshAttempted = false;
+
+        for ($page = 1; $page <= self::MAX_PAGES && $active !== []; $page++) {
+            [$pageResults, $failed] = self::gwnGetAlertsBatchRound($config, $active);
+            if ($failed !== []) {
+                // Retry failures together, rather than adding a separate timeout
+                // for every network. This mirrors the old endpoint's retry-safe intent.
+                [$retryResults, $stillFailed] = self::gwnGetAlertsBatchRound($config, $failed);
+                $pageResults += $retryResults;
+                $failed = $stillFailed;
+            }
+            if ($failed !== [] && !$refreshAttempted) {
+                $newToken = self::gwnGetToken($config, true);
+                $refreshAttempted = true;
+                if ($newToken !== false) {
+                    $config['gwn_access_token'] = $newToken;
+                    [$retryResults, $stillFailed] = self::gwnGetAlertsBatchRound($config, $failed);
+                    $pageResults += $retryResults;
+                    $failed = $stillFailed;
+                }
+            }
+
+            $failedByKey = [];
+            foreach ($failed as $request) {
+                $key = (int) $request['networkId'] . '|' . (int) $request['page'];
+                $failedByKey[$key] = true;
+                $completeByNetwork[(int) $request['networkId']] = false;
+                \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
+                    'GWN alert/list batch error network %d page %d: request failed after parallel retries',
+                    (int) $request['networkId'],
+                    (int) $request['page']
+                ));
+            }
+
+            $next = [];
+            foreach ($active as $request) {
+                $networkId = (int) $request['networkId'];
+                $requestPage = (int) $request['page'];
+                $key = $networkId . '|' . $requestPage;
+                if (isset($failedByKey[$key]) || !isset($pageResults[$key])) {
+                    // Keep any earlier pages for this network, but do not make a
+                    // failed page block processing of other networks.
+                    $completeByNetwork[$networkId] = false;
+                    continue;
+                }
+
+                $batch = $pageResults[$key];
+                $rawByNetwork[$networkId] = array_merge($rawByNetwork[$networkId], $batch);
+                if (count($batch) >= $pageSize) {
+                    if ($requestPage < self::MAX_PAGES) {
+                        $next[] = [
+                            'networkId' => $networkId,
+                            'page' => $requestPage + 1,
+                            'pageSize' => $pageSize,
+                        ];
+                    } else {
+                        $completeByNetwork[$networkId] = false;
+                        \GlpiPlugin\Gdmsintegration\Utils::log(
+                            "GWN alert/list truncated at safety limit for network {$networkId}; result is partial."
+                        );
+                    }
+                }
+            }
+            $active = $next;
+        }
+
+        $normalized = [];
+        foreach ($networkIds as $networkId) {
+            if (!empty($rawByNetwork[$networkId])) {
+                \GlpiPlugin\Gdmsintegration\Utils::debug(
+                    'GWN alert sample (network ' . $networkId . '): ' . json_encode($rawByNetwork[$networkId][0])
+                );
+            }
+            $normalized[$networkId] = self::normalizeGwnAlerts($rawByNetwork[$networkId], $networkId);
+        }
+        return $normalized;
+    }
+
+    /**
+     * Execute a bounded concurrent round of /alert/list page requests.
+     * @param array<int, array{networkId:int,page:int,pageSize:int}> $requests
+     * @return array{0:array<string,array>,1:array<int,array{networkId:int,page:int,pageSize:int}>}
+     */
+    private static function gwnGetAlertsBatchRound(array $config, array $requests): array
+    {
+        $results = [];
+        $failed = [];
+        foreach (array_chunk($requests, 10) as $chunk) {
+            $multi = curl_multi_init();
+            $handles = [];
+            foreach ($chunk as $request) {
+                $networkId = (int) $request['networkId'];
+                $page = (int) $request['page'];
+                $pageSize = (int) $request['pageSize'];
+                $body = json_encode(['networkId' => $networkId, 'pageNum' => $page, 'pageSize' => $pageSize]);
+                if (!is_string($body)) {
+                    $failed[] = $request;
+                    continue;
+                }
+                $url = self::gwnSignedUrl('/alert/list', $config, $body);
+                $handle = curl_init($url);
+                curl_setopt_array($handle, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => $body,
+                    CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                    CURLOPT_CONNECTTIMEOUT => 4,
+                    CURLOPT_TIMEOUT => 12,
+                    CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_SSL_VERIFYHOST => 2,
+                ]);
+                curl_multi_add_handle($multi, $handle);
+                $handles[$networkId . '|' . $page] = ['handle' => $handle, 'request' => $request];
+            }
+
+            $running = null;
+            do {
+                $multiCode = curl_multi_exec($multi, $running);
+                if ($running > 0 && $multiCode === CURLM_OK) {
+                    $selected = curl_multi_select($multi, 0.5);
+                    if ($selected === -1) {
+                        usleep(10000);
+                    }
+                }
+            } while ($running > 0);
+
+            foreach ($handles as $key => $entry) {
+                $handle = $entry['handle'];
+                $request = $entry['request'];
+                $raw = curl_multi_getcontent($handle);
+                $httpCode = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($handle);
+                $data = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+                if (
+                    $curlError !== ''
+                    || $httpCode < 200
+                    || $httpCode >= 300
+                    || !is_array($data)
+                    || (int) ($data['retCode'] ?? -1) !== 0
+                ) {
+                    $failed[] = $request;
+                } else {
+                    $part = $data['data']['result'] ?? $data['data']['list'] ?? $data['data'] ?? [];
+                    $results[$key] = is_array($part) ? $part : [];
+                }
+                curl_multi_remove_handle($multi, $handle);
+                curl_close($handle);
+            }
+            curl_multi_close($multi);
+        }
+        return [$results, $failed];
     }
 
     /**
@@ -1032,6 +1392,170 @@ class API {
             'ipv4Info'  => $info['ipv4Info']  ?? [],
             'raw_info'  => $info,
         ];
+    }
+
+
+    /**
+     * Fetch WAN/router and switch port information concurrently.
+     *
+     * Requests are grouped into small batches to avoid opening an unbounded
+     * number of sockets. Failed requests get one parallel retry; a failed port
+     * query must not stop the device sync or create false WAN transitions.
+     *
+     * @param array<int, array{mac:string, networkId:int, type:string}> $requests
+     * @return array<string, array{success:bool,type:string,data:array}> keyed by normalized MAC
+     */
+    public static function gwnGetPortInfoBatch(array $config, array $requests): array
+    {
+        if ($requests === []) {
+            return [];
+        }
+
+        $token = self::gwnGetToken($config);
+        if (!$token) {
+            return [];
+        }
+        $config['gwn_access_token'] = $token;
+
+        $unique = [];
+        foreach ($requests as $request) {
+            // Match the existing single-device callers: uppercase MAC without colons.
+            // Normalize independently for the result/cache key so inputs in different
+            // display formats still map to the same device.
+            $macInput = strtoupper(str_replace(':', '', trim((string) ($request['mac'] ?? ''))));
+            $key = strtolower((string) preg_replace('/[^0-9a-f]/i', '', $macInput));
+            $networkId = (int) ($request['networkId'] ?? $request['network_id'] ?? 0);
+            $type = (string) ($request['type'] ?? '');
+            if ($key === '' || $networkId <= 0 || !in_array($type, ['router', 'switch'], true)) {
+                continue;
+            }
+            $unique[$key] = [
+                'key'       => $key,
+                'mac'       => $macInput,
+                'networkId' => $networkId,
+                'type'      => $type,
+            ];
+        }
+
+        $results = [];
+        foreach (array_chunk(array_values($unique), 20) as $chunk) {
+            [$firstResults, $failed] = self::gwnPortInfoBatchRound($config, $chunk);
+            foreach ($firstResults as $key => $value) {
+                $results[$key] = $value;
+            }
+
+            if ($failed !== []) {
+                // Retrying failed requests concurrently avoids the old failure mode
+                // where each missing device could add another 12–24 seconds serially.
+                [$retryResults, $stillFailed] = self::gwnPortInfoBatchRound($config, $failed);
+                foreach ($retryResults as $key => $value) {
+                    $results[$key] = $value;
+                }
+                foreach ($stillFailed as $request) {
+                    \GlpiPlugin\Gdmsintegration\Utils::log(
+                        sprintf('GWN %s port query failed after parallel retry for %s', $request['type'], $request['mac'])
+                    );
+                }
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Execute one concurrent round of port requests.
+     * @param array<int, array{key:string,mac:string,networkId:int,type:string}> $requests
+     * @return array{0:array<string,array{success:bool,type:string,data:array}>,1:array<int,array{key:string,mac:string,networkId:int,type:string}>}
+     */
+    private static function gwnPortInfoBatchRound(array $config, array $requests): array
+    {
+        if ($requests === []) {
+            return [[], []];
+        }
+
+        $multi = curl_multi_init();
+        $handles = [];
+        $failed = [];
+        $results = [];
+        foreach ($requests as $request) {
+            $body = json_encode(['mac' => $request['mac'], 'networkId' => $request['networkId']]);
+            if (!is_string($body)) {
+                $failed[] = $request;
+                continue;
+            }
+
+            $path = $request['type'] === 'switch' ? '/switch/portInfo' : '/device/info';
+            $url = self::gwnSignedUrl($path, $config, $body);
+            $handle = curl_init($url);
+            curl_setopt_array($handle, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $body,
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+                CURLOPT_CONNECTTIMEOUT => 3,
+                CURLOPT_TIMEOUT        => 8,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+            ]);
+            curl_multi_add_handle($multi, $handle);
+            $handles[$request['key']] = ['handle' => $handle, 'request' => $request];
+        }
+
+        $running = null;
+        do {
+            $multiCode = curl_multi_exec($multi, $running);
+            if ($running > 0 && $multiCode === CURLM_OK) {
+                $selected = curl_multi_select($multi, 0.5);
+                if ($selected === -1) {
+                    usleep(10000);
+                }
+            }
+        } while ($running > 0);
+
+        foreach ($handles as $key => $entry) {
+            $handle = $entry['handle'];
+            $request = $entry['request'];
+            $raw = curl_multi_getcontent($handle);
+            $httpCode = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($handle);
+            $data = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+
+            if (
+                $curlError !== ''
+                || $httpCode < 200
+                || $httpCode >= 300
+                || !is_array($data)
+                || (int) ($data['retCode'] ?? -1) !== 0
+            ) {
+                $failed[] = $request;
+            } else {
+                $payload = $data['data'] ?? [];
+                if (!is_array($payload)) {
+                    $payload = [];
+                }
+                if ($request['type'] === 'switch') {
+                    $portData = $payload['result'] ?? [];
+                    $normalizedData = is_array($portData) ? $portData : [];
+                } else {
+                    $normalizedData = [
+                        'portInfo' => is_array($payload['portInfo'] ?? null) ? $payload['portInfo'] : [],
+                        'ipv4Info' => is_array($payload['ipv4Info'] ?? null) ? $payload['ipv4Info'] : [],
+                        'raw_info' => $payload,
+                    ];
+                }
+                $results[$key] = [
+                    'success' => true,
+                    'type'    => $request['type'],
+                    'data'    => $normalizedData,
+                ];
+            }
+
+            curl_multi_remove_handle($multi, $handle);
+            curl_close($handle);
+        }
+        curl_multi_close($multi);
+
+        return [$results, $failed];
     }
 
         /**
@@ -1124,38 +1648,130 @@ class API {
      */
     private static array $lastFirmwareErrors = [];
 
+    /**
+     * Fetch firmware versions in bounded parallel batches. Each failed network
+     * receives one parallel retry and, if necessary, one parallel retry after a
+     * token refresh. This preserves the previous recovery behavior without
+     * serially waiting on every failed network.
+     */
     public static function gwnGetFirmwareVersionsBatch(array $config, array $networkIds): array {
         self::$lastFirmwareErrors = [];
         $token = self::gwnGetToken($config);
-        if (!$token || empty($networkIds)) return [];
+        if (!$token || $networkIds === []) {
+            return [];
+        }
         $config['gwn_access_token'] = $token;
-        $results = [];
-        foreach (array_values(array_unique(array_map('intval', $networkIds))) as $nid) {
-            $body = json_encode(['networkId' => $nid]);
-            $url = self::gwnSignedUrl('/upgrade/version', $config, $body);
-            $data = self::curl($url, ['Content-Type: application/json'], $body, true);
-            if ($data === false) {
-                $newToken = self::gwnGetToken($config, true);
-                if ($newToken !== false) {
-                    $config['gwn_access_token'] = $newToken;
-                    $url = self::gwnSignedUrl('/upgrade/version', $config, $body);
-                    $data = self::curl($url, ['Content-Type: application/json'], $body, true);
-                }
+        $networkIds = array_values(array_unique(array_filter(array_map('intval', $networkIds), static fn(int $id): bool => $id > 0)));
+        if ($networkIds === []) {
+            return [];
+        }
+
+        [$results, $failed] = self::gwnFirmwareVersionsBatchRound($config, $networkIds);
+        if ($failed !== []) {
+            [$retryResults, $retryFailed] = self::gwnFirmwareVersionsBatchRound($config, array_keys($failed));
+            foreach ($retryResults as $networkId => $rows) {
+                $results[$networkId] = $rows;
             }
-            if (is_array($data) && (int)($data['retCode'] ?? -1) === 0) {
-                $r = $data['data']['result'] ?? [];
-                $results[$nid] = is_array($r) ? self::gwnAnnotateFirmwareRows($r) : [];
-            } else {
-                $msg = (string)($data['msg'] ?? 'transport/API error');
-                self::$lastFirmwareErrors[$nid] = $msg;
-                \GlpiPlugin\Gdmsintegration\Utils::log("GWN upgrade/version error network {$nid}: {$msg}");
-                // Preserve the public return shape for compatibility. Callers that need
-                // to distinguish API failure from an empty version list can inspect
-                // gwnGetLastFirmwareErrors().
-                $results[$nid] = [];
+            $failed = $retryFailed;
+        }
+
+        if ($failed !== []) {
+            $newToken = self::gwnGetToken($config, true);
+            if ($newToken !== false) {
+                $config['gwn_access_token'] = $newToken;
+                [$retryResults, $retryFailed] = self::gwnFirmwareVersionsBatchRound($config, array_keys($failed));
+                foreach ($retryResults as $networkId => $rows) {
+                    $results[$networkId] = $rows;
+                }
+                $failed = $retryFailed;
             }
         }
+
+        foreach ($failed as $networkId => $message) {
+            self::$lastFirmwareErrors[(int) $networkId] = (string) $message;
+            $results[(int) $networkId] = [];
+            \GlpiPlugin\Gdmsintegration\Utils::log(
+                'GWN upgrade/version error network ' . (int) $networkId . ': ' . (string) $message
+            );
+        }
+
+        // A valid empty firmware list must still be represented for every queried
+        // network so callers can distinguish a successful check from an API error.
+        foreach ($networkIds as $networkId) {
+            $results[$networkId] ??= [];
+        }
         return $results;
+    }
+
+    /**
+     * @param array<int, int> $networkIds
+     * @return array{0:array<int,array>,1:array<int,string>}
+     */
+    private static function gwnFirmwareVersionsBatchRound(array $config, array $networkIds): array {
+        $results = [];
+        $failed = [];
+        foreach (array_chunk($networkIds, 20) as $chunk) {
+            $multi = curl_multi_init();
+            $handles = [];
+            foreach ($chunk as $networkId) {
+                $body = json_encode(['networkId' => $networkId]);
+                if (!is_string($body)) {
+                    $failed[$networkId] = 'Unable to encode request body';
+                    continue;
+                }
+                $url = self::gwnSignedUrl('/upgrade/version', $config, $body);
+                $handle = curl_init($url);
+                curl_setopt_array($handle, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST           => true,
+                    CURLOPT_POSTFIELDS     => $body,
+                    CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+                    CURLOPT_CONNECTTIMEOUT => 4,
+                    CURLOPT_TIMEOUT        => 8,
+                    CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_SSL_VERIFYHOST => 2,
+                ]);
+                curl_multi_add_handle($multi, $handle);
+                $handles[$networkId] = $handle;
+            }
+
+            $running = null;
+            do {
+                $multiCode = curl_multi_exec($multi, $running);
+                if ($running > 0 && $multiCode === CURLM_OK) {
+                    $selected = curl_multi_select($multi, 0.5);
+                    if ($selected === -1) {
+                        usleep(10000);
+                    }
+                }
+            } while ($running > 0);
+
+            foreach ($handles as $networkId => $handle) {
+                $raw = curl_multi_getcontent($handle);
+                $httpCode = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($handle);
+                $data = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+                if (
+                    $curlError !== ''
+                    || $httpCode < 200
+                    || $httpCode >= 300
+                    || !is_array($data)
+                    || (int) ($data['retCode'] ?? -1) !== 0
+                ) {
+                    $message = is_array($data)
+                        ? (string) ($data['msg'] ?? $data['retMsg'] ?? ('HTTP ' . $httpCode))
+                        : ($curlError !== '' ? $curlError : ('HTTP ' . $httpCode . ' / invalid response'));
+                    $failed[$networkId] = $message;
+                } else {
+                    $rows = $data['data']['result'] ?? [];
+                    $results[$networkId] = is_array($rows) ? self::gwnAnnotateFirmwareRows($rows) : [];
+                }
+                curl_multi_remove_handle($multi, $handle);
+                curl_close($handle);
+            }
+            curl_multi_close($multi);
+        }
+        return [$results, $failed];
     }
 
     public static function gwnGetLastFirmwareErrors(): array {
@@ -1249,7 +1865,7 @@ class API {
             'taskType'  => 3,
             'macList'   => [$mac],
             'execType'  => $scheduleMs > 0 ? 2 : 1,
-            'fwVersion' => $version,
+            // task/add documents firmwareDownloadUrl, but not fwVersion.
         ];
         if ($downloadUrl !== '') {
             $payload['firmwareDownloadUrl'] = $downloadUrl;

@@ -24,13 +24,26 @@ class Sync extends \CommonGLPI {
     // GLPI Cron entry point — cronSyncDevices
     // -----------------------------------------------------------------------
     public static function cronSyncDevices(\CronTask $task): int {
-        // glpi_entities has no is_deleted column — use \Entity ORM to get all active entities
-        $entity_obj = new \Entity();
-        $entities   = $entity_obj->find();
-        $total    = 0;
+        global $DB;
 
-        foreach ($entities as $entity) {
-            $total += self::syncEntity((int) $entity['id']);
+        // Only visit entities that have a GDMS configuration row. The previous
+        // implementation walked every GLPI entity and then performed one config
+        // lookup per entity, adding unnecessary work and making large installations
+        // appear stuck before synchronization had even started.
+        $entityIds = [];
+        foreach ($DB->request([
+            'SELECT' => ['entities_id'],
+            'FROM'   => \GlpiPlugin\Gdmsintegration\Config::getTable(),
+        ]) as $row) {
+            $entity_id = (int)($row['entities_id'] ?? 0);
+            if ($entity_id >= 0) {
+                $entityIds[$entity_id] = true;
+            }
+        }
+
+        $total = 0;
+        foreach (array_keys($entityIds) as $entities_id) {
+            $total += self::syncEntity((int)$entities_id);
         }
 
         $task->addVolume($total);
@@ -120,7 +133,14 @@ class Sync extends \CommonGLPI {
                     // Inject firmware_latest — all networks fetched in parallel via curl_multi.
                     if (!empty($gwnDevices)) {
                         $net_ids   = array_unique(array_filter(array_column($gwnDevices, 'networkId')));
+                        $firmwareStarted = microtime(true);
                         $fw_by_net = \GlpiPlugin\Gdmsintegration\API::gwnGetFirmwareVersionsBatch($config, array_map('intval', $net_ids));
+                        \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
+                            'GWN firmware batch — entity=%d networks=%d duration_ms=%d',
+                            $entities_id,
+                            count($net_ids),
+                            (int)round((microtime(true) - $firmwareStarted) * 1000)
+                        ));
                         $fw_errors = \GlpiPlugin\Gdmsintegration\API::gwnGetLastFirmwareErrors();
                         $fw_by_mac = [];
                         foreach ($fw_by_net as $fwList) {
@@ -155,7 +175,14 @@ class Sync extends \CommonGLPI {
 
                     // 1.6.0: ingest actionable cloud alerts into GLPI tickets.
                     if (!empty($net_ids)) {
+                        $alertsStarted = microtime(true);
                         self::syncGwnAlertTickets($config, $entities_id, array_map('intval', $net_ids), $gwnDevices);
+                        \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
+                            'GWN alert stage — entity=%d networks=%d duration_ms=%d',
+                            $entities_id,
+                            count($net_ids),
+                            (int)round((microtime(true) - $alertsStarted) * 1000)
+                        ));
                     }
 
                     $synced = self::syncDeviceList($gwnDevices, $entities_id, $seen_macs);
@@ -268,12 +295,22 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
 
         // Prime device state cache — eliminates one DB query per device for getState()
         // and one for saveStateWithNetwork(). One bulk load instead of 2N queries.
-        \GlpiPlugin\Gdmsintegration\Device::primeCache();
+        \GlpiPlugin\Gdmsintegration\Device::primeCache($entities_id);
 
-        // Pre-load existing topology links — eliminates one find() per device.
+        // Pre-load only topology links whose source is in this API batch. The old
+        // unbounded find() scanned every link from every entity for every sync.
+        $source_macs = [];
+        foreach ($devices as $_device) {
+            $_mac = strtolower(trim((string) ($_device['mac'] ?? '')));
+            if ($_mac !== '') {
+                $source_macs[$_mac] = $_mac;
+            }
+        }
         $existing_links = [];
-        foreach ($link->find() as $_lrow) {
-            $existing_links[strtolower($_lrow['source_mac']) . '|' . strtolower($_lrow['target_mac'])] = true;
+        if ($source_macs !== []) {
+            foreach ($link->find(['source_mac' => array_values($source_macs)]) as $_lrow) {
+                $existing_links[strtolower((string) $_lrow['source_mac']) . '|' . strtolower((string) $_lrow['target_mac'])] = true;
+            }
         }
 
         // History rows collected for bulk insert at the end of the loop.
@@ -281,6 +318,43 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
 
         // Load config so router/switch port API calls have credentials
         $config_data = \GlpiPlugin\Gdmsintegration\Config::getConfigByEntity($entities_id);
+
+        // Port inventory is needed for WAN ticket transitions, but fetching it
+        // inside the per-device loop made the whole synchronization wait for each
+        // router/switch in turn. Fetch supported devices in bounded parallel batches
+        // before the loop; ticket evaluation remains in the original per-device flow.
+        $port_requests = [];
+        if (!empty($config_data['gwn_client_id']) && !empty($config_data['gwn_client_secret'])) {
+            foreach ($devices as $port_candidate) {
+                if ((int)($port_candidate['status'] ?? 0) !== 1) {
+                    continue;
+                }
+                $candidate_mac = trim((string)($port_candidate['mac'] ?? ''));
+                $candidate_network = (int)($port_candidate['networkId'] ?? $port_candidate['network_id'] ?? 0);
+                $candidate_model = trim((string)($port_candidate['deviceType'] ?? $port_candidate['apType'] ?? $port_candidate['model'] ?? ''));
+                if ($candidate_mac === '' || $candidate_network <= 0) {
+                    continue;
+                }
+                if (preg_match('/^GWN700[123]/i', $candidate_model)) {
+                    $port_requests[] = ['mac' => $candidate_mac, 'networkId' => $candidate_network, 'type' => 'router'];
+                } elseif (preg_match('/^GWN78|^GSS/i', $candidate_model)) {
+                    $port_requests[] = ['mac' => $candidate_mac, 'networkId' => $candidate_network, 'type' => 'switch'];
+                }
+            }
+        }
+        $port_fetch_started = microtime(true);
+        $port_info_by_mac = $port_requests !== []
+            ? \GlpiPlugin\Gdmsintegration\API::gwnGetPortInfoBatch($config_data, $port_requests)
+            : [];
+        if ($port_requests !== []) {
+            \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
+                'GDMS port batch — entity=%d requested=%d received=%d duration_ms=%d',
+                $entities_id,
+                count($port_requests),
+                count($port_info_by_mac),
+                (int)round((microtime(true) - $port_fetch_started) * 1000)
+            ));
+        }
 
         foreach ($devices as $d) {
             // Official API fields: deviceName, deviceType, mac, sn, status (1/0/-1)
@@ -415,6 +489,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
 
             // Collect history for bulk insert at end of loop
             $history_batch[] = [
+                'entities_id' => $entities_id,
                 'mac'    => $mac ?: $serial,
                 'status' => $status,
                 'date'   => gmdate('Y-m-d H:i:s'),
@@ -423,7 +498,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             // GDMS fields: publicIp, privateip, firmwareVersion, siteName, sn
             // GWN fields:  ip/ipv4, versionFirmware, networkName, upTime, sn (enriched)
             // Read previous status BEFORE updating state (order matters for transitions)
-            $prevStatus = $state->getState($mac ?: $serial);
+            $prevStatus = $state->getState($mac ?: $serial, $entities_id);
             // Log state transition; note when persisting offline (no ticket generated)
             $stateNote = '';
             \GlpiPlugin\Gdmsintegration\Utils::debug(
@@ -436,6 +511,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             // the dashboard can still count those WANs as down instead of dropping
             // them from the totals. No WAN ticket is generated here; the device
             // offline ticket remains the single incident for the offline router.
+            $previous_wan_ports_json = $mac !== '' ? $state->getWanPortsJson($mac, $entities_id) : '';
             $wan_ports_json = '';
             $network_id_val = (int)($d['networkId'] ?? 0);
             if (!$is_online
@@ -443,7 +519,6 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 && preg_match('/^GWN700[123]/i', $gdms_model)
                 && !empty($mac)
             ) {
-                $previous_wan_ports_json = $state->getWanPortsJson($mac);
                 if ($previous_wan_ports_json !== '') {
                     $previous_ports = json_decode($previous_wan_ports_json, true);
                     if (is_array($previous_ports)) {
@@ -461,15 +536,16 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             }
             $is_gwn_switch  = !empty($d['networkId']) && !empty($mac)
                               && ($matched_type === 'NetworkEquipment')
-                              && $is_online
                               && preg_match('/^GWN78|^GSS/i', $gdms_model);
             $is_gwn_router  = !empty($d['networkId']) && !empty($mac)
                               && ($matched_type === 'NetworkEquipment')
                               && preg_match('/^GWN700[123]/i', $gdms_model); // explicit router prefix — APs/UCM excluded; port inventory is useful even while offline
-            if ($is_gwn_router && !empty($config_data['gwn_client_id'])) {
-                $port_data = \GlpiPlugin\Gdmsintegration\API::gwnGetRouterPortInfo(
-                    $config_data, strtoupper(str_replace(':', '', $mac)), $network_id_val
-                );
+            if ($is_gwn_router && $is_online && !empty($config_data['gwn_client_id'])) {
+                $port_key = strtolower((string)preg_replace('/[^0-9a-f]/i', '', $mac));
+                $port_result = $port_info_by_mac[$port_key] ?? null;
+                $port_data = is_array($port_result) && !empty($port_result['success'])
+                    ? ($port_result['data'] ?? [])
+                    : [];
                 if (!empty($port_data['portInfo'])) {
                     // Summarize WAN ports for storage and comparison
                     $wan_summary = [];
@@ -535,7 +611,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                         unset($offline_wp);
                     }
                     // Check for WAN port state changes and create tickets
-                    $prev_ports_json = $state->getWanPortsJson($mac);
+                    $prev_ports_json = $state->getWanPortsJson($mac, $entities_id);
                     if ($glpi_id > 0 && $is_online) {
                         $prev_ports = !empty($prev_ports_json) ? (json_decode($prev_ports_json, true) ?? []) : [];
                         $prev_map   = array_column($prev_ports, null, 'id');
@@ -738,14 +814,24 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                     }
                     // Encode after loop so no_inet_since timestamps are persisted in wan_ports_json
                     $wan_ports_json = json_encode($wan_summary);
+                } else {
+                    // Preserve the last authoritative port snapshot on transient API
+                    // failures/empty responses. If there has never been one, negative
+                    // cache the absence so the dashboard does not repeat the API call
+                    // on every page load; the next cron/manual sync will try again.
+                    $wan_ports_json = $previous_wan_ports_json !== ''
+                        ? $previous_wan_ports_json
+                        : '[]';
                 }
             }
 
             // For switches: fetch LAN port status and store in wan_ports_json
-            if ($is_gwn_switch && !empty($config_data['gwn_client_id'])) {
-                $raw_sw_ports = \GlpiPlugin\Gdmsintegration\API::gwnGetSwitchPortInfo(
-                    $config_data, strtoupper(str_replace(':', '', $mac)), $network_id_val
-                );
+            if ($is_gwn_switch && $is_online && !empty($config_data['gwn_client_id'])) {
+                $port_key = strtolower((string)preg_replace('/[^0-9a-f]/i', '', $mac));
+                $switch_result = $port_info_by_mac[$port_key] ?? null;
+                $raw_sw_ports = is_array($switch_result) && !empty($switch_result['success'])
+                    ? ($switch_result['data'] ?? [])
+                    : [];
                 if (!empty($raw_sw_ports)) {
                     $sw_summary = [];
                     foreach ($raw_sw_ports as $port) {
@@ -765,7 +851,21 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                         ];
                     }
                     $wan_ports_json = json_encode($sw_summary);
+                } else {
+                    $wan_ports_json = $previous_wan_ports_json !== ''
+                        ? $previous_wan_ports_json
+                        : '[]';
                 }
+            } elseif (!$is_online && $is_gwn_switch && $previous_wan_ports_json !== '') {
+                // An offline switch cannot provide a fresh port snapshot. Preserve the
+                // last known inventory instead of overwriting it with an empty string;
+                // its device-level status still indicates that the switch is offline.
+                $wan_ports_json = $previous_wan_ports_json;
+            } elseif (!$is_gwn_router && !$is_gwn_switch) {
+                // Only router/switch models expose ports in this integration. Store
+                // an explicit empty snapshot for phones, PBX and APs so the dashboard
+                // never asks the router port API about unsupported hardware.
+                $wan_ports_json = '[]';
             }
 
             // Split IPv4 vs IPv6: privateIp may contain an IPv6 address on some devices
@@ -1195,7 +1295,14 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
             $isRouter = false;
             if (!empty($mac)) {
                 $devState = new \GlpiPlugin\Gdmsintegration\Device();
-                $stRows   = $devState->find(['mac' => $mac], [], 1);
+                $stRows   = $devState->find(
+                    ['mac' => $mac] + \GlpiPlugin\Gdmsintegration\Service\AccessService::entityCriteria(
+                        \GlpiPlugin\Gdmsintegration\Device::getTable(),
+                        $entities_id
+                    ),
+                    [],
+                    1
+                );
                 if (!empty($stRows)) {
                     $m = strtoupper(reset($stRows)['model'] ?? '');
                     $isRouter = (bool) preg_match('/^GWN700[123]/', $m);
@@ -1413,13 +1520,11 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
         $query = [
             'SELECT' => ['id', 'mac', 'cloud_name'],
             'FROM'   => \GlpiPlugin\Gdmsintegration\Device::getTable(),
+            'WHERE'  => ['entities_id' => $entities_id],
         ];
-        // Filter by entity so that syncing entity A never purges entity B's device state.
-        // Rows with entities_id=0 are legacy records (pre-1.2.8);
-        // include them only when syncing the root entity (0).
-        if ($entities_id > 0) {
-            $query['WHERE'] = ['entities_id' => $entities_id];
-        }
+        // Filter by entity so that syncing one entity never purges another entity's device state.
+        // Root synchronization (entity 0) intentionally handles only root/legacy rows.
+
         $all_rows = $DB->request($query);
 
         $removed = 0;
@@ -1465,39 +1570,64 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
     /**
      * Batch version — single DB query for all MACs. Returns [mac => float].
      */
-    public static function calculateUptimeBatch(array $macs): array {
+    public static function calculateUptimeBatch(array $macs, ?int $entities_id = null): array {
         if (empty($macs)) return [];
-        $history = new \GlpiPlugin\Gdmsintegration\History();
-        $rows    = $history->find(['mac' => $macs]);
+        global $DB;
+
+        // Aggregate in SQL instead of loading every history row into PHP. With
+        // frequent syncs the history table can contain hundreds of thousands of
+        // rows; the dashboard needs only two counters per device.
+        $normalizedMacs = [];
+        foreach ($macs as $mac) {
+            $normalized = strtolower(trim((string) $mac));
+            if ($normalized !== '') {
+                $normalizedMacs[$normalized] = $normalized;
+            }
+        }
+        $criteriaMacs = array_values(array_unique(array_merge(
+            array_map(static fn($mac): string => (string) $mac, $macs),
+            array_values($normalizedMacs)
+        )));
+        $criteria = ['mac' => $criteriaMacs];
+        if ($entities_id !== null) {
+            $criteria += \GlpiPlugin\Gdmsintegration\Service\AccessService::entityCriteria(
+                \GlpiPlugin\Gdmsintegration\History::getTable(),
+                $entities_id
+            );
+        }
+        $rows = $DB->request([
+            'SELECT' => [
+                new \Glpi\DBAL\QueryExpression('LOWER(`mac`)', 'mac_normalized'),
+                \Glpi\DBAL\QueryFunction::count('id', false, 'total'),
+                new \Glpi\DBAL\QueryExpression("SUM(CASE WHEN `status` = 'online' THEN 1 ELSE 0 END)", 'online'),
+            ],
+            'FROM'    => \GlpiPlugin\Gdmsintegration\History::getTable(),
+            'WHERE'   => $criteria,
+            'GROUPBY' => ['mac_normalized'],
+        ]);
         $total   = [];
         $online  = [];
-        foreach ($rows as $r) {
-            $m = $r['mac'];
-            $total[$m]  = ($total[$m]  ?? 0) + 1;
-            if ($r['status'] === 'online') $online[$m] = ($online[$m] ?? 0) + 1;
+        foreach ($rows as $row) {
+            $key = (string) ($row['mac_normalized'] ?? '');
+            if ($key === '') {
+                continue;
+            }
+            $total[$key] = (int) ($row['total'] ?? 0);
+            $online[$key] = (int) ($row['online'] ?? 0);
         }
         $result = [];
         foreach ($macs as $mac) {
-            $t = $total[$mac] ?? 0;
-            $result[$mac] = $t > 0 ? round(($online[$mac] ?? 0) / $t * 100, 2) : 0.0;
+            $originalKey = (string) $mac;
+            $normalizedKey = strtolower(trim($originalKey));
+            $t = $total[$normalizedKey] ?? 0;
+            $result[$originalKey] = $t > 0 ? round(($online[$normalizedKey] ?? 0) / $t * 100, 2) : 0.0;
         }
         return $result;
     }
 
-    public static function calculateUptime(string $mac): float {
-        $history = new \GlpiPlugin\Gdmsintegration\History();
-        $rows    = $history->find(['mac' => $mac]);
-        $total   = count($rows);
-        if ($total === 0) {
-            return 0.0;
-        }
-        $online = 0;
-        foreach ($rows as $r) {
-            if ($r['status'] === 'online') {
-                $online++;
-            }
-        }
-        return round(($online / $total) * 100, 2);
+    public static function calculateUptime(string $mac, ?int $entities_id = null): float {
+        $result = self::calculateUptimeBatch([$mac], $entities_id);
+        return (float) ($result[$mac] ?? 0.0);
     }
 
     public static function slaLabel(float $uptime): string {
@@ -1514,8 +1644,11 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
         if (!class_exists('Ticket')) return;
         $assets=[];
         foreach (['NetworkEquipment','Phone'] as $it) { $o=new $it(); foreach($o->find(['entities_id'=>$entities_id]) as $a){$m=strtolower(str_replace([':', '-'],'',(string)($a['uuid']??''))); if($m)$assets[$m]=[$it,(int)$a['id'],(string)($a['name']??'')];} }
+        // Fetch alerts from all configured networks in bounded concurrent batches.
+        // Ticket creation/deduplication below remains the same per alert.
+        $alertsByNetwork = \GlpiPlugin\Gdmsintegration\API::gwnGetAlertsBatch($config, $networkIds, 50);
         foreach ($networkIds as $nid) {
-            $complete=false; $alerts=\GlpiPlugin\Gdmsintegration\API::gwnGetAlerts($config,$nid,50,$complete);
+            $alerts = $alertsByNetwork[(int) $nid] ?? [];
             foreach($alerts as $a){
                 $sev=strtolower((string)($a['severity']??'')); if(!in_array($sev,['critical','warning'],true)) continue;
                 $cat=strtolower((string)($a['category']??'')); $desc=(string)($a['description']??'');

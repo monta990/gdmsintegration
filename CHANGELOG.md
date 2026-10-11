@@ -3,6 +3,54 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.6.3] — 2026-10-11
+
+### Security
+
+- Scoped GDMS device and history reads to the requested GLPI entity, including recursive entity access, across the dashboard, firmware, ports, alerts, uptime calculations, configuration history import, and XLSX history export.
+- Added `entities_id` to GDMS operational history with an upgrade migration and best-effort backfill for existing rows. Legacy unmapped history remains in entity 0 and is not exposed to non-global entity views.
+- Restricted the XLSX `Tickets` worksheet to `[GDMS]` tickets using the plugin-configured/native GDMS request source, while retaining request source `0` only for legacy GDMS tickets created before native request-source support; each ticket must pass GLPI's `READ` permission and entity-visibility checks before export.
+- Reused GLPI's `SpreadsheetValueBinder` and explicitly wrote ticket title/description cells as XLSX strings, so untrusted ticket text cannot be interpreted as a formula.
+- Added sensitive GDMS credential/token fields to the plugin's undisclosed field set so GLPI REST responses do not expose encrypted credential material.
+- Added entity validation to firmware upgrade, reboot, and factory-reset targets to prevent actions against devices outside the requested entity.
+
+### Fixed
+
+- Fixed warning-state contrast in the SIP device modal: pending/synchronization badges and reboot/factory-reset confirmation buttons now use GLPI-compatible dark text on warning backgrounds.
+- Removed the undocumented `fwVersion` field from firmware task creation; the request retains the documented `firmwareDownloadUrl` field. This aligns the payload with the published GDMS `task/add` contract.
+- Corrected the 1.6.3 history migration index definition: `entity_date` is now explicitly created on `entities_id,date`, avoiding update failures on existing installations.
+- Fixed a GLPI 12 synchronization performance bottleneck where firmware versions were requested sequentially for every network; firmware/version requests now run concurrently with bounded timeouts and targeted fallback retries.
+- Reduced synchronization startup overhead by running the external CronTask only for entities that actually have a GDMS configuration row.
+- Fetch GWN device inventory pages across networks concurrently, and perform missing serial-number enrichment across networks in bounded batches; partial API failures still prevent authoritative removal processing.
+- Replaced serial per-device fallback calls for missing serial-number enrichment with bounded parallel retries and one token refresh attempt, preserving enrichment without adding a full timeout for every failed device.
+- Avoided an unnecessary `device/info` API request for offline GWN700 routers; their last known WAN inventory is preserved locally and marked down without waiting on the cloud API.
+- Fetch router/switch port inventory in bounded concurrent batches with a concurrent retry, while preserving the original MAC payload sent to the signed Grandstream API and the existing WAN-ticket evaluation flow.
+- Prevented the dashboard port endpoint from calling router APIs for APs, phones, or PBX devices; caches explicit no-port results and preserves prior port snapshots after transient failures or while switches are offline.
+- Aggregated per-device uptime and chart history in SQL rather than transferring every history row into PHP; normalized MACs and kept the existing chart period and uptime calculations.
+- Fixed the GLPI 11/12 `QueryFunction::count()` argument order in uptime and dashboard-history aggregates, restoring non-null chart values and accurate uptime-based health scoring.
+- Replaced the dashboard’s per-device model lookup with bulk model-table reads, and batched alert requests across networks without changing alert normalization, pagination, ticket deduplication, or ticket creation rules.
+- Limited topology preloading to links sourced by devices in the current API batch instead of loading the entire plugin link table on each synchronization.
+- Staggered the initial firmware-check request after the port-status request to reduce contention, while retaining firmware badges and upgrade workflows.
+- Reduced transient API wait time by bounding normal requests to a 4-second connection timeout and 12-second total timeout, with at most one retry for retry-safe requests.
+- Corrected entity filtering for plugin-owned tables that do not contain `is_recursive`; recursive access now uses the entity IDs already granted in the GLPI session instead of generating invalid `table.is_recursive` SQL.
+- Fixed bulk GDMS reboot result handling to use the API's `success` result instead of the nonexistent `ok` key.
+- Fixed the 1.6.2 version metadata inconsistency and aligned `setup.php`, `plugin.xml`, release URLs, and translations on 1.6.3.
+- Hardened bulk GDMS reboot authorization so every requested device MAC must belong to an entity accessible to the caller before any reboot is sent.
+- Hardened the history migration backfill to map legacy rows only when a MAC has a single unambiguous current entity; ambiguous legacy rows remain unassigned.
+- Restricted configuration export/import/save targets to entities the current administrator can access.
+- Scoped client network lookups and device-state caches by entity, preventing cross-entity reads when network IDs or MAC addresses are supplied directly.
+- Scoped the remaining offline-ticket device-state lookup by entity to prevent cross-entity model classification during ticket creation.
+
+### Dependencies
+
+- Aligned the bundled `vis-network` version marker and dashboard cache-buster with the latest stable upstream release, **10.1.2**. The upstream 10.1.1 → 10.1.2 release changes only TypeScript declaration files for CSS imports; no runtime JavaScript changes were made upstream, so the topology API and rendering code remain unchanged.
+
+### Compatibility
+
+- Validated against the current **GLPI 11.0/bugfixes** and **GLPI 12.0/bugfixes** APIs relevant to this release.
+
+---
+
 ## [1.6.2] — 2026-09-16
 
 ### Added

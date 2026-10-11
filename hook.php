@@ -68,12 +68,14 @@ function plugin_gdmsintegration_install(): bool {
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}",
         'glpi_plugin_gdmsintegration_history' => "CREATE TABLE `glpi_plugin_gdmsintegration_history` (
             `id` int {$sign} NOT NULL AUTO_INCREMENT,
+            `entities_id` int unsigned NOT NULL DEFAULT 0,
             `mac` varchar(50) NOT NULL DEFAULT '',
             `status` varchar(20) NOT NULL DEFAULT '',
             `date` TIMESTAMP NULL DEFAULT NULL,
             PRIMARY KEY (`id`),
             KEY `mac` (`mac`),
-            KEY `date` (`date`)
+            KEY `date` (`date`),
+            KEY `entity_date` (`entities_id`,`date`)
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}",
         'glpi_plugin_gdmsintegration_devices' => "CREATE TABLE `glpi_plugin_gdmsintegration_devices` (
             `id` int {$sign} NOT NULL AUTO_INCREMENT,
@@ -220,6 +222,26 @@ function plugin_gdmsintegration_install(): bool {
         $migration->dropField('glpi_plugin_gdmsintegration_configs', 'webhook_secret');
     }
 
+    // History became entity-scoped in 1.6.3. Existing rows are backfilled
+    // from the current device-state entity where the MAC still exists. Rows
+    // that cannot be mapped safely remain in entity 0 and are excluded from
+    // non-global entity views.
+    if ($DB->tableExists('glpi_plugin_gdmsintegration_history')) {
+        if (!$DB->fieldExists('glpi_plugin_gdmsintegration_history', 'entities_id')) {
+            $migration->addField('glpi_plugin_gdmsintegration_history', 'entities_id', 'int unsigned NOT NULL DEFAULT 0');
+        }
+        if (!isIndex('glpi_plugin_gdmsintegration_history', 'entity_date')) {
+            // Migration::addKey() receives the indexed field(s) separately from
+            // the index name. Passing 'entity_date' as the field name generated
+            // invalid SQL because there is no column named entity_date.
+            $migration->addKey(
+                'glpi_plugin_gdmsintegration_history',
+                ['entities_id', 'date'],
+                'entity_date'
+            );
+        }
+    }
+
     $deviceFields = [
         'entities_id' => 'int unsigned NOT NULL DEFAULT 0',
         'network_id' => 'int unsigned NOT NULL DEFAULT 0',
@@ -259,6 +281,42 @@ function plugin_gdmsintegration_install(): bool {
     }
 
     $migration->executeMigration();
+
+    // Best-effort backfill of legacy history rows to the current device entity.
+    // This runs only during install/update, never during normal dashboard requests.
+    if ($DB->tableExists('glpi_plugin_gdmsintegration_history') && $DB->tableExists('glpi_plugin_gdmsintegration_devices')) {
+        try {
+            $entity_by_mac = [];
+            $ambiguous_macs = [];
+            foreach ($DB->request([
+                'SELECT' => ['mac', 'entities_id'],
+                'FROM'   => 'glpi_plugin_gdmsintegration_devices',
+                'WHERE'  => ['entities_id' => ['>', 0]],
+            ]) as $device_row) {
+                $device_mac = strtolower(trim((string)($device_row['mac'] ?? '')));
+                $device_entity = (int)($device_row['entities_id'] ?? 0);
+                if ($device_mac === '' || $device_entity <= 0) {
+                    continue;
+                }
+                if (isset($entity_by_mac[$device_mac]) && $entity_by_mac[$device_mac] !== $device_entity) {
+                    $ambiguous_macs[$device_mac] = true;
+                    unset($entity_by_mac[$device_mac]);
+                    continue;
+                }
+                if (!isset($ambiguous_macs[$device_mac])) {
+                    $entity_by_mac[$device_mac] = $device_entity;
+                }
+            }
+            foreach ($entity_by_mac as $device_mac => $device_entity) {
+                $DB->update('glpi_plugin_gdmsintegration_history',
+                    ['entities_id' => $device_entity],
+                    ['mac' => $device_mac, 'entities_id' => 0]
+                );
+            }
+        } catch (\Throwable $e) {
+            \GlpiPlugin\Gdmsintegration\Utils::debug('Legacy history entity backfill skipped: ' . $e->getMessage());
+        }
+    }
 
     // Register/reuse the native GLPI request source and initialize defaults.
     // The request source is deliberately not removed during uninstall so

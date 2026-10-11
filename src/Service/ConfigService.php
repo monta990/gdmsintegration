@@ -78,7 +78,7 @@ final class ConfigService
                         } else {
                             $histObj  = new \GlpiPlugin\Gdmsintegration\History();
                             $existing = [];
-                            foreach ($histObj->find() as $h) {
+                            foreach ($histObj->find(AccessService::entityCriteria($histObj->getTable(), $entities_id)) as $h) {
                                 $m = strtolower(trim($h['mac']??'')); $d = substr($h['date']??'',0,10);
                                 if ($m&&$d) $existing[$m][$d]=true;
                             }
@@ -101,7 +101,7 @@ final class ConfigService
                                         if ($ts===false||$ts<86400) { $skip++; continue; }
                                         for ($i=0;$i<$RECORDS;$i++) {
                                             $DB->insert('glpi_plugin_gdmsintegration_history', [
-                                                'mac'=>$mac, 'status'=>$i<$on?'online':'offline',
+                                                'entities_id'=>$entities_id, 'mac'=>$mac, 'status'=>$i<$on?'online':'offline',
                                                 'date'=>date('Y-m-d H:i:s',$ts+$i*$STEP),
                                             ]);
                                         }
@@ -125,6 +125,7 @@ final class ConfigService
             if ($request->request->has('export_config')) {
                 \Session::checkRight('config', READ);
                 $eid = (int)($request->request->get('entities_id', \Session::getActiveEntity()) ?? 0);
+                AccessService::requireEntityAccess($eid);
                 $cfg_obj2 = new \GlpiPlugin\Gdmsintegration\Config();
                 $cfg2 = $cfg_obj2->getConfigByEntity($eid);
                 $inc = !empty($request->request->get('include_credentials'));
@@ -165,6 +166,7 @@ final class ConfigService
                         \Session::addMessageAfterRedirect(__('Invalid or unrecognised configuration file.', 'gdmsintegration'), false, ERROR);
                     } else {
                         $eid2 = (int)$request->request->get('entities_id', $data['entities_id'] ?? \Session::getActiveEntity());
+                        AccessService::requireEntityAccess($eid2);
                         $inp = ['entities_id'=>$eid2];
                         foreach (['refresh_interval','gdms_region','ip_version','debug_logging','chart_days','show_topology','ticket_requester_id','ticket_requesttype_id','ticket_category_network_id','ticket_category_telephony_id','wan_debounce_seconds','wan_tickets_enabled','tickets_phone','tickets_router','tickets_switch','tickets_ap','tickets_pbx','max_xlsx_size_mb','history_retention_days'] as $k) {
                             if (array_key_exists($k,$data)) $inp[$k]=$data[$k];
@@ -183,10 +185,12 @@ final class ConfigService
             }
 
             if ($request->request->has('save')) {
+                $save_entity_id = (int)$request->request->get('entities_id', \Session::getActiveEntity());
+                AccessService::requireEntityAccess($save_entity_id);
                 // GLPI 11: CSRF validated automatically by Symfony CheckCsrfListener before reaching here.
                 
                 $config->saveConfig([
-                    'entities_id'       => (int) ($request->request->get('entities_id', 0)),
+                    'entities_id'       => $save_entity_id,
                     'username'          => $request->request->get('username', ''),
                     'gdms_region'       => in_array(strtolower((string)($request->request->get('gdms_region', 'us'))), ['us','eu'], true) ? strtolower((string)$request->request->get('gdms_region')) : 'us',
                     'password'          => $request->request->get('password', ''),
@@ -215,7 +219,7 @@ final class ConfigService
                 ]);
 
                 // Real connection test after saving
-                $entities_id_test = (int) ($request->request->get('entities_id', 0));
+                $entities_id_test = $save_entity_id;
                 $saved_config     = $config->getConfigByEntity($entities_id_test);
                 $test             = \GlpiPlugin\Gdmsintegration\API::testConnections($saved_config);
 

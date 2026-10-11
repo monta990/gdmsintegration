@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.2\n"
+"Project-Id-Version: gdmsintegration 1.6.3\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-12 00:00+0000\n"
-"PO-Revision-Date: 2026-09-17 00:00+0000\n"
+"PO-Revision-Date: 2026-10-08 00:00+0000\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language: es_MX\n"
 "Language-Team: es_MX\n"
@@ -2070,3 +2070,11 @@ msgstr "La API devolvió alertas parciales. Intenta de nuevo."
 
 msgid "The alert list is partial; some alerts may not be shown."
 msgstr "La lista de alertas es parcial; algunas pueden no mostrarse."
+
+#: src/Service/BulkService.php:31
+msgid "Access denied"
+msgstr "Acceso denegado"
+
+#: src/Service/FirmwareService.php:399 src/Service/FirmwareService.php:455 src/Service/FirmwareService.php:479
+msgid "Device not found"
+msgstr "Dispositivo no encontrado"
