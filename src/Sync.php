@@ -1546,8 +1546,17 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 "  REMOVED {$mac} ({$name}): not returned by API — deleting plugin state (no ticket)"
             );
 
-            $device->deleteByCriteria(['mac' => $mac], 1);   // purge=1
-            $history->deleteByCriteria(['mac' => $mac], 1);  // purge=1
+            // Scope permanent deletion to the entity being synchronized. A MAC may
+            // exist in multiple entities; removing it from one cloud account must
+            // never delete another entity's state or history.
+            $device->deleteByCriteria([
+                'mac'         => $mac,
+                'entities_id' => $entities_id,
+            ], 1); // purge=1
+            $history->deleteByCriteria([
+                'mac'         => $mac,
+                'entities_id' => $entities_id,
+            ], 1); // purge=1
             $removed++;
         }
         return $removed;
