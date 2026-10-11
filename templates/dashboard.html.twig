@@ -75,6 +75,7 @@
             <button type="button" id="gdms-refresh-btn" class="btn btn-sm btn-outline-primary">
                <i class="ti ti-refresh me-1" id="gdms-refresh-icon"></i>{{ __('Sync now', 'gdmsintegration') }}
             </button>
+            <small id="gdms-sync-status" class="text-muted" role="status" aria-live="polite"></small>
             <a href="{{ config_url }}" class="btn btn-sm btn-outline-secondary">
                <i class="ti ti-settings me-1"></i>{{ __('Settings', 'gdmsintegration') }}
             </a>
@@ -503,8 +504,17 @@
         if (gdmsSyncing) return;
         gdmsSyncing = true;
         var icon = document.getElementById('gdms-refresh-icon');
+        var status = document.getElementById('gdms-sync-status');
+        var button = document.getElementById('gdms-refresh-btn');
+        if (button) button.disabled = true;
+        if (status) {
+            status.textContent = '';
+            status.classList.remove('text-danger');
+        }
         if (icon) icon.style.cssText = 'animation:spin .8s linear infinite;display:inline-block;';
-        fetch(AJAX_URL, {
+        var syncUrl = new URL(AJAX_URL, window.location.href);
+        syncUrl.searchParams.set('source', source || 'button');
+        fetch(syncUrl.toString(), {
             method: 'POST',
             headers: {'X-Requested-With': 'XMLHttpRequest',
                 'X-Glpi-Csrf-Token': (typeof window.glpiGetNewCSRFToken === 'function'
@@ -513,9 +523,29 @@
             },
             credentials: 'same-origin'
         })
-            .then(function(r){ return r.json(); })
-            .then(function(){ location.reload(); })
-            .catch(function(){ location.reload(); });
+            .then(function(r) {
+                return r.text().then(function(text) {
+                    var data = {};
+                    try { data = text ? JSON.parse(text) : {}; } catch (e) {}
+                    if (!r.ok || data.success !== true) {
+                        throw new Error(data.error || data.message || ('HTTP ' + r.status));
+                    }
+                    return data;
+                });
+            })
+            .then(function() { window.location.reload(); })
+            .catch(function(error) {
+                gdmsSyncing = false;
+                if (button) button.disabled = false;
+                if (icon) icon.style.animation = '';
+                if (status) {
+                    status.textContent = error && error.message
+                        ? error.message
+                        : 'Synchronization failed. Check the plugin log and try again.';
+                    status.classList.add('text-danger');
+                }
+                if (window.console && console.error) console.error('GDMS sync failed', error);
+            });
     }
 
     {% if show_topology %}
@@ -560,12 +590,19 @@
     var countEl            = document.getElementById('gdms-refresh-countdown');
     var btn                = document.getElementById('gdms-refresh-btn');
 
-    if (btn) btn.addEventListener('click', function(){ gdmsCountdown = REFRESH_S; doSync('btn'); });
+    if (btn) btn.addEventListener('click', function(){ gdmsCountdown = REFRESH_S; doSync('button'); });
 
     setInterval(function() {
         if (gdmsSyncing) return;
         if (countEl) countEl.textContent = fmtTime(gdmsCountdown);
-        if (--gdmsCountdown < 0) { gdmsCountdown = REFRESH_S; doSync(); }
+        if (--gdmsCountdown < 0) {
+            gdmsCountdown = REFRESH_S;
+            // Preserve automatic synchronization: the async request keeps the UI
+            // responsive, while the entity lock prevents concurrent Cron/button/tab
+            // syncs from running the same cloud workload at once. A successful sync
+            // reloads the dashboard; failures are surfaced in the status text.
+            if (!document.hidden) doSync('auto-refresh');
+        }
     }, 1000);
 
     // ── Firmware update check ─────────────────────────────────────────────────
@@ -660,7 +697,7 @@
                 });
             })
             .catch(function() {});
-    }, 2000);
+    }, 7000);
 
     document.addEventListener('click', function(e) {
         var badge = e.target.closest('.gdms-fw-badge');
@@ -1293,10 +1330,10 @@
                 : '<span class="badge border" style="color:inherit;background:transparent">' + STR.off + '</span>']);
         rows.push(['<i class="ti ti-refresh me-1"></i>' + STR.synchronized,
             sync ? '<span class="badge text-bg-success">' + STR.yes + '</span>'
-                 : '<span class="badge text-bg-warning">' + STR.no + '</span>']);
+                 : '<span class="badge bg-warning text-dark">' + STR.no + '</span>']);
         if (!sync && syncMsg) rows.push(['<i class="ti ti-alert-triangle me-1 text-warning"></i>' + STR.syncError, '<small class="text-danger">' + esc(syncMsg) + '</small>']);
         rows.push(['<i class="ti ti-calendar me-1"></i>' + STR.scheduledTask,
-            task ? '<span class="badge text-bg-primary">' + STR.pending + '</span>'
+            task ? '<span class="badge bg-warning text-dark">' + STR.pending + '</span>'
                  : '<span class="badge border" style="color:inherit;background:transparent">' + STR.none + '</span>']);
 
         var html = '<dl class="row mb-0 small">';
@@ -1327,7 +1364,7 @@
             if (_rb._rs === 'loading') return;
             if (_rb._rs === 'idle') {
                 _rb._rs = 'confirm';
-                _rb.className = 'btn btn-warning btn-sm';
+                _rb.className = 'btn btn-warning text-dark btn-sm';
                 _rb.innerHTML = '<i class="ti ti-alert-triangle me-1"></i>' + esc(STR.rebootConfirmYes);
                 var _t = setTimeout(function() {
                     if (_rb._rs === 'confirm') {
@@ -1370,7 +1407,7 @@
                 if (_fr._rs === 'loading') return;
                 if (_fr._rs === 'idle') {
                     _fr._rs = 'confirm';
-                    _fr.className = 'btn btn-warning btn-sm';
+                    _fr.className = 'btn btn-warning text-dark btn-sm';
                     _fr.innerHTML = '<i class="ti ti-alert-triangle me-1"></i>' + esc(STR.factoryResetConfirmYes);
                     _fr._t = setTimeout(function() {
                         if (_fr._rs === 'confirm') {

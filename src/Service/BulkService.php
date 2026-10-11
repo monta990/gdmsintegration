@@ -21,9 +21,17 @@ final class BulkService
         $macs = array_values(array_unique(array_filter(array_map(static fn($m) => strtolower(trim((string)$m)), (array)$rawMacs))));
         if (!$macs || count($macs) > 50) return new JsonResponse(['error' => 'Select 1 to 50 devices']);
         if ($action !== 'reboot_gdms') return new JsonResponse(['error' => 'Unsupported bulk action']);
-        $config = \GlpiPlugin\Gdmsintegration\Config::getConfigByEntity($e); $ok=0; $failed=[]; global $DB;
+        $config = \GlpiPlugin\Gdmsintegration\Config::getConfigByEntity($e);
+        $device_obj = new \GlpiPlugin\Gdmsintegration\Device();
+        $allowed = $device_obj->find(['mac' => $macs] + AccessService::entityCriteria($device_obj->getTable(), $e));
+        $allowed_macs = [];
+        foreach ($allowed as $row) {
+            $allowed_macs[strtolower(trim((string)($row['mac'] ?? '')))] = true;
+        }
+        if (count($allowed_macs) < count($macs)) return new JsonResponse(['error' => __('Access denied', 'gdmsintegration')], 403);
+        $ok=0; $failed=[]; global $DB;
         foreach ($macs as $mac) {
-            $r=\GlpiPlugin\Gdmsintegration\API::gdmsCreateRebootTask($config,$mac); $success=!empty($r['ok']); $success?$ok++:$failed[]=$mac;
+            $r=\GlpiPlugin\Gdmsintegration\API::gdmsCreateRebootTask($config,$mac); $success=!empty($r['success']); $success?$ok++:$failed[]=$mac;
             try { $DB->insert('glpi_plugin_gdmsintegration_action_log',['entities_id'=>$e,'users_id'=>(int)\Session::getLoginUserID(),'action'=>'bulk_reboot_gdms','target_mac'=>$mac,'details'=>json_encode($r),'success'=>$success?1:0,'date'=>gmdate('Y-m-d H:i:s')]); } catch (\Throwable $x) { }
         }
         return new JsonResponse(['ok'=>$ok,'failed'=>$failed]);

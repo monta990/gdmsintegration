@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.2\n"
+"Project-Id-Version: gdmsintegration 1.6.3\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-09-17 05:00+0000\n"
-"PO-Revision-Date: 2026-08-19 00:00+0000\n"
+"PO-Revision-Date: 2026-10-08 00:00+0000\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -1435,4 +1435,12 @@ msgstr ""
 
 #: src/Service/DashboardService.php:694
 msgid "The alert list is partial; some alerts may not be shown."
+msgstr ""
+
+#: src/Service/BulkService.php:31
+msgid "Access denied"
+msgstr ""
+
+#: src/Service/FirmwareService.php:399 src/Service/FirmwareService.php:455 src/Service/FirmwareService.php:479
+msgid "Device not found"
 msgstr ""

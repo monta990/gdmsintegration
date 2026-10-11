@@ -18,15 +18,25 @@ final class AlertService
         $config = (new \GlpiPlugin\Gdmsintegration\Config())->getConfigByEntity($entities_id);
         if (empty($config['gwn_client_id'])) return new JsonResponse([]);
 
-        $states = (new \GlpiPlugin\Gdmsintegration\Device())->find(['network_id' => ['>', 0]]);
+        $device_obj = new \GlpiPlugin\Gdmsintegration\Device();
+        $states = $device_obj->find(['network_id' => ['>', 0]] + AccessService::entityCriteria($device_obj->getTable(), $entities_id));
         $net_ids = array_unique(array_map('intval', array_column($states, 'network_id')));
         if ($filter_network) $net_ids = array_filter($net_ids, static fn($id) => (int)$id === $filter_network);
         $all = []; $complete = true;
+        $completeByNetwork = [];
+        $alertsByNetwork = \GlpiPlugin\Gdmsintegration\API::gwnGetAlertsBatch(
+            $config,
+            array_map('intval', $net_ids),
+            30,
+            $completeByNetwork
+        );
         foreach ($net_ids as $nid) {
-            $network_complete = false;
-            $alerts = \GlpiPlugin\Gdmsintegration\API::gwnGetAlerts($config, (int)$nid, 30, $network_complete);
-            $complete = $complete && $network_complete;
-            foreach ($alerts as $a) { $a['_network_id'] = (int)$nid; $all[] = $a; }
+            $networkId = (int) $nid;
+            $complete = $complete && ($completeByNetwork[$networkId] ?? false);
+            foreach (($alertsByNetwork[$networkId] ?? []) as $a) {
+                $a['_network_id'] = $networkId;
+                $all[] = $a;
+            }
         }
         usort($all, static fn($a,$b) => ((int)($b['createTime'] ?? 0)) <=> ((int)($a['createTime'] ?? 0)));
         return new JsonResponse(array_slice($all, 0, 100), 200, ['X-GDMS-Result-Complete' => $complete ? '1' : '0']);

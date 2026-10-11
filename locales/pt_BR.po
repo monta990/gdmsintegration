@@ -1,12 +1,12 @@
-# GDMS Integration — es_MX Translation
+# GDMS Integration — pt_BR Translation
 # Copyright (C) 2026 Edwin Elias Alvarez
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: GDMS Integration 1.6.2\n"
+"Project-Id-Version: gdmsintegration 1.6.3\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-12 00:00+0000\n"
-"PO-Revision-Date: 2026-08-20 00:00+0000\n"
+"PO-Revision-Date: 2026-10-08 00:00+0000\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language: pt_BR\n"
 "Language-Team: pt_BR\n"
@@ -2072,3 +2072,11 @@ msgstr "Solicitação"
 
 msgid "Incident"
 msgstr "Incidente"
+
+#: src/Service/BulkService.php:31
+msgid "Access denied"
+msgstr "Acesso negado"
+
+#: src/Service/FirmwareService.php:399 src/Service/FirmwareService.php:455 src/Service/FirmwareService.php:479
+msgid "Device not found"
+msgstr "Dispositivo não encontrado"

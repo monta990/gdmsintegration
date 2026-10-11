@@ -10,7 +10,7 @@ final class DashboardService
     public static function render(Request $request): Response
     {
         ob_start();
-            global $CFG_GLPI;
+            global $CFG_GLPI, $DB;
 
             \Session::checkLoginUser();
             if (!\Session::haveRight('config', READ) && !\Session::haveRight('networking', READ)) {
@@ -90,21 +90,42 @@ final class DashboardService
 
             $state_obj  = new \GlpiPlugin\Gdmsintegration\Device();
 
-            $all_states = $state_obj->find(); // every MAC the plugin currently manages in the cloud
+            $all_states = $state_obj->find(AccessService::entityCriteria($state_obj->getTable(), $entities_id));
 
             // Batch-load uptime for all MACs in one query instead of one query per device
             $_all_macs    = array_filter(array_column($all_states, 'mac'));
-            $_uptime_map  = \GlpiPlugin\Gdmsintegration\Sync::calculateUptimeBatch($_all_macs);
+            $_uptime_map  = \GlpiPlugin\Gdmsintegration\Sync::calculateUptimeBatch($_all_macs, $entities_id);
 
             // Build MAC --- GLPI asset map across ALL entities (entity 0 vs active entity mismatch)
             $mac_to_asset = [];
             foreach (['NetworkEquipment', 'Phone'] as $itemtype) {
                 $obj     = new $itemtype();
-                $rows_db = $obj->find(); // no entity filter — plugin manages devices globally
+                $rows_db = $obj->find(\getEntitiesRestrictCriteria($obj->getTable(), 'entities_id', $entities_id, true));
                 foreach ($rows_db as $d) {
                     if (!empty($d['uuid'])) {
                         $mac_to_asset[strtolower(trim($d['uuid']))] = array_merge($d, ['_itemtype' => $itemtype]);
                     }
+                }
+            }
+
+            // Resolve model names with at most one query per model table instead
+            // of issuing a getFromDB() for each dashboard row.
+            $model_ids = ['NetworkEquipmentModel' => [], 'PhoneModel' => []];
+            foreach ($mac_to_asset as $asset) {
+                $model_id = (int) ($asset['networkequipmentmodels_id'] ?? $asset['phonemodels_id'] ?? 0);
+                if ($model_id > 0) {
+                    $model_class = $asset['_itemtype'] === 'Phone' ? 'PhoneModel' : 'NetworkEquipmentModel';
+                    $model_ids[$model_class][$model_id] = $model_id;
+                }
+            }
+            $model_names = ['NetworkEquipmentModel' => [], 'PhoneModel' => []];
+            foreach ($model_ids as $model_class => $ids) {
+                if ($ids === []) {
+                    continue;
+                }
+                $model_obj = new $model_class();
+                foreach ($model_obj->find(['id' => array_values($ids)]) as $model_row) {
+                    $model_names[$model_class][(int) $model_row['id']] = (string) ($model_row['name'] ?? '');
                 }
             }
 
@@ -158,10 +179,7 @@ final class DashboardService
                     $model_id = (int)($glpi['networkequipmentmodels_id'] ?? $glpi['phonemodels_id'] ?? 0);
                     if ($model_id > 0) {
                         $model_class = $itemtype === 'Phone' ? 'PhoneModel' : 'NetworkEquipmentModel';
-                        $model_obj   = new $model_class();
-                        if ($model_obj->getFromDB($model_id)) {
-                            $model_name = $model_obj->getName();
-                        }
+                        $model_name = $model_names[$model_class][$model_id] ?? '';
                     }
                 }
                 // Fallback: apType from GWN/GDMS cloud stored during sync (e.g. "GWN7001", "GRP2601")
@@ -290,7 +308,21 @@ final class DashboardService
             // Uptime history -- last N days per device per day (configurable via chart_days)
             $history_obj = new \GlpiPlugin\Gdmsintegration\History();
             $history_ago  = gmdate('Y-m-d H:i:s', strtotime("-{$chart_days} days"));
-            $hist_rows    = $history_obj->find(['date' => ['>', $history_ago]], ['date DESC']);
+            // Aggregate uptime points in SQL instead of loading every raw history row into PHP.
+            // This keeps the same chart semantics while reducing memory and transfer volume
+            // from O(number of history rows) to O(devices x days).
+            $hist_rows = $DB->request([
+                'SELECT' => [
+                    new \Glpi\DBAL\QueryExpression('DATE(`date`)', 'day'),
+                    new \Glpi\DBAL\QueryExpression('LOWER(`mac`)', 'mac_normalized'),
+                    \Glpi\DBAL\QueryFunction::count('id', false, 'total'),
+                    new \Glpi\DBAL\QueryExpression("SUM(CASE WHEN `status` = 'online' THEN 1 ELSE 0 END)", 'online'),
+                ],
+                'FROM'   => $history_obj->getTable(),
+                'WHERE'  => ['date' => ['>', $history_ago]] + AccessService::entityCriteria($history_obj->getTable(), $entities_id),
+                'GROUPBY' => ['day', 'mac_normalized'],
+                'ORDER'  => ['day'],
+            ]);
 
             // Build: mac -- (name) and date -- per-mac status
             $mac_to_name = [];
@@ -306,14 +338,16 @@ final class DashboardService
             $per_device = [];
             $all_days   = [];
             foreach ($hist_rows as $h) {
-                $day    = substr($h['date'] ?? '', 0, 10);
-                $mac    = strtolower(trim($h['mac'] ?? ''));
-                $status = $h['status'] ?? '';
-                if (!$day || !$mac) continue;
+                $day = (string) ($h['day'] ?? '');
+                $mac = strtolower(trim((string) ($h['mac_normalized'] ?? '')));
+                if ($day === '' || $mac === '') {
+                    continue;
+                }
                 $all_days[$day] = true;
-                if (!isset($per_device[$mac][$day])) $per_device[$mac][$day] = ['online' => 0, 'total' => 0];
-                $per_device[$mac][$day]['total']++;
-                if ($status === 'online') $per_device[$mac][$day]['online']++;
+                $per_device[$mac][$day] = [
+                    'online' => (int) ($h['online'] ?? 0),
+                    'total'  => (int) ($h['total'] ?? 0),
+                ];
             }
             ksort($all_days);
             $chart_labels = array_keys($all_days);
@@ -353,7 +387,7 @@ final class DashboardService
             if ($show_topology) {
                 $entity_macs = array_keys($mac_to_asset);
                 $link        = new \GlpiPlugin\Gdmsintegration\Link();
-                $links_raw   = empty($entity_macs) ? [] : $link->find(['source_mac' => $entity_macs]);
+                $links_raw   = empty($entity_macs) ? [] : $link->find(['source_mac' => $entity_macs, 'target_mac' => $entity_macs]);
 
                 foreach ($rows as $r) {
                     $nodes[] = [
@@ -733,7 +767,7 @@ final class DashboardService
                 'refresh_interval' => $refresh_interval,
                 'last_sync_label'  => $last_sync_label,
                 'last_sync_at'     => $last_sync_at ?? '',
-                'visnetwork_url'   => $_plugin_web . '/js/vis-network.min.js?v=10.1.1',
+                'visnetwork_url'   => $_plugin_web . '/js/vis-network.min.js?v=10.1.2',
                 'config_url'       => $_plugin_web . '/config',
             ]);
 

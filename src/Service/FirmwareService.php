@@ -70,7 +70,7 @@ final class FirmwareService
         return $best;
     }
 
-    private static function gdmsAcquireRateLimit(string $action, string $mac, int $ttl = 60): bool {
+    private static function gdmsAcquireRateLimit(string $action, string $mac, int $entities_id, int $ttl = 60): bool {
         global $DB;
         $col = $action === 'reboot' ? 'last_reboot_at' : 'last_factory_reset_at';
         $macl = strtolower($mac);
@@ -82,13 +82,13 @@ final class FirmwareService
             $rows = $DB->request([
                 'SELECT' => ['id'],
                 'FROM' => $table,
-                'WHERE' => ['mac' => $macl],
+                'WHERE' => ['mac' => $macl, 'entities_id' => $entities_id],
                 'LIMIT' => 1,
             ]);
     
             if (count($rows) === 0) {
                 try {
-                    $DB->insert($table, ['mac' => $macl, $col => $now]);
+                    $DB->insert($table, ['mac' => $macl, 'entities_id' => $entities_id, $col => $now]);
                     return true;
                 } catch (\Throwable $e) {
                     // A concurrent sync/request may have created the row. Fall
@@ -101,6 +101,7 @@ final class FirmwareService
                 [$col => $now],
                 [
                     'mac' => $macl,
+                    'entities_id' => $entities_id,
                     [
                         'OR' => [
                             [$col => null],
@@ -116,15 +117,21 @@ final class FirmwareService
         }
     }
 
-    private static function gdmsClearRateLimit(string $action, string $mac): void {
+    private static function gdmsClearRateLimit(string $action, string $mac, int $entities_id): void {
         global $DB;
         $col  = $action === 'reboot' ? 'last_reboot_at' : 'last_factory_reset_at';
         $macl = strtolower($mac);
         try {
-            $DB->update('glpi_plugin_gdmsintegration_devices', [$col => null], ['mac' => $macl]);
+            $DB->update('glpi_plugin_gdmsintegration_devices', [$col => null], ['mac' => $macl, 'entities_id' => $entities_id]);
         } catch (\Throwable $e) {
             // Best-effort rollback of the cooldown when the provider rejects the action.
         }
+    }
+
+    private static function deviceForEntity(string $mac, int $entities_id): ?array {
+        $device_obj = new \GlpiPlugin\Gdmsintegration\Device();
+        $rows = $device_obj->find(['mac' => strtolower(trim($mac))] + AccessService::entityCriteria($device_obj->getTable(), $entities_id), [], 1);
+        return empty($rows) ? null : reset($rows);
     }
 
     public static function handle(Request $request): JsonResponse
@@ -163,7 +170,7 @@ final class FirmwareService
         // ── CHECK (original — GWN stable only) ───────────────────────────────────────
         if ($action === 'check') {
             $state_obj = new \GlpiPlugin\Gdmsintegration\Device();
-            $all       = $state_obj->find();
+            $all       = $state_obj->find(AccessService::entityCriteria($state_obj->getTable(), $entities_id));
 
             if (empty($all)) { return new \Symfony\Component\HttpFoundation\JsonResponse([]); }
 
@@ -243,7 +250,7 @@ final class FirmwareService
         // ── CHECK_ALL (new — all devices, official + beta) ────────────────────────────
         if ($action === 'check_all') {
             $state_obj = new \GlpiPlugin\Gdmsintegration\Device();
-            $all       = $state_obj->find();
+            $all       = $state_obj->find(AccessService::entityCriteria($state_obj->getTable(), $entities_id));
             if (empty($all)) { return new \Symfony\Component\HttpFoundation\JsonResponse([]); }
 
             // Cache slug → versions to avoid duplicate HTTP requests for same model family
@@ -341,6 +348,16 @@ final class FirmwareService
             }
             if (empty($macs)) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'No MACs provided']); }
 
+            $device_obj = new \GlpiPlugin\Gdmsintegration\Device();
+            $allowedRows = $device_obj->find(['mac' => $macs] + AccessService::entityCriteria($device_obj->getTable(), $entities_id));
+            $allowed = [];
+            foreach ($allowedRows as $drow) {
+                $dm = strtoupper(trim((string)($drow['mac'] ?? '')));
+                if ($dm !== '') $allowed[$dm] = true;
+            }
+            $macs = array_values(array_filter($macs, static fn($m) => isset($allowed[$m])));
+            if (empty($macs)) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'Access denied'], 403); }
+
             \GlpiPlugin\Gdmsintegration\Utils::log("Firmware upgrade (GWN) requested — MACs: " . implode(', ', $macs));
 
             $scheduleTimeMs = 0;
@@ -377,6 +394,17 @@ final class FirmwareService
             if (!$mac || (!$version && !$downloadUrl)) {
                 return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'mac and version (or downloadUrl) required']);
             }
+            // Canonicalize compact MACs before the entity ownership check.
+            if (!str_contains($mac, ':')) {
+                $compactMac = preg_replace('/[^0-9A-F]/i', '', $mac);
+                if (strlen($compactMac) === 12) {
+                    $mac = implode(':', str_split($compactMac, 2));
+                }
+            }
+            $device = self::deviceForEntity($mac, $entities_id);
+            if ($device === null) {
+                return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => __('Device not found', 'gdmsintegration')], 404);
+            }
             if ($downloadUrl !== '') {
                 $dlScheme = strtolower(parse_url($downloadUrl, PHP_URL_SCHEME) ?? '');
                 $dlHost   = strtolower(parse_url($downloadUrl, PHP_URL_HOST) ?? '');
@@ -395,7 +423,7 @@ final class FirmwareService
             // Construct CDN URL from model when not supplied by caller
             if ($downloadUrl === '') {
                 $state_obj = new \GlpiPlugin\Gdmsintegration\Device();
-                $rows   = $state_obj->find(['mac' => strtolower($mac)]);
+                $rows   = $state_obj->find(['mac' => strtolower($mac)] + AccessService::entityCriteria($state_obj->getTable(), $entities_id));
                 $devRow = !empty($rows) ? reset($rows) : null;
                 if ($devRow && !empty($devRow['model'])) {
                     $downloadUrl = self::gdmsCdnUrl($devRow['model']);
@@ -430,13 +458,16 @@ final class FirmwareService
             if (!str_contains($mac, ':')) {
                 $mac = implode(':', str_split($mac, 2));
             }
-            if (!self::gdmsAcquireRateLimit('reboot', $mac, 60)) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'Rate limit — wait 60 s between reboots for the same device']); }
+            if (self::deviceForEntity($mac, $entities_id) === null) {
+                return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => __('Device not found', 'gdmsintegration')], 404);
+            }
+            if (!self::gdmsAcquireRateLimit('reboot', $mac, $entities_id, 60)) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'Rate limit — wait 60 s between reboots for the same device']); }
 
             \GlpiPlugin\Gdmsintegration\Utils::log("Reboot (GDMS task) requested — MAC: {$mac}");
             $result = \GlpiPlugin\Gdmsintegration\API::gdmsCreateRebootTask($config, $mac);
             if (!empty($result['error'])) {
                 \GlpiPlugin\Gdmsintegration\Utils::log("Reboot (GDMS task) FAILED — " . $result['error']);
-                self::gdmsClearRateLimit('reboot', $mac);
+                self::gdmsClearRateLimit('reboot', $mac, $entities_id);
             }
             return new \Symfony\Component\HttpFoundation\JsonResponse($result);
         }
@@ -451,13 +482,16 @@ final class FirmwareService
             if (!str_contains($mac, ':')) {
                 $mac = implode(':', str_split($mac, 2));
             }
-            if (!self::gdmsAcquireRateLimit('factory_reset', $mac, 300)) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'Rate limit — wait 5 min between factory resets for the same device']); }
+            if (self::deviceForEntity($mac, $entities_id) === null) {
+                return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => __('Device not found', 'gdmsintegration')], 404);
+            }
+            if (!self::gdmsAcquireRateLimit('factory_reset', $mac, $entities_id, 300)) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'Rate limit — wait 5 min between factory resets for the same device']); }
 
             \GlpiPlugin\Gdmsintegration\Utils::log("Factory reset (GDMS task) requested — MAC: {$mac}");
             $result = \GlpiPlugin\Gdmsintegration\API::gdmsCreateFactoryResetTask($config, $mac);
             if (!empty($result['error'])) {
                 \GlpiPlugin\Gdmsintegration\Utils::log("Factory reset (GDMS task) FAILED — " . $result['error']);
-                self::gdmsClearRateLimit('factory_reset', $mac);
+                self::gdmsClearRateLimit('factory_reset', $mac, $entities_id);
             }
             return new \Symfony\Component\HttpFoundation\JsonResponse($result);
         }
