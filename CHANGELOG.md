@@ -3,6 +3,17 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.6.4] — 2026-10-12
+
+### Fixed
+
+- Fixed incorrect PBX/UCM information in the SIP device modal when multiple PBXs share a GDMS network name. The modal and topology now reuse one resolver, prefer an unambiguous IPv4 /24 match, and fall back to the GDMS network name only when it identifies exactly one PBX. Ambiguous matches are left unset instead of displaying an unrelated PBX.
+- Scoped permanent cleanup of removed GDMS device state and history by both MAC address and `entities_id`, preventing a sync in one entity from deleting records for the same MAC in another entity.
+
+### Dependencies
+
+- Rechecked the bundled `vis-network` release on 2026-10-12. Version **10.1.2** remains the latest stable published version; no dependency upgrade was needed.
+
 ## [1.6.3] — 2026-10-11
 
 ### Security
