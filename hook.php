@@ -114,7 +114,7 @@ function plugin_gdmsintegration_install(): bool {
             `sync_failure_msg` varchar(255) NOT NULL DEFAULT '',
             `scheduled_task` tinyint unsigned NOT NULL DEFAULT 0,
             PRIMARY KEY (`id`),
-            UNIQUE KEY `mac` (`mac`),
+            UNIQUE KEY `entity_mac` (`entities_id`, `mac`),
             KEY `entities_id` (`entities_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}",
         'glpi_plugin_gdmsintegration_links' => "CREATE TABLE `glpi_plugin_gdmsintegration_links` (
@@ -278,6 +278,23 @@ function plugin_gdmsintegration_install(): bool {
     }
     if (!$DB->fieldExists('glpi_plugin_gdmsintegration_devices', 'entities_id') || !isIndex('glpi_plugin_gdmsintegration_devices', 'entities_id')) {
         $migration->addKey('glpi_plugin_gdmsintegration_devices', 'entities_id');
+    }
+
+    // Device state is per entity. Older releases used UNIQUE(mac), which prevented
+    // the same cloud device from being represented independently in two entities.
+    // Drop the legacy index and create the composite unique key idempotently.
+    if ($DB->tableExists('glpi_plugin_gdmsintegration_devices')) {
+        if (isIndex('glpi_plugin_gdmsintegration_devices', 'mac')) {
+            $migration->dropKey('glpi_plugin_gdmsintegration_devices', 'mac');
+        }
+        if (!isIndex('glpi_plugin_gdmsintegration_devices', 'entity_mac')) {
+            $migration->addKey(
+                'glpi_plugin_gdmsintegration_devices',
+                ['entities_id', 'mac'],
+                'entity_mac',
+                'UNIQUE'
+            );
+        }
     }
 
     $migration->executeMigration();
