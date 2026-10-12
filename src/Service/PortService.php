@@ -72,16 +72,39 @@ final class PortService
             $network_id = (int) ($row['network_id'] ?? 0);
             if ($network_id <= 0) {
                 $result[$mac] = [];
-                self::storePortSnapshot((int) ($row['id'] ?? 0), $entities_id, []);
+                self::storePortSnapshot(
+                    (int) ($row['id'] ?? 0),
+                    (int) ($row['entities_id'] ?? $entities_id),
+                    []
+                );
                 continue;
             }
 
             $key = strtolower((string) preg_replace('/[^0-9a-f]/i', '', $mac));
-            $missing[$key] = [
-                'id'        => (int) ($row['id'] ?? 0),
-                'mac'       => $mac,
-                'networkId' => $network_id,
-                'type'      => $kind,
+            $row_entity_id = (int) ($row['entities_id'] ?? $entities_id);
+            if (!isset($missing[$key])) {
+                // A parent-entity dashboard may see descendant rows. Query each MAC
+                // once, but remember every per-entity state row that needs the snapshot.
+                $missing[$key] = [
+                    'mac'               => $mac,
+                    'networkId'         => $network_id,
+                    'type'              => $kind,
+                    'request_entity_id' => $row_entity_id,
+                    'targets'           => [],
+                ];
+            } elseif (
+                $row_entity_id === $entities_id
+                && $missing[$key]['request_entity_id'] !== $entities_id
+            ) {
+                // Prefer the selected entity's record for the API request when the
+                // same MAC is also present in a descendant entity.
+                $missing[$key]['networkId'] = $network_id;
+                $missing[$key]['type'] = $kind;
+                $missing[$key]['request_entity_id'] = $row_entity_id;
+            }
+            $missing[$key]['targets'][] = [
+                'id'          => (int) ($row['id'] ?? 0),
+                'entities_id' => $row_entity_id,
             ];
         }
 
@@ -170,7 +193,13 @@ final class PortService
             // on every dashboard page load. Existing snapshots were handled above
             // and are never overwritten by a transient failure.
             $result[$item['mac']] = $ports;
-            self::storePortSnapshot($item['id'], $entities_id, $ports);
+            foreach ($item['targets'] as $target) {
+                self::storePortSnapshot(
+                    (int) $target['id'],
+                    (int) $target['entities_id'],
+                    $ports
+                );
+            }
         }
 
         return new JsonResponse($result);
