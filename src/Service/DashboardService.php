@@ -265,14 +265,82 @@ final class DashboardService
                 return false;
             };
 
-            // Build network --- first UCM/GCC device map for phone modal PBX info
-            $pbx_by_network = [];
-            foreach ($rows as $_r) {
-                if (!preg_match('/^UCM|^GCC|^CLOUDUCM|^SOFTWAREUCM/i', $_r['raw_model'] ?? '')) continue;
-                $_net = strtolower($_r['network_name'] ?? '');
-                if ($_net !== '' && !isset($pbx_by_network[$_net])) {
-                    $pbx_by_network[$_net] = ['name' => $_r['name'], 'ip' => $_r['private_ip'] ?: $_r['ip'], 'url' => $_r['asset_url']];
+            // Resolve PBX associations once and reuse the same answer for the SIP modal
+            // and network topology. GDMS network_name is not a unique PBX identifier:
+            // multiple sites/PBXs can share it, so never select "the first" PBX.
+            $_pbx_subnet = static function (string $ip): string {
+                $ip = trim($ip);
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+                    return '';
                 }
+                $parts = explode('.', $ip);
+                return $parts[0] . '.' . $parts[1] . '.' . $parts[2];
+            };
+            $_network_key = static function (string $network): string {
+                return strtolower(trim(html_entity_decode($network, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            };
+
+            $pbx_by_subnet  = []; // /24 => list of candidate PBXs
+            $pbx_by_network = []; // normalized GDMS network name => list of PBXs
+            foreach ($rows as $_r) {
+                if (!preg_match('/^(?:UCM|GCC|CLOUDUCM|SOFTWAREUCM)/i', (string)($_r['raw_model'] ?? ''))) {
+                    continue;
+                }
+                $_pbx_mac = strtolower(trim((string)($_r['mac'] ?? '')));
+                if ($_pbx_mac === '') {
+                    continue;
+                }
+                $_pbx_ip = trim((string)(($_r['private_ip'] ?? '') ?: ($_r['ip'] ?? '')));
+                $_pbx_net = $_network_key((string)($_r['network_name'] ?? ''));
+                $_pbx = [
+                    'mac' => $_pbx_mac,
+                    'name' => (string)($_r['name'] ?? ''),
+                    'ip' => $_pbx_ip,
+                    'url' => (string)($_r['asset_url'] ?? ''),
+                    'network_key' => $_pbx_net,
+                ];
+                $_pbx_sn = $_pbx_subnet($_pbx_ip);
+                if ($_pbx_sn !== '') {
+                    $pbx_by_subnet[$_pbx_sn][] = $_pbx;
+                }
+                if ($_pbx_net !== '') {
+                    $pbx_by_network[$_pbx_net][] = $_pbx;
+                }
+            }
+
+            // Cache one unambiguous PBX match per device MAC. Prefer the same
+            // IPv4 /24 as the topology; use network_name only when it identifies
+            // exactly one PBX (or disambiguates candidates on a shared subnet).
+            $pbx_for_device_mac = [];
+            foreach ($rows as $_r) {
+                $_device_mac = strtolower(trim((string)($_r['mac'] ?? '')));
+                if ($_device_mac === '') {
+                    continue;
+                }
+
+                $_device_ip = trim((string)(($_r['private_ip'] ?? '') ?: ($_r['ip'] ?? '')));
+                $_device_sn = $_pbx_subnet($_device_ip);
+                $_device_net = $_network_key((string)($_r['network_name'] ?? ''));
+                $_subnet_candidates = $_device_sn !== '' ? ($pbx_by_subnet[$_device_sn] ?? []) : [];
+
+                $_chosen_pbx = null;
+                if (count($_subnet_candidates) === 1) {
+                    $_chosen_pbx = $_subnet_candidates[0];
+                } elseif (count($_subnet_candidates) > 1 && $_device_net !== '') {
+                    $_matching_net = array_values(array_filter(
+                        $_subnet_candidates,
+                        static fn(array $candidate): bool => $candidate['network_key'] === $_device_net
+                    ));
+                    if (count($_matching_net) === 1) {
+                        $_chosen_pbx = $_matching_net[0];
+                    }
+                } elseif ($_device_net !== '') {
+                    $_network_candidates = $pbx_by_network[$_device_net] ?? [];
+                    if (count($_network_candidates) === 1) {
+                        $_chosen_pbx = $_network_candidates[0];
+                    }
+                }
+                $pbx_for_device_mac[$_device_mac] = $_chosen_pbx;
             }
 
             // Build per-network device stats for tooltip (router/switch/AP/clients counts)
@@ -403,29 +471,15 @@ final class DashboardService
                         $edges[] = ['from' => $l['source_mac'], 'to' => $l['target_mac']];
                     }
                 }
-                // Phone -- PBX edges: match each registered phone to its UCM by /24 subnet of private_ip.
-                // Phones and their UCM share the same LAN segment, so subnet is a reliable heuristic
-                // even when multiple UCMs share the same GDMS network_name (e.g. one GDMS account).
-                // Fallback: network_name match (for phones without private_ip).
-                $_subnet = static function(string $ip): string {
-                    $p = explode('.', $ip);
-                    return count($p) === 4 ? $p[0] . '.' . $p[1] . '.' . $p[2] : '';
-                };
-                $_pbx_by_subnet  = []; // /24 → mac
-                $_pbx_by_netname = []; // network_name → mac  (fallback, first-UCM-wins)
+                // Reuse the same unambiguous PBX resolver as the SIP information modal.
                 foreach ($rows as $_r) {
-                    if (!preg_match('/^UCM|^GCC|^CLOUDUCM/i', $_r['raw_model'] ?? '') || empty($_r['mac'])) continue;
-                    $_sn = $_subnet($_r['private_ip'] ?: $_r['ip']);
-                    if ($_sn !== '' && !isset($_pbx_by_subnet[$_sn]))  $_pbx_by_subnet[$_sn] = $_r['mac'];
-                    $_nk = strtolower(html_entity_decode($_r['network_name']));
-                    if ($_nk !== '' && !isset($_pbx_by_netname[$_nk])) $_pbx_by_netname[$_nk] = $_r['mac'];
-                }
-                foreach ($rows as $_r) {
-                    if (empty($_r['sip_status']) || empty($_r['mac'])) continue;
-                    $_phone_sn  = $_subnet($_r['private_ip'] ?: $_r['ip']);
-                    $_pbx_mac   = ($_phone_sn !== '' ? ($_pbx_by_subnet[$_phone_sn] ?? null) : null)
-                               ?? ($_pbx_by_netname[strtolower(html_entity_decode($_r['network_name']))] ?? null);
-                    if ($_pbx_mac && $_pbx_mac !== $_r['mac']) {
+                    if (empty($_r['sip_status']) || empty($_r['mac'])) {
+                        continue;
+                    }
+                    $_phone_mac = strtolower(trim((string)$_r['mac']));
+                    $_phone_pbx = $pbx_for_device_mac[$_phone_mac] ?? null;
+                    $_pbx_mac = strtolower(trim((string)($_phone_pbx['mac'] ?? '')));
+                    if ($_pbx_mac !== '' && $_pbx_mac !== $_phone_mac) {
                         $edges[] = ['from' => $_r['mac'], 'to' => $_pbx_mac];
                     }
                 }
@@ -527,8 +581,8 @@ final class DashboardService
                 // Firmware update badges are controlled exclusively by the live official-firmware check.
                 $r['_fw_badge_shown'] = false;
 
-                $_pbx_net    = strtolower(html_entity_decode($r['network_name'] ?? ''));
-                $r['_pbx']   = $pbx_by_network[$_pbx_net] ?? null;
+                $_pbx_mac = strtolower(trim((string)($r['mac'] ?? '')));
+                $r['_pbx'] = $pbx_for_device_mac[$_pbx_mac] ?? null;
                 $_sip_tip    = '';
                 if (!empty($r['sip_status'])) {
                     $_sip_tip  = $r['sip_status'] === 'registered' ? __('SIP Registered', 'gdmsintegration') : __('SIP Unregistered', 'gdmsintegration');
