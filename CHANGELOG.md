@@ -3,6 +3,17 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.6.5] — 2026-10-12
+
+### Fixed
+
+- Made the device-state unique key entity-aware: new installations use `UNIQUE(entities_id, mac)`, and the upgrade migration replaces the legacy global `UNIQUE(mac)` key. A cloud device can now have independent state rows in multiple GLPI entities without an insert conflict.
+- Fixed port snapshot persistence when a parent entity request includes descendant devices. Snapshots now update using each device row's actual `entities_id`; a shared MAC is queried once per request and the result is written to each matching entity row.
+
+### Dependencies
+
+- Revalidated the bundled `vis-network` dependency on 2026-10-12. Upstream stable version **10.1.2** remains current; no dependency upgrade was needed.
+
 ## [1.6.4] — 2026-10-12
 
 ### Fixed
