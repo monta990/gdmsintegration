@@ -3,6 +3,18 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.6.6] — 2026-10-24
+
+### Fixed
+
+- Standardized automatically generated ticket descriptions for WAN incidents, offline devices, and cloud alerts with a shared HTML table layout. Automatic recovery follow-ups now use the same HTML-safe formatting instead of Markdown.
+- Escaped every dynamic field as UTF-8 plain text before inserting it into the fixed ticket template, then passed generated markup through GLPI's `Glpi\\RichText\\RichText::getSafeHtml()` sanitizer. No GDMS value is allowed to introduce markup or attributes.
+- Used conservative table markup and inline styles, avoiding fixed text/background colors and external CSS so descriptions remain legible across GLPI light/dark themes and typical HTML email clients.
+
+### Dependencies
+
+- Checked the bundled `vis-network` dependency against npm and the upstream release page on 2026-10-24. Version **10.1.2** remains the latest stable published release; no plugin-bundled dependency update was needed. GLPI's own HTML sanitizer is provided by the supported GLPI core, not bundled by this plugin.
+
 ## [1.6.5] — 2026-10-12
 
 ### Fixed
