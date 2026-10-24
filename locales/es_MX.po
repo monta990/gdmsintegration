@@ -1454,7 +1454,7 @@ msgid ""
 "✅ Device %s is back online as of %s. Ticket auto-resolved by GDMS "
 "Integration."
 msgstr ""
-"✅ El dispositivo **%s** volvió en línea el %s. Ticket resuelto "
+"✅ El dispositivo %s volvió en línea el %s. Ticket resuelto "
 "automáticamente por GDMS Integration."
 
 #: src/Sync.php:985
@@ -1464,7 +1464,7 @@ msgid ""
 "connectivity confirmed as of %s. Ticket auto-resolved by GDMS "
 "Integration."
 msgstr ""
-"✅ El puerto WAN **%s** en **%s** se recuperó — enlace activo y "
+"✅ El puerto WAN %s en %s se recuperó — enlace activo y "
 "conectividad a internet confirmada el %s. Ticket resuelto automáticamente"
 " por GDMS Integration."
 
