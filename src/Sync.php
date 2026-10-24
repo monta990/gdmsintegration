@@ -1212,7 +1212,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 'itemtype'      => 'Ticket',
                 'items_id'      => $link['tickets_id'],
                 'content'       => \GlpiPlugin\Gdmsintegration\Utils::ticketHtmlNote(sprintf(
-                    __('✅ WAN port **%s** on **%s** has recovered — link up and internet connectivity confirmed as of %s. Ticket auto-resolved by GDMS Integration.', 'gdmsintegration'),
+                    str_replace('**', '', __('✅ WAN port **%s** on **%s** has recovered — link up and internet connectivity confirmed as of %s. Ticket auto-resolved by GDMS Integration.', 'gdmsintegration')),
                     $portSilk, $deviceName, gmdate('Y-m-d H:i:s')
                 )),
                 'is_private'    => 0,
@@ -1414,7 +1414,7 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                 'itemtype'        => 'Ticket',
                 'items_id'        => $link_row['tickets_id'],
                 'content'         => \GlpiPlugin\Gdmsintegration\Utils::ticketHtmlNote(sprintf(
-                    __('✅ Device **%s** is back online as of %s. Ticket auto-resolved by GDMS Integration.', 'gdmsintegration'),
+                    str_replace('**', '', __('✅ Device **%s** is back online as of %s. Ticket auto-resolved by GDMS Integration.', 'gdmsintegration')),
                     $name,
                     gmdate('Y-m-d H:i:s')
                 )),
