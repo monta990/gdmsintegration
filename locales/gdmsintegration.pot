@@ -921,11 +921,11 @@ msgid "went offline and is no longer reachable."
 msgstr ""
 
 #: src/Sync.php:1187
-msgid "✅ Device **%s** is back online as of %s. Ticket auto-resolved by GDMS Integration."
+msgid "✅ Device %s is back online as of %s. Ticket auto-resolved by GDMS Integration."
 msgstr ""
 
 #: src/Sync.php:985
-msgid "✅ WAN port **%s** on **%s** has recovered — link up and internet connectivity confirmed as of %s. Ticket auto-resolved by GDMS Integration."
+msgid "✅ WAN port %s on %s has recovered — link up and internet connectivity confirmed as of %s. Ticket auto-resolved by GDMS Integration."
 msgstr ""
 
 #: templates/dashboard.html.twig:226 templates/dashboard.html.twig:227 templates/dashboard.html.twig:228 templates/dashboard.html.twig:229 templates/dashboard.html.twig:236 templates/dashboard.html.twig:238 templates/dashboard.html.twig:239 templates/dashboard.html.twig:241
