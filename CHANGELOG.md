@@ -4,10 +4,11 @@ All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.6.6] — 2026-10-24
-- Preserved legacy gettext message identifiers for recovery follow-ups while stripping Markdown markers from the translated template before HTML escaping; updated and recompiled all four locale catalogs.
-
 
 ### Fixed
+
+- Preserved legacy gettext message identifiers for recovery follow-ups while stripping Markdown markers from the translated template before HTML escaping; updated and recompiled all four locale catalogs.
+
 
 - Standardized automatically generated ticket descriptions for WAN incidents, offline devices, and cloud alerts with a shared HTML table layout. Automatic recovery follow-ups now use the same HTML-safe formatting instead of Markdown.
 - Escaped every dynamic field as UTF-8 plain text before inserting it into the fixed ticket template, then passed generated markup through GLPI's `Glpi\\RichText\\RichText::getSafeHtml()` sanitizer. No GDMS value is allowed to introduce markup or attributes.
