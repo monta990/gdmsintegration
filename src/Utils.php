@@ -77,8 +77,8 @@ class Utils {
      */
     private static function sanitizeTicketHtml(string $html): string
     {
-        if (class_exists(\\Glpi\\RichText\\RichText::class)) {
-            return \\Glpi\\RichText\\RichText::getSafeHtml($html);
+        if (class_exists(\Glpi\RichText\RichText::class)) {
+            return \Glpi\RichText\RichText::getSafeHtml($html);
         }
 
         return htmlspecialchars($html, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -134,7 +134,6 @@ class Utils {
                 . '</th>'
                 . '</tr></thead><tbody>';
 
-            $rowIndex = 0;
             foreach ($rows as $row) {
                 if (!is_array($row) || !array_key_exists('label', $row) || !array_key_exists('value', $row)) {
                     continue;
@@ -157,7 +156,6 @@ class Utils {
                     . nl2br(self::escapeTicketText($value), false)
                     . '</td>'
                     . '</tr>';
-                $rowIndex++;
             }
 
             $html .= '</tbody></table>';
