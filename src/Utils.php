@@ -81,7 +81,7 @@ class Utils {
             return \Glpi\RichText\RichText::getSafeHtml($html);
         }
 
-        return \Glpi\RichText\RichText::getSafeHtml(htmlspecialchars($html, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
+        return htmlspecialchars($html, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     /**
