@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.6.6] — 2026-10-24
+- Preserved legacy gettext message identifiers for recovery follow-ups while stripping Markdown markers from the translated template before HTML escaping; updated and recompiled all four locale catalogs.
+
 
 ### Fixed
 
