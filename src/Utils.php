@@ -61,6 +61,132 @@ class Utils {
         self::log($message, true);
     }
 
+    /**
+     * Escape plain text before placing it inside plugin-generated ticket HTML.
+     * Dynamic GDMS/GLPI values are always treated as text, never as markup.
+     */
+    private static function escapeTicketText(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
+     * Sanitize the final, plugin-controlled HTML using GLPI's rich-text sanitizer.
+     * GLPI 11 and 12 both provide this API. The fallback fails closed if a future
+     * or unsupported GLPI runtime does not expose it.
+     */
+    private static function sanitizeTicketHtml(string $html): string
+    {
+        if (class_exists(\\Glpi\\RichText\\RichText::class)) {
+            return \\Glpi\\RichText\\RichText::getSafeHtml($html);
+        }
+
+        return htmlspecialchars($html, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
+     * Build a consistent HTML body for automatically generated GDMS tickets.
+     *
+     * Rows must contain plain-text label/value pairs. All values are escaped,
+     * the markup and inline styles are static, and the final HTML is sanitized
+     * by GLPI before it is stored. Table markup and inline styling are deliberately
+     * simple for GLPI's light/dark themes and HTML email clients.
+     *
+     * @param array<int, array{label:string, value:mixed}> $rows
+     */
+    public static function buildTicketHtml(
+        string $heading,
+        string $summary,
+        array $rows,
+        string $footer = '',
+        string $reference = ''
+    ): string {
+        $html = '<div class="gdms-ticket-content" style="font-size:14px;line-height:1.5;">';
+
+        if ($reference !== '') {
+            $html .= '<p style="margin:0 0 8px 0;font-size:12px;">'
+                . '<strong>' . self::escapeTicketText($reference) . '</strong>'
+                . '</p>';
+        }
+
+        if ($heading !== '') {
+            $html .= '<h3 style="margin:0 0 10px 0;font-size:16px;line-height:1.4;font-weight:600;">'
+                . self::escapeTicketText($heading)
+                . '</h3>';
+        }
+
+        if ($summary !== '') {
+            $html .= '<p style="margin:0 0 14px 0;">'
+                . nl2br(self::escapeTicketText($summary), false)
+                . '</p>';
+        }
+
+        if ($rows !== []) {
+            $borderStyle = 'border:1px solid #9aa4b2;padding:7px 9px;vertical-align:top;';
+            $html .= '<table border="1" cellpadding="6" cellspacing="0" '
+                . 'style="width:100%;border-collapse:collapse;margin:0 0 14px 0;">'
+                . '<thead><tr>'
+                . '<th scope="col" style="' . $borderStyle . 'text-align:left;font-weight:600;width:32%;">'
+                . self::escapeTicketText(__('Field', 'gdmsintegration'))
+                . '</th>'
+                . '<th scope="col" style="' . $borderStyle . 'text-align:left;font-weight:600;">'
+                . self::escapeTicketText(__('Value', 'gdmsintegration'))
+                . '</th>'
+                . '</tr></thead><tbody>';
+
+            $rowIndex = 0;
+            foreach ($rows as $row) {
+                if (!is_array($row) || !array_key_exists('label', $row) || !array_key_exists('value', $row)) {
+                    continue;
+                }
+
+                $label = is_scalar($row['label']) || $row['label'] === null
+                    ? (string) ($row['label'] ?? '')
+                    : '';
+                $value = is_scalar($row['value']) || $row['value'] === null
+                    ? (string) ($row['value'] ?? '')
+                    : '';
+
+                // Light striping is avoided deliberately: it has poor contrast in
+                // some dark themes and is inconsistently supported by email clients.
+                $html .= '<tr>'
+                    . '<td style="' . $borderStyle . 'font-weight:600;">'
+                    . self::escapeTicketText($label)
+                    . '</td>'
+                    . '<td style="' . $borderStyle . '">'
+                    . nl2br(self::escapeTicketText($value), false)
+                    . '</td>'
+                    . '</tr>';
+                $rowIndex++;
+            }
+
+            $html .= '</tbody></table>';
+        }
+
+        if ($footer !== '') {
+            $html .= '<p style="margin:12px 0 0 0;font-size:12px;">'
+                . self::escapeTicketText($footer)
+                . '</p>';
+        }
+
+        $html .= '</div>';
+
+        return self::sanitizeTicketHtml($html);
+    }
+
+    /**
+     * Format an automatic ticket follow-up as safe HTML without interpreting
+     * any part of the supplied message as markup.
+     */
+    public static function ticketHtmlNote(string $message): string
+    {
+        $html = '<p style="margin:0;font-size:14px;line-height:1.5;">'
+            . nl2br(self::escapeTicketText($message), false)
+            . '</p>';
+
+        return self::sanitizeTicketHtml($html);
+    }
+
     public static function encrypt(string $value): string {
         return (new \GLPIKey())->encrypt($value);
     }
