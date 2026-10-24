@@ -1452,7 +1452,7 @@ msgstr "s'est déconnecté et n'est plus joignable."
 #: src/Sync.php:1187
 #, python-format
 msgid ""
-"✅ Device %s is back online as of %s. Ticket auto-resolved by GDMS "
+"✅ Device **%s** is back online as of %s. Ticket auto-resolved by GDMS "
 "Integration."
 msgstr ""
 "✅ L'appareil %s est de nouveau en ligne depuis le %s. Ticket résolu "
@@ -1461,7 +1461,7 @@ msgstr ""
 #: src/Sync.php:985
 #, python-format
 msgid ""
-"✅ WAN port %s on %s has recovered — link up and internet "
+"✅ WAN port **%s** on **%s** has recovered — link up and internet "
 "connectivity confirmed as of %s. Ticket auto-resolved by GDMS "
 "Integration."
 msgstr ""
