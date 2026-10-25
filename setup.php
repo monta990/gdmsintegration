@@ -64,6 +64,10 @@ function plugin_gdmsintegration_check_config(bool $verbose = false): bool {
 function plugin_init_gdmsintegration(): void {
     global $PLUGIN_HOOKS;
 
+    // Self-heal a missing/malformed cron row from prior candidate builds. The
+    // helper returns immediately when the canonical task is already present.
+    plugin_gdmsintegration_ensure_cron_task();
+
     // GLPI 11 exposes the legacy CSRF-compliance hook; GLPI 12 removed it.
     // Keep the declaration only for GLPI 11 so the plugin can initialize on both targets.
     if (version_compare(GLPI_VERSION, '12.0.0', '<')) {

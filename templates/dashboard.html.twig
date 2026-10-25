@@ -681,19 +681,31 @@
                 if (!Array.isArray(list)) return;
                 list.forEach(function(item) {
                     fwData[item.mac] = item;
-                    if (item.firmwareCheckError) {
-                        document.querySelectorAll('.gdms-fw-badge[data-mac="' + item.mac + '"]')
-                            .forEach(function(el) {
-                                el.style.display = 'inline';
-                                el.classList.remove('bg-info');
-                                el.classList.add('bg-warning', 'text-dark');
-                                el.setAttribute('data-bs-original-title', 'No se pudo comprobar el firmware en GWN: ' + item.firmwareCheckError);
-                            });
-                        return;
-                    }
-                    if (!item.hasUpdate) return;
-                    document.querySelectorAll('.gdms-fw-badge[data-mac="' + item.mac + '"]')
-                        .forEach(function(el) { el.style.display = 'inline'; });
+                    var status = item.firmwareStatus || (item.hasUpdate ? 'update_available' : 'unverified');
+                    var statusLabel = item.firmwareStatusLabel || STR.firmwareUnverified;
+                    if (item.firmwareCheckError) statusLabel += ' (' + item.firmwareCheckError + ')';
+                    document.querySelectorAll('small.gdms-fw-badge[data-mac="' + item.mac + '"]').forEach(function(el) {
+                        el.setAttribute('title', statusLabel);
+                        el.setAttribute('data-bs-original-title', statusLabel);
+                    });
+                    document.querySelectorAll('span.gdms-fw-badge[data-mac="' + item.mac + '"]').forEach(function(el) {
+                        var icon = el.querySelector('i');
+                        if (!icon) return;
+                        if (status === 'up_to_date') {
+                            el.style.display = 'none';
+                            return;
+                        }
+                        el.style.display = 'inline';
+                        if (status === 'update_available') {
+                            icon.className = 'ti ti-arrow-up-circle text-warning ms-1';
+                        } else if (status === 'beta_installed' || status === 'ahead_of_stable') {
+                            icon.className = 'ti ti-info-circle text-info ms-1';
+                        } else {
+                            icon.className = 'ti ti-alert-triangle text-warning ms-1';
+                        }
+                        el.setAttribute('title', statusLabel);
+                        el.setAttribute('data-bs-original-title', statusLabel);
+                    });
                 });
             })
             .catch(function() {});
@@ -711,7 +723,6 @@
         var isGwn   = info.isGwn || /^GWN|^GSS/i.test(model);
         var official    = info.official    || null;
         var officialUrl = info.officialUrl || '';
-        var latestFw = info.latestVersion || official || null;
 
         var body     = document.getElementById('gdmsFwModalBody');
         var schedBtn = document.getElementById('gdmsFwScheduleBtn');
@@ -722,19 +733,22 @@
 
         var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; };
 
+        var firmwareStatus = info.firmwareStatus || (info.hasUpdate ? 'update_available' : 'unverified');
+        var statusLabel = info.firmwareStatusLabel || STR.firmwareUnverified;
+        var mustBlockDowngrade = firmwareStatus === 'beta_installed' || firmwareStatus === 'ahead_of_stable';
         var versionRows = '';
-        if (official) {
+        if (official && info.hasUpdate && info.canScheduleUpdate === true) {
             versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
               + '<input type="radio" name="gdmsFwVersion" value="' + esc(official) + '" data-url="' + esc(officialUrl || '') + '" class="form-check-input mt-0" checked>'
               + '<code class="text-warning">' + esc(official) + '</code>'
               + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
               + '</label></td></tr>';
-        } else if (officialUrl || isGwn) {
-            versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
-              + '<input type="radio" name="gdmsFwVersion" value="" data-url="' + esc(officialUrl || '') + '" class="form-check-input mt-0" checked>'
-              + '<span class="text-warning fw-semibold">' + esc(STR.latestAvail) + '</span>'
-              + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
-              + '</label></td></tr>';
+        } else if (official && info.hasUpdate) {
+            versionRows += '<tr><td><span class="text-warning">' + esc(official) + '</span><div class="small text-muted mt-1">' + esc(statusLabel) + '</div></td></tr>';
+        } else if (official && firmwareStatus === 'up_to_date') {
+            versionRows += '<tr><td><span class="text-success">' + esc(official) + ' — ' + esc(statusLabel) + '</span></td></tr>';
+        } else {
+            versionRows += '<tr><td><span class="text-muted">' + esc(statusLabel) + '</span></td></tr>';
         }
 
         var macUpper  = mac.toUpperCase();
@@ -746,9 +760,14 @@
               + '<td><a href="http://' + esc(devIp) + '/" target="_blank" rel="noopener" class="font-monospace">' + esc(devIp) + '</a></td></tr>';
         }
         var macCell = '<code id="gdmsFwMacCode" style="cursor:pointer;" title="' + STR.deviceMac + '" data-bs-toggle="tooltip">' + esc(macUpper) + '</code>';
+        var statusDetails = '<tr><th class="text-muted fw-normal w-50">' + esc(STR.firmwareStatus) + '</th><td>' + esc(statusLabel)
+          + (info.firmwareCheckError ? '<div class="small text-warning mt-1">' + esc(info.firmwareCheckError) + '</div>' : '')
+          + (info.betaVersion ? '<div class="small text-muted mt-1">' + esc(STR.betaChannelPublished) + ': <code>' + esc(info.betaVersion) + '</code></div>' : '')
+          + '</td></tr>';
         body.innerHTML = '<table class="table table-sm mb-0">'
           + macIpRow
           + '<tr><th class="text-muted fw-normal w-50">' + STR.curFw + '</th><td><code>' + esc(current) + '</code></td></tr>'
+          + statusDetails
           + '<tr><th class="text-muted fw-normal align-top pt-2">' + STR.selectVersion + '</th>'
           + '<td>' + (versionRows ? '<table class="mb-0">' + versionRows + '</table>' : '<span class="text-muted">—</span>') + '</td></tr>'
           + '<tr><th class="text-muted fw-normal">' + STR.deviceMac + '</th>'
@@ -803,7 +822,9 @@
             fpWrap._fp.set('minDate', new Date(Date.now() + 5 * 60 * 1000));
             fpWrap._fp.clear();
         }
-        var hasVersion = !!(versionRows || latestFw || officialUrl);
+        // Scheduling is allowed only when the backend verified a newer stable
+        // version and an actionable path. Unverified sources remain review-only.
+        var hasVersion = !mustBlockDowngrade && info.canScheduleUpdate === true;
         schedRow.style.display = hasVersion ? '' : 'none';
         asapBtn.style.display  = hasVersion ? 'inline-block' : 'none';
         schedBtn.style.display = hasVersion ? 'inline-block' : 'none';
@@ -814,8 +835,7 @@
 
         function getSelectedVersion() {
             var radio = body.querySelector('input[name="gdmsFwVersion"]:checked');
-            if (!radio) return (latestFw || current || '');
-            return radio.value || '';
+            return radio ? (radio.value || '') : '';
         }
         function getSelectedUrl() {
             var radio = body.querySelector('input[name="gdmsFwVersion"]:checked');
@@ -824,6 +844,9 @@
         function doUpgrade(scheduleMs) {
             var version = getSelectedVersion();
             var selUrl  = getSelectedUrl();
+            // A beta/ahead-of-stable installation must never be offered an automatic
+            // stable downgrade. Unknown or unverified firmware metadata is review-only.
+            if (mustBlockDowngrade || !hasVersion) return;
             // GWN upgrade/add selects the latest repository firmware server-side;
             // it therefore does not require a version or download URL.
             if (!isGwn && !version && !selUrl) return;
@@ -1481,7 +1504,14 @@
         });
 
         setTimeout(function() {
-            fetch(ALERTS_URL, { credentials: 'same-origin' })
+            // Always request the live cloud-backed list. The cache-buster also
+            // protects against shared hosting/reverse proxies that cache GETs.
+            var alertsRequestUrl = ALERTS_URL + (ALERTS_URL.indexOf('?') === -1 ? '?' : '&') + '_gdms_alerts_ts=' + Date.now();
+            fetch(alertsRequestUrl, {
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+            })
                 .then(function(r) { var partial = r.headers.get('X-GDMS-Result-Complete') === '0'; return r.json().then(function(data){ return {data:data, partial:partial}; }); })
                 .then(function(resp) {
                     var list = resp.data;

@@ -5,13 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.6.6] — 2026-10-25
 
+Final package prepared on 2026-10-25. This release retains GWN Networking alerts only; GDMS Unified Communications alert listing is not included because no supported listing endpoint was confirmed in the available API documentation.
+
 ### Fixed
 
-- Preserved legacy gettext message identifiers for recovery follow-ups while stripping Markdown markers from the translated template before HTML escaping; updated and recompiled all four locale catalogs.
+- Corrected the `SyncDevices` automatic action to register the canonical PSR-4 itemtype (`GlpiPlugin\Gdmsintegration\Sync`) so GLPI 11/12 can discover it and apply plugin enabled-state checks. Added cleanup for malformed task rows from the previous candidate and automatic repair on plugin activation/runtime initialization.
+- Made per-entity synchronization locks release in `finally`, including on early returns and exceptions; lock timestamps now use UTC consistently.
+- Fixed operational-history retention cleanup criteria for both client history and action logs so GLPI can delete rows older than the configured cutoff without a PHP array-key error.
+- Cron runs now report partial provider/API failures as partial processing, continue with independent entities when one entity throws, and warn about incomplete API credentials rather than silently treating the run as fully successful.
+- Reworked the firmware check to parse the official Grandstream catalog plus dedicated official/beta product pages; results now distinguish stable updates, current stable firmware, beta firmware, versions newer than stable, unsupported/unlisted models, and unverified/error states. A missing catalog result is no longer reported as “no update”.
+- Identified stable GRP2602/GRP2604 firmware from the official catalog, surfaced `1.0.7.71` for devices on `1.0.7.66`, and blocked automatic stable downgrades for UCM devices running the known `1.0.35.8` beta channel.
+- Disabled firmware scheduling unless a newer stable version was verified and a trusted official download/API path is available. GWN catalog fallback versions remain review-only unless the per-device GWN Cloud version check succeeds; devices with missing/malformed installed firmware remain visible as unverified instead of being omitted.
+- Added server-side firmware upgrade validation: the requested target must match the latest verified official stable version for that exact UC model and be newer than the installed firmware. Download URLs are resolved again server-side from the current official source or an explicit model mapping; browser-supplied paths cannot select another firmware file, and untrusted or missing download paths are refused. GWN upgrades normalize compact/colonized MAC addresses for matching, preserve the API's existing compact payload format, and require a verified newer stable version from GWN Cloud before scheduling.
+- Preserved numeric GWN alert severity codes (including `level=15`) as `unknown` rather than guessing an undocumented numeric mapping (and removed the obsolete numeric-map lookup); documented textual severities continue to normalize by name, while unknown codes are retained in ticket details and surfaced for review at normal priority until Grandstream confirms the API mapping.
+- Suppressed repeat diagnostic samples for the same network/alert during one PHP request, deduplicated repeated alert IDs within each response, and prevented automatic ticket creation for historical alerts older than seven days or duplicate alert IDs already referenced by tickets in any status.
+- Made the dashboard alert-list endpoint explicitly non-cacheable (including a browser cache-buster) so it always requests the current cloud list; the dashboard hides alerts only when the API explicitly supplies a read/deleted/cleared/inactive state, without guessing based on age. Local dismiss remains a UI-only action because the API does not expose a supported read/delete operation.
 
-
+- Preserved legacy gettext message identifiers for recovery follow-ups while stripping Markdown markers from translated templates before HTML escaping; updated and recompiled all four locale catalogs.
 - Standardized automatically generated ticket descriptions for WAN incidents, offline devices, and cloud alerts with a shared HTML table layout. Automatic recovery follow-ups now use the same HTML-safe formatting instead of Markdown.
-- Escaped every dynamic field as UTF-8 plain text before inserting it into the fixed ticket template, then passed generated markup through GLPI's `Glpi\\RichText\\RichText::getSafeHtml()` sanitizer. No GDMS value is allowed to introduce markup or attributes.
+- Escaped every dynamic field as UTF-8 plain text before inserting it into the fixed ticket template, then passed generated markup through GLPI's `Glpi\RichText\RichText::getSafeHtml()` sanitizer. No GDMS value is allowed to introduce markup or attributes.
 - Used conservative table markup and inline styles, avoiding fixed text/background colors and external CSS so descriptions remain legible across GLPI light/dark themes and typical HTML email clients.
 
 ### Dependencies
@@ -52,7 +64,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added entity validation to firmware upgrade, reboot, and factory-reset targets to prevent actions against devices outside the requested entity.
 
 ### Fixed
-
 - Fixed warning-state contrast in the SIP device modal: pending/synchronization badges and reboot/factory-reset confirmation buttons now use GLPI-compatible dark text on warning backgrounds.
 - Removed the undocumented `fwVersion` field from firmware task creation; the request retains the documented `firmwareDownloadUrl` field. This aligns the payload with the published GDMS `task/add` contract.
 - Corrected the 1.6.3 history migration index definition: `entity_date` is now explicitly created on `entities_id,date`, avoiding update failures on existing installations.
@@ -69,7 +80,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Limited topology preloading to links sourced by devices in the current API batch instead of loading the entire plugin link table on each synchronization.
 - Staggered the initial firmware-check request after the port-status request to reduce contention, while retaining firmware badges and upgrade workflows.
 - Reduced transient API wait time by bounding normal requests to a 4-second connection timeout and 12-second total timeout, with at most one retry for retry-safe requests.
+
 - Corrected entity filtering for plugin-owned tables that do not contain `is_recursive`; recursive access now uses the entity IDs already granted in the GLPI session instead of generating invalid `table.is_recursive` SQL.
+
 - Fixed bulk GDMS reboot result handling to use the API's `success` result instead of the nonexistent `ok` key.
 - Fixed the 1.6.2 version metadata inconsistency and aligned `setup.php`, `plugin.xml`, release URLs, and translations on 1.6.3.
 - Hardened bulk GDMS reboot authorization so every requested device MAC must belong to an entity accessible to the caller before any reboot is sent.
@@ -85,8 +98,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Compatibility
 
 - Validated against the current **GLPI 11.0/bugfixes** and **GLPI 12.0/bugfixes** APIs relevant to this release.
-
----
 
 ## [1.6.2] — 2026-09-16
 

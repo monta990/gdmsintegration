@@ -205,7 +205,7 @@ class Utils {
         $days = max(7, min(3650, $days));
         $cutoff = gmdate('Y-m-d H:i:s', time() - ($days * 86400));
         foreach (['glpi_plugin_gdmsintegration_client_history' => 'seen_at', 'glpi_plugin_gdmsintegration_action_log' => 'date'] as $table => $field) {
-            try { $DB->delete($table, ['entities_id' => $entities_id, [$field, '<'] => $cutoff]); } catch (\Throwable $e) { self::debug("Retention cleanup skipped for {$table}: " . $e->getMessage()); }
+            try { $DB->delete($table, ['entities_id' => $entities_id, $field => ['<', $cutoff]]); } catch (\Throwable $e) { self::debug("Retention cleanup skipped for {$table}: " . $e->getMessage()); }
         }
     }
 
@@ -218,8 +218,8 @@ class Utils {
         global $DB;
         $name = substr($name, 0, 190);
         $token = bin2hex(random_bytes(16));
-        $now = date('Y-m-d H:i:s');
-        $stale = date('Y-m-d H:i:s', time() - max(30, $ttl));
+        $now = gmdate('Y-m-d H:i:s');
+        $stale = gmdate('Y-m-d H:i:s', time() - max(30, $ttl));
         $table = 'glpi_plugin_gdmsintegration_locks';
 
         try {

@@ -20,16 +20,16 @@ namespace GlpiPlugin\Gdmsintegration;
  */
 class Sync extends \CommonGLPI {
 
+    /** Do not create new incidents for old alert history when the plugin first sees it. */
+    private const GWN_ALERT_TICKET_MAX_AGE_DAYS = 7;
+
     // -----------------------------------------------------------------------
     // GLPI Cron entry point — cronSyncDevices
     // -----------------------------------------------------------------------
     public static function cronSyncDevices(\CronTask $task): int {
         global $DB;
 
-        // Only visit entities that have a GDMS configuration row. The previous
-        // implementation walked every GLPI entity and then performed one config
-        // lookup per entity, adding unnecessary work and making large installations
-        // appear stuck before synchronization had even started.
+        // Only visit entities that have a GDMS configuration row.
         $entityIds = [];
         foreach ($DB->request([
             'SELECT' => ['entities_id'],
@@ -42,15 +42,54 @@ class Sync extends \CommonGLPI {
         }
 
         $total = 0;
+        $hasPartialFailures = false;
+        $firstException = null;
         foreach (array_keys($entityIds) as $entities_id) {
-            $total += self::syncEntity((int)$entities_id);
+            $entityPartial = false;
+            try {
+                $total += max(0, self::syncEntity((int)$entities_id, null, $entityPartial));
+                if ($entityPartial) {
+                    $hasPartialFailures = true;
+                    \GlpiPlugin\Gdmsintegration\Utils::warning(
+                        sprintf('Cron synchronization was partial for entity %d.', (int)$entities_id)
+                    );
+                }
+            } catch (\Throwable $e) {
+                // One broken entity must not prevent independent entities syncing.
+                // Mark the run partial so GLPI records the outcome and the next cycle retries.
+                $hasPartialFailures = true;
+                $firstException ??= $e;
+                \GlpiPlugin\Gdmsintegration\Utils::warning(sprintf(
+                    'Cron synchronization failed for entity %d (%s): %s',
+                    (int)$entities_id,
+                    get_class($e),
+                    $e->getMessage()
+                ));
+            }
         }
 
         $task->addVolume($total);
-        \GlpiPlugin\Gdmsintegration\Utils::log(
-            sprintf("GDMS Sync completed — %d device(s) processed", $total)
-        );
+        if ($firstException !== null) {
+            \GlpiPlugin\Gdmsintegration\Utils::warning(sprintf(
+                'GDMS cron encountered an exception after processing %d device(s); GLPI will record the task as failed.',
+                $total
+            ));
+            // Let GLPI record exception details and apply its normal repeated-error policy,
+            // but only after other independently configured entities had a chance to sync.
+            throw $firstException;
+        }
 
+        \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
+            'GDMS Sync %s — %d device(s) processed',
+            $hasPartialFailures ? 'completed with partial failures' : 'completed',
+            $total
+        ));
+
+        // GLPI interprets -1 as partial processing, 0 as no work, and >0 as success.
+        // A provider outage should not put this task into GLPI's repeated-error state.
+        if ($hasPartialFailures) {
+            return -1;
+        }
         return ($total > 0) ? 1 : 0;
     }
 
@@ -66,13 +105,23 @@ class Sync extends \CommonGLPI {
     // -----------------------------------------------------------------------
     // Per-entity sync — called from cron
     // -----------------------------------------------------------------------
-    public static function syncEntity(int $entities_id, ?string $source = null): int {
+    public static function syncEntity(int $entities_id, ?string $source = null, ?bool &$partial = null): int {
         global $DB;
+        $partial = false;
         $config = \GlpiPlugin\Gdmsintegration\Config::getConfigByEntity($entities_id);
-        $hasGwn  = !empty($config['gwn_client_id'])  && !empty($config['gwn_client_secret']);
-        $hasGdms = !empty($config['client_id'])       && !empty($config['client_secret'])
-                   && !empty($config['username'])     && !empty($config['password']);
+        $hasGwn  = !empty($config['gwn_client_id']) && !empty($config['gwn_client_secret']);
+        $hasGdms = !empty($config['client_id']) && !empty($config['client_secret'])
+                   && !empty($config['username']) && !empty($config['password']);
+        $gwnConfigured = !empty($config['gwn_client_id']) || !empty($config['gwn_client_secret']);
+        $gdmsConfigured = !empty($config['client_id']) || !empty($config['client_secret'])
+                          || !empty($config['username']) || !empty($config['password']);
         if (!$hasGwn && !$hasGdms) {
+            if ($gwnConfigured || $gdmsConfigured) {
+                $partial = true;
+                \GlpiPlugin\Gdmsintegration\Utils::warning(
+                    "Synchronization skipped for entity {$entities_id}: incomplete GDMS/GWN credentials."
+                );
+            }
             return 0;
         }
 
@@ -83,184 +132,188 @@ class Sync extends \CommonGLPI {
             \GlpiPlugin\Gdmsintegration\Utils::warning("Sync skipped — another synchronization is already running for entity {$entities_id}");
             return 0;
         }
-        $syncStarted = microtime(true);
-        $total = 0;
-        $ts    = gmdate('Y-m-d H:i:s');
 
-        // Identify caller without coupling synchronization logic to HTTP superglobals.
-        if (defined('GLPI_CRON') || php_sapi_name() === 'cli') {
-            $caller = 'cron';
-        } elseif ($source === 'button') {
-            $caller = 'ajax-button';
-        } elseif ($source === 'auto-refresh') {
-            $caller = 'auto-refresh';
-        } elseif ($source !== null && $source !== '') {
-            $caller = $source;
-        } else {
-            $caller = 'system';
-        }
-        \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] syncEntity called — source={$caller} entity={$entities_id}");
+        try {
+            $syncStarted = microtime(true);
+            $total = 0;
+            $ts    = gmdate('Y-m-d H:i:s');
 
-        $seen_macs = []; // Collect all MACs returned by API this cycle
-        // Track whether each configured API succeeded — if any fails we must NOT run
-        // markRemovedDevicesOffline, because an empty $seen_macs would cause all stored
-        // device state records to be deleted, triggering ghost WAN tickets on the next sync.
-        $gwn_api_ok  = true; // assume OK when not configured
-        $gdms_api_ok = true;
+            // Identify caller without coupling synchronization logic to HTTP superglobals.
+            if (defined('GLPI_CRON') || php_sapi_name() === 'cli') {
+                $caller = 'cron';
+            } elseif ($source === 'button') {
+                $caller = 'ajax-button';
+            } elseif ($source === 'auto-refresh') {
+                $caller = 'auto-refresh';
+            } elseif ($source !== null && $source !== '') {
+                $caller = $source;
+            } else {
+                $caller = 'system';
+            }
+            \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] syncEntity called — source={$caller} entity={$entities_id}");
 
-        // ── GWN API (networking: APs, Switches, Routers) ──────────────────
-        if (!empty($config['gwn_client_id']) && !empty($config['gwn_client_secret'])) {
-            $gwn_api_ok = false; // will be set true only on success
-            \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN sync start — entity {$entities_id}");
+            $seen_macs = []; // Collect all MACs returned by API this cycle
+            // Track whether each configured API succeeded — if any fails we must NOT run
+            // markRemovedDevicesOffline, because an empty $seen_macs would cause all stored
+            // device state records to be deleted, triggering ghost WAN tickets on the next sync.
+            $gwn_api_ok  = !$gwnConfigured; // Unconfigured providers do not make a run partial.
+            $gdms_api_ok = !$gdmsConfigured;
 
-            $gwnToken = \GlpiPlugin\Gdmsintegration\API::gwnGetToken($config);
-            if ($gwnToken !== false) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN token obtained OK — API ID: {$config['gwn_client_id']}");
-                $config['gwn_access_token'] = $gwnToken;
-                $gwn_list_complete = false;
-                $gwnDevices = \GlpiPlugin\Gdmsintegration\API::gwnGetDevices($config, $gwn_list_complete);
-                if ($gwnDevices === false) {
-                    // network/list API call failed — treat same as token failure
-                    \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN ERROR — network list failed for entity {$entities_id}");
+            // ── GWN API (networking: APs, Switches, Routers) ──────────────────
+            if (!empty($config['gwn_client_id']) && !empty($config['gwn_client_secret'])) {
+                $gwn_api_ok = false; // will be set true only on success
+                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN sync start — entity {$entities_id}");
+
+                $gwnToken = \GlpiPlugin\Gdmsintegration\API::gwnGetToken($config);
+                if ($gwnToken !== false) {
+                    \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN token obtained OK — API ID: {$config['gwn_client_id']}");
+                    $config['gwn_access_token'] = $gwnToken;
+                    $gwn_list_complete = false;
+                    $gwnDevices = \GlpiPlugin\Gdmsintegration\API::gwnGetDevices($config, $gwn_list_complete);
+                    if ($gwnDevices === false) {
+                        // network/list API call failed — treat same as token failure
+                        \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN ERROR — network list failed for entity {$entities_id}");
+                    } else {
+                        $gwnCount   = count($gwnDevices);
+                        $gwn_api_ok = $gwn_list_complete; // only a complete list is authoritative for removal detection
+                        \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN API returned {$gwnCount} device(s)");
+                        if (!$gwn_list_complete) {
+                            \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN list incomplete — returned devices will be updated, but removal detection is disabled for this cycle.");
+                        }
+
+                        // Inject firmware_latest — all networks fetched in parallel via curl_multi.
+                        if (!empty($gwnDevices)) {
+                            $net_ids   = array_unique(array_filter(array_column($gwnDevices, 'networkId')));
+                            $firmwareStarted = microtime(true);
+                            $fw_by_net = \GlpiPlugin\Gdmsintegration\API::gwnGetFirmwareVersionsBatch($config, array_map('intval', $net_ids));
+                            \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
+                                'GWN firmware batch — entity=%d networks=%d duration_ms=%d',
+                                $entities_id,
+                                count($net_ids),
+                                (int)round((microtime(true) - $firmwareStarted) * 1000)
+                            ));
+                            $fw_errors = \GlpiPlugin\Gdmsintegration\API::gwnGetLastFirmwareErrors();
+                            $fw_by_mac = [];
+                            foreach ($fw_by_net as $fwList) {
+                                foreach ($fwList as $fw) {
+                                    $fmac = strtolower(str_replace(':', '', $fw['mac'] ?? ''));
+                                    if ($fmac && !empty($fw['stableVersion'])) {
+                                        $fw_by_mac[$fmac] = $fw['stableVersion'];
+                                    }
+                                }
+                            }
+                            foreach ($gwnDevices as &$gdev) {
+                                $dmac = strtolower(str_replace(':', '', $gdev['mac'] ?? ''));
+                                $nid = (int)($gdev['networkId'] ?? $gdev['network_id'] ?? 0);
+                                if (isset($fw_errors[$nid])) {
+                                    // Preserve the last known firmware_latest when GWN could not
+                                    // authoritatively answer upgrade/version for this network.
+                                    $gdev['_preserve_firmware_latest'] = true;
+                                } else {
+                                    // A successful GWN response with only beta/RC/etc. means
+                                    // there is no newer stable firmware to advertise. Keep the
+                                    // current installed stable version as the compliance baseline
+                                    // instead of persisting the pre-release reference.
+                                    $gwnStable = $fw_by_mac[$dmac] ?? '';
+                                    if ($gwnStable === '') {
+                                        $gwnStable = trim((string)($gdev['versionFirmware'] ?? $gdev['firmwareVersion'] ?? $gdev['firmware'] ?? ''));
+                                    }
+                                    $gdev['firmware_latest'] = $gwnStable;
+                                }
+                            }
+                            unset($gdev);
+                        }
+
+                        // 1.6.0: ingest actionable cloud alerts into GLPI tickets.
+                        if (!empty($net_ids)) {
+                            $alertsStarted = microtime(true);
+                            self::syncGwnAlertTickets($config, $entities_id, array_map('intval', $net_ids), $gwnDevices);
+                            \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
+                                'GWN alert stage — entity=%d networks=%d duration_ms=%d',
+                                $entities_id,
+                                count($net_ids),
+                                (int)round((microtime(true) - $alertsStarted) * 1000)
+                            ));
+                        }
+
+                        $synced = self::syncDeviceList($gwnDevices, $entities_id, $seen_macs);
+                        \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN sync complete — {$synced} device(s) processed");
+                        $total += $synced;
+                    }
                 } else {
-                    $gwnCount   = count($gwnDevices);
-                    $gwn_api_ok = $gwn_list_complete; // only a complete list is authoritative for removal detection
-                    \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN API returned {$gwnCount} device(s)");
-                    if (!$gwn_list_complete) {
-                        \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN list incomplete — returned devices will be updated, but removal detection is disabled for this cycle.");
-                    }
+                    \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN ERROR — could not obtain token for entity {$entities_id}. Check gwn_client_id and gwn_client_secret.");
+                }
+            } else {
+                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN skipped — " . ($gwnConfigured ? "incomplete credentials" : "no credentials configured") . " for entity {$entities_id}");
+            }
 
-                    // Inject firmware_latest — all networks fetched in parallel via curl_multi.
-                    if (!empty($gwnDevices)) {
-                        $net_ids   = array_unique(array_filter(array_column($gwnDevices, 'networkId')));
-                        $firmwareStarted = microtime(true);
-                        $fw_by_net = \GlpiPlugin\Gdmsintegration\API::gwnGetFirmwareVersionsBatch($config, array_map('intval', $net_ids));
-                        \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
-                            'GWN firmware batch — entity=%d networks=%d duration_ms=%d',
-                            $entities_id,
-                            count($net_ids),
-                            (int)round((microtime(true) - $firmwareStarted) * 1000)
-                        ));
-                        $fw_errors = \GlpiPlugin\Gdmsintegration\API::gwnGetLastFirmwareErrors();
-                        $fw_by_mac = [];
-                        foreach ($fw_by_net as $fwList) {
-                            foreach ($fwList as $fw) {
-                                $fmac = strtolower(str_replace(':', '', $fw['mac'] ?? ''));
-                                if ($fmac && !empty($fw['stableVersion'])) {
-                                    $fw_by_mac[$fmac] = $fw['stableVersion'];
-                                }
-                            }
-                        }
-                        foreach ($gwnDevices as &$gdev) {
-                            $dmac = strtolower(str_replace(':', '', $gdev['mac'] ?? ''));
-                            $nid = (int)($gdev['networkId'] ?? $gdev['network_id'] ?? 0);
-                            if (isset($fw_errors[$nid])) {
-                                // Preserve the last known firmware_latest when GWN could not
-                                // authoritatively answer upgrade/version for this network.
-                                $gdev['_preserve_firmware_latest'] = true;
-                            } else {
-                                // A successful GWN response with only beta/RC/etc. means
-                                // there is no newer stable firmware to advertise. Keep the
-                                // current installed stable version as the compliance baseline
-                                // instead of persisting the pre-release reference.
-                                $gwnStable = $fw_by_mac[$dmac] ?? '';
-                                if ($gwnStable === '') {
-                                    $gwnStable = trim((string)($gdev['versionFirmware'] ?? $gdev['firmwareVersion'] ?? $gdev['firmware'] ?? ''));
-                                }
-                                $gdev['firmware_latest'] = $gwnStable;
-                            }
-                        }
-                        unset($gdev);
-                    }
+            // ── GDMS API (UC/VoIP devices: phones, UCM, GCC) ──────────────────
+            if (!empty($config['client_id']) && !empty($config['client_secret'])
+                && !empty($config['username']) && !empty($config['password'])) {
+                $gdms_api_ok = false; // will be set true only on success
+                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS sync start — entity {$entities_id} — user: {$config['username']}");
 
-                    // 1.6.0: ingest actionable cloud alerts into GLPI tickets.
-                    if (!empty($net_ids)) {
-                        $alertsStarted = microtime(true);
-                        self::syncGwnAlertTickets($config, $entities_id, array_map('intval', $net_ids), $gwnDevices);
-                        \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
-                            'GWN alert stage — entity=%d networks=%d duration_ms=%d',
-                            $entities_id,
-                            count($net_ids),
-                            (int)round((microtime(true) - $alertsStarted) * 1000)
-                        ));
-                    }
+                $gdmsToken = \GlpiPlugin\Gdmsintegration\API::gdmsGetToken($config);
+                if ($gdmsToken !== false) {
+                    \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS token obtained OK — username: {$config['username']} | API ID: {$config['client_id']} | expires in: {$gdmsToken['expires_in']}s");
+                    $config['access_token'] = $gdmsToken['access_token'];
+                    $gdms_list_complete = false;
+                    $gdmsDevices = \GlpiPlugin\Gdmsintegration\API::gdmsGetDevices($config, $gdms_list_complete);
+                    $gdmsCount   = count($gdmsDevices);
+                    \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS API returned {$gdmsCount} device(s)");
 
-                    $synced = self::syncDeviceList($gwnDevices, $entities_id, $seen_macs);
-                    \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN sync complete — {$synced} device(s) processed");
+                    $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
+                    \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS sync complete — {$synced} device(s) processed");
                     $total += $synced;
+                    // Partial pages are still useful for updating devices we did receive,
+                    // but they are not authoritative for removal/offline inference.
+                    $gdms_api_ok = $gdms_list_complete;
+                    if (!$gdms_list_complete) {
+                        \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS device list incomplete — processed {$gdmsCount} returned device(s); removal detection disabled for this cycle.");
+                    }
+                } else {
+                    \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS ERROR — could not obtain token for entity {$entities_id}. Check username, password, client_id and client_secret.");
                 }
             } else {
-                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN ERROR — could not obtain token for entity {$entities_id}. Check gwn_client_id and gwn_client_secret.");
+                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS skipped — " . ($gdmsConfigured ? "incomplete credentials" : "no credentials configured") . " for entity {$entities_id} (need username + password + client_id + client_secret)");
             }
-        } else {
-            \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GWN skipped — no credentials configured for entity {$entities_id}");
-        }
 
-        // ── GDMS API (UC/VoIP devices: phones, UCM, GCC) ──────────────────
-        if (!empty($config['client_id']) && !empty($config['client_secret'])
-            && !empty($config['username']) && !empty($config['password'])) {
-            $gdms_api_ok = false; // will be set true only on success
-            \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS sync start — entity {$entities_id} — user: {$config['username']}");
-
-            $gdmsToken = \GlpiPlugin\Gdmsintegration\API::gdmsGetToken($config);
-            if ($gdmsToken !== false) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS token obtained OK — username: {$config['username']} | API ID: {$config['client_id']} | expires in: {$gdmsToken['expires_in']}s");
-                $config['access_token'] = $gdmsToken['access_token'];
-                $gdms_list_complete = false;
-                $gdmsDevices = \GlpiPlugin\Gdmsintegration\API::gdmsGetDevices($config, $gdms_list_complete);
-                $gdmsCount   = count($gdmsDevices);
-                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS API returned {$gdmsCount} device(s)");
-
-$synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
-                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS sync complete — {$synced} device(s) processed");
-                $total += $synced;
-                // Partial pages are still useful for updating devices we did receive,
-                // but they are not authoritative for removal/offline inference.
-                $gdms_api_ok = $gdms_list_complete;
-                if (!$gdms_list_complete) {
-                    \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS device list incomplete — processed {$gdmsCount} returned device(s); removal detection disabled for this cycle.");
-                }
-            } else {
-                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS ERROR — could not obtain token for entity {$entities_id}. Check username, password, client_id and client_secret.");
+            if ($total === 0 && empty($config['client_id']) && empty($config['gwn_client_id'])) {
+                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] Nothing to sync — no API credentials configured for entity {$entities_id}");
+                return 0;
             }
-        } else {
-            \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] GDMS skipped — incomplete credentials for entity {$entities_id} (need username + password + client_id + client_secret)");
-        }
 
-        if ($total === 0 && empty($config['client_id']) && empty($config['gwn_client_id'])) {
-            \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] Nothing to sync — no API credentials configured for entity {$entities_id}");
+            // Mark as offline any device in DB that the API no longer returns.
+            // Guard: skip entirely if any configured API call failed this cycle.
+            // A token failure or curl error would leave $seen_macs incomplete, causing
+            // markRemovedDevicesOffline to delete state for devices it simply didn't hear
+            // about — which triggers ghost WAN tickets on the very next successful sync.
+            $removed = 0;
+            if (!empty($seen_macs) && $gwn_api_ok && $gdms_api_ok) {
+                $removed = self::markRemovedDevicesOffline($seen_macs, $ts, $entities_id);
+            } elseif (!$gwn_api_ok || !$gdms_api_ok) {
+                \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] markRemovedDevicesOffline skipped — API error this cycle (gwn_ok=" . ($gwn_api_ok ? '1' : '0') . " gdms_ok=" . ($gdms_api_ok ? '1' : '0') . ")");
+            }
+
+            // Save last successful sync timestamp to config
+            $durationMs = (int)round((microtime(true) - $syncStarted) * 1000);
+            $syncStatus = ($gwn_api_ok && $gdms_api_ok) ? 'ok' : 'partial';
+            $partial = ($syncStatus !== 'ok');
+            $DB->update(
+                \GlpiPlugin\Gdmsintegration\Config::getTable(),
+                ['last_sync_at' => gmdate('Y-m-d H:i:s'), 'last_sync_duration_ms' => $durationMs, 'last_sync_devices' => $total, 'last_sync_status' => $syncStatus],
+                ['entities_id'  => $entities_id]
+            );
+
+            self::cleanupHistory();
+            \GlpiPlugin\Gdmsintegration\Utils::cleanupOperationalHistory($entities_id, (int)($config['history_retention_days'] ?? 90));
+            \GlpiPlugin\Gdmsintegration\Utils::log(
+                "[{$ts}] Sync summary — entity={$entities_id} total={$total} removed={$removed}"
+            );
+            return $total;
+        } finally {
             \GlpiPlugin\Gdmsintegration\Utils::releaseLock($syncLock, $syncToken);
-            return 0;
         }
-
-        // Mark as offline any device in DB that the API no longer returns.
-        // Guard: skip entirely if any configured API call failed this cycle.
-        // A token failure or curl error would leave $seen_macs incomplete, causing
-        // markRemovedDevicesOffline to delete state for devices it simply didn't hear
-        // about — which triggers ghost WAN tickets on the very next successful sync.
-        $removed = 0;
-        if (!empty($seen_macs) && $gwn_api_ok && $gdms_api_ok) {
-            $removed = self::markRemovedDevicesOffline($seen_macs, $ts, $entities_id);
-        } elseif (!$gwn_api_ok || !$gdms_api_ok) {
-            \GlpiPlugin\Gdmsintegration\Utils::log("[{$ts}] markRemovedDevicesOffline skipped — API error this cycle (gwn_ok=" . ($gwn_api_ok ? '1' : '0') . " gdms_ok=" . ($gdms_api_ok ? '1' : '0') . ")");
-        }
-
-        // Save last successful sync timestamp to config
-        $durationMs = (int)round((microtime(true) - $syncStarted) * 1000);
-        $syncStatus = ($gwn_api_ok && $gdms_api_ok) ? 'ok' : 'partial';
-        $DB->update(
-            \GlpiPlugin\Gdmsintegration\Config::getTable(),
-            ['last_sync_at' => gmdate('Y-m-d H:i:s'), 'last_sync_duration_ms' => $durationMs, 'last_sync_devices' => $total, 'last_sync_status' => $syncStatus],
-            ['entities_id'  => $entities_id]
-        );
-
-        self::cleanupHistory();
-        \GlpiPlugin\Gdmsintegration\Utils::cleanupOperationalHistory($entities_id, (int)($config['history_retention_days'] ?? 90));
-        \GlpiPlugin\Gdmsintegration\Utils::log(
-            "[{$ts}] Sync summary — entity={$entities_id} total={$total} removed={$removed}"
-        );
-        \GlpiPlugin\Gdmsintegration\Utils::releaseLock($syncLock, $syncToken);
-        return $total;
     }
 
     // -----------------------------------------------------------------------
@@ -1631,47 +1684,144 @@ $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
 
 
     /** Create deduplicated tickets for actionable GWN cloud alerts. Offline/WAN
-     * transitions remain owned by the existing state/WAN ticket engine. */
+     * transitions remain owned by the existing state/WAN ticket engine. Unknown
+     * source severity codes are surfaced at normal priority instead of discarded.
+     */
     private static function syncGwnAlertTickets(array $config, int $entities_id, array $networkIds, array $devices): void {
-        if (!class_exists('Ticket')) return;
-        $assets=[];
-        foreach (['NetworkEquipment','Phone'] as $it) { $o=new $it(); foreach($o->find(['entities_id'=>$entities_id]) as $a){$m=strtolower(str_replace([':', '-'],'',(string)($a['uuid']??''))); if($m)$assets[$m]=[$it,(int)$a['id'],(string)($a['name']??'')];} }
-        // Fetch alerts from all configured networks in bounded concurrent batches.
-        // Ticket creation/deduplication below remains the same per alert.
+        if (!class_exists('Ticket')) {
+            return;
+        }
+
+        $assets = [];
+        foreach (['NetworkEquipment', 'Phone'] as $itemtype) {
+            $assetObject = new $itemtype();
+            foreach ($assetObject->find(['entities_id' => $entities_id]) as $assetRow) {
+                $mac = strtolower(str_replace([':', '-'], '', (string)($assetRow['uuid'] ?? '')));
+                if ($mac !== '') {
+                    $assets[$mac] = [$itemtype, (int)$assetRow['id'], (string)($assetRow['name'] ?? '')];
+                }
+            }
+        }
+
         $alertsByNetwork = \GlpiPlugin\Gdmsintegration\API::gwnGetAlertsBatch($config, $networkIds, 50);
-        foreach ($networkIds as $nid) {
-            $alerts = $alertsByNetwork[(int) $nid] ?? [];
-            foreach($alerts as $a){
-                $sev=strtolower((string)($a['severity']??'')); if(!in_array($sev,['critical','warning'],true)) continue;
-                $cat=strtolower((string)($a['category']??'')); $desc=(string)($a['description']??'');
-                if(str_contains($cat,'offline')||str_contains(strtolower($desc),'offline')||str_contains($cat,'wan')) continue;
-                $aid=preg_replace('/[^A-Za-z0-9_.:-]/','',(string)($a['id']??'')); if($aid==='') continue;
-                $marker='[GWN-ALERT:'.$aid.']';
-                $t=new \Ticket(); $existing=$t->find(['entities_id'=>$entities_id,'name'=>['LIKE','%'.$marker.'%'],'status'=>['<',\Ticket::SOLVED]],[],1); if($existing) continue;
-                $macKey=strtolower(str_replace([':', '-'],'',(string)($a['deviceMac']??''))); $asset=$assets[$macKey]??null;
-                $name=trim((string)($a['deviceName']??'')) ?: ($asset[2]??'Grandstream device');
+        $minimumTimestampMs = (time() - (self::GWN_ALERT_TICKET_MAX_AGE_DAYS * 86400)) * 1000;
+
+        foreach ($networkIds as $networkId) {
+            $alerts = $alertsByNetwork[(int)$networkId] ?? [];
+            foreach ($alerts as $alert) {
+                $severity = strtolower(trim((string)($alert['severity'] ?? 'unknown')));
+                if (!in_array($severity, ['critical', 'warning', 'unknown'], true)) {
+                    continue;
+                }
+
+                $category = strtolower(trim((string)($alert['category'] ?? '')));
+                $description = trim((string)($alert['description'] ?? ''));
+                if (str_contains($category, 'offline')
+                    || str_contains(strtolower($description), 'offline')
+                    || str_contains($category, 'wan')) {
+                    continue;
+                }
+
+                $alertId = preg_replace('/[^A-Za-z0-9_.:-]/', '', (string)($alert['id'] ?? ''));
+                if ($alertId === '') {
+                    \GlpiPlugin\Gdmsintegration\Utils::log(
+                        'GWN alert skipped for ticketing: no stable alert ID (network ' . (int)$networkId . ').'
+                    );
+                    continue;
+                }
+
+                $createdAtMs = (int)($alert['createTime'] ?? 0);
+                if ($createdAtMs > 0 && $createdAtMs < $minimumTimestampMs) {
+                    \GlpiPlugin\Gdmsintegration\Utils::debug(
+                        'GWN historical alert ignored for automatic ticketing: network=' . (int)$networkId
+                        . ' id=' . $alertId . ' age_limit_days=' . self::GWN_ALERT_TICKET_MAX_AGE_DAYS
+                    );
+                    continue;
+                }
+
+                $marker = '[GWN-ALERT:' . $alertId . ']';
+                $ticketObject = new \Ticket();
+                // Search all statuses, not just open tickets. A previously solved alert
+                // must not recreate the same incident on every cron run.
+                $existing = $ticketObject->find([
+                    'entities_id' => $entities_id,
+                    'name' => ['LIKE', '%' . $marker . '%'],
+                ], [], 1);
+                if ($existing !== []) {
+                    continue;
+                }
+
+                $macKey = strtolower(str_replace([':', '-'], '', (string)($alert['deviceMac'] ?? '')));
+                $asset = $assets[$macKey] ?? null;
+                $deviceName = trim((string)($alert['deviceName'] ?? '')) ?: ($asset[2] ?? 'Grandstream device');
+                $sourceLevel = trim((string)($alert['severityCode'] ?? ''));
+                $severityDisplay = $severity === 'unknown'
+                    ? ($sourceLevel !== ''
+                        ? sprintf(__('Unknown (source level %s)', 'gdmsintegration'), $sourceLevel)
+                        : __('Unknown', 'gdmsintegration'))
+                    : $severity;
+
+                $rows = [
+                    ['label' => __('Severity', 'gdmsintegration'), 'value' => $severityDisplay],
+                    ['label' => __('Category', 'gdmsintegration'), 'value' => $category],
+                    ['label' => __('Detail', 'gdmsintegration'), 'value' => $description],
+                    ['label' => __('Alert ID', 'gdmsintegration'), 'value' => $alertId],
+                ];
+                if ($createdAtMs > 0) {
+                    $rows[] = [
+                        'label' => __('Event time (UTC)', 'gdmsintegration'),
+                        'value' => gmdate('Y-m-d H:i:s', (int)floor($createdAtMs / 1000)),
+                    ];
+                }
+
                 $content = \GlpiPlugin\Gdmsintegration\Utils::buildTicketHtml(
-                    $name,
+                    $deviceName,
                     __('Cloud alert reported by GDMS Networking.', 'gdmsintegration'),
-                    [
-                        ['label' => __('Severity', 'gdmsintegration'), 'value' => $sev],
-                        ['label' => __('Category', 'gdmsintegration'), 'value' => $cat],
-                        ['label' => __('Detail', 'gdmsintegration'), 'value' => $desc],
-                    ],
+                    $rows,
                     __('This ticket was automatically generated by the GDMS Integration plugin.', 'gdmsintegration'),
                     $marker
                 );
-                $alert_category_id = $asset
+
+                $ticketCategoryId = $asset
                     ? self::getConfiguredTicketCategory($config, $entities_id, $asset[0])
                     : self::getConfiguredTicketCategory($config, $entities_id, 'NetworkEquipment');
-                $alert_requesttype_id = self::getConfiguredRequestType($config, $entities_id);
-                $alert_ticket_data = ['name'=>'[GDMS] '.$name.' — '.$desc.' '.$marker,'content'=>$content,'entities_id'=>$entities_id,'status'=>\Ticket::INCOMING,'urgency'=>$sev==='critical'?5:4,'impact'=>$sev==='critical'?4:3,'type'=>\Ticket::INCIDENT_TYPE,'requesttypes_id'=>$alert_requesttype_id];
-                if ($alert_category_id > 0) {
-                    $alert_ticket_data['itilcategories_id'] = $alert_category_id;
+                $requestTypeId = self::getConfiguredRequestType($config, $entities_id);
+                // Known critical/warning events keep their established priority.
+                // Unknown provider levels are deliberately surfaced at medium priority
+                // until the vendor's numeric mapping is confirmed.
+                $urgency = $severity === 'critical' ? 5 : ($severity === 'warning' ? 4 : 3);
+                $impact = $severity === 'critical' ? 4 : 3;
+                $ticketData = [
+                    'name' => '[GDMS] ' . $deviceName . ' — ' . ($description ?: $category) . ' ' . $marker,
+                    'content' => $content,
+                    'entities_id' => $entities_id,
+                    'status' => \Ticket::INCOMING,
+                    'urgency' => $urgency,
+                    'impact' => $impact,
+                    'type' => \Ticket::INCIDENT_TYPE,
+                    'requesttypes_id' => $requestTypeId,
+                ];
+                if ($ticketCategoryId > 0) {
+                    $ticketData['itilcategories_id'] = $ticketCategoryId;
                 }
-                $tid=(int)$t->add($alert_ticket_data);
-                if($tid>0 && $asset){(new \Item_Ticket())->add(['tickets_id'=>$tid,'itemtype'=>$asset[0],'items_id'=>$asset[1],'_disablenotif'=>true]);}
+
+                $ticketId = (int)$ticketObject->add($ticketData);
+                if ($ticketId > 0 && $asset !== null) {
+                    (new \Item_Ticket())->add([
+                        'tickets_id' => $ticketId,
+                        'itemtype' => $asset[0],
+                        'items_id' => $asset[1],
+                        '_disablenotif' => true,
+                    ]);
+                }
+                if ($ticketId > 0 && $severity === 'unknown') {
+                    \GlpiPlugin\Gdmsintegration\Utils::log(
+                        'GWN alert ticket #' . $ticketId . ' created at normal priority for unrecognized source level '
+                        . ($sourceLevel !== '' ? $sourceLevel : '(missing)') . '; verify provider severity mapping.'
+                    );
+                }
             }
         }
     }
+
 }
