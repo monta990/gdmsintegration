@@ -535,7 +535,7 @@ final class HistoryExportService
     /**
      * Convert ticket HTML to spreadsheet-friendly plain text.
      *
-     * Plugin-generated ticket tables become one \`Field: Value\` line per row;
+     * Plugin-generated ticket tables become one `Field: Value` line per row;
      * headings and paragraphs remain separated, and all output is written to
      * XLSX as an explicit string cell (never as HTML or a formula).
      */
@@ -549,7 +549,7 @@ final class HistoryExportService
         $content = preg_replace('~<(script|style)\b[^>]*>.*?</\1>~is', ' ', $content) ?? $content;
 
         // Translate simple table rows before stripping tags, otherwise cell boundaries
-        // would be lost (e.g. \`Severitywarning\` instead of \`Severity: warning\`).
+        // would be lost (e.g. `Severitywarning` instead of `Severity: warning`).
         $content = preg_replace_callback('~<table\b[^>]*>.*?</table>~is', static function (array $match): string {
             if (!preg_match_all('~<tr\b[^>]*>(.*?)</tr>~is', $match[0], $rowMatches)) {
                 return "\n";
@@ -589,8 +589,8 @@ final class HistoryExportService
             }
 
             // Re-escape row text before reinserting it into the HTML fragment so
-            // the final strip_tags pass cannot mistake literal text such as \`<updated>\`
-            // (originally encoded as \`&lt;updated&gt;\`) for an actual HTML element.
+            // the final strip_tags pass cannot mistake literal text such as `<updated>`
+            // (originally encoded as `&lt;updated&gt;`) for an actual HTML element.
             $escapedLines = array_map(
                 static fn(string $line): string => htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
                 $lines
