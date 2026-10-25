@@ -1064,13 +1064,46 @@ class API {
     /** Normalize GWN alert payloads shared by single-network and batched queries. */
     private static function normalizeGwnAlerts(array $raw, int $networkId): array
     {
-        // Log raw structure once per call to help identify field names
-        if (!empty($raw)) {
-            \GlpiPlugin\Gdmsintegration\Utils::debug("GWN alert sample (network {$networkId}): " . json_encode($raw[0]));
+        // Log a sample only once per network/alert in this PHP request. The sync and
+        // ticket stages may query the same page separately; repeated diagnostic samples
+        // add noise without representing additional alerts.
+        static $loggedSamples = [];
+        if (!empty($raw) && is_array($raw[0] ?? null)) {
+            $sampleId = trim((string)($raw[0]['id'] ?? $raw[0]['alertId'] ?? $raw[0]['alert_id'] ?? ''));
+            $sampleKey = (string)$networkId . ':' . ($sampleId !== '' ? $sampleId : sha1((string)json_encode($raw[0])));
+            if (!isset($loggedSamples[$sampleKey])) {
+                $loggedSamples[$sampleKey] = true;
+                \GlpiPlugin\Gdmsintegration\Utils::debug("GWN alert sample (network {$networkId}): " . json_encode($raw[0]));
+            }
         }
-        // Normalize field names — actual GWN API uses: id, time, level, content, detailMap
-        // GWN Cloud: higher level = more severe (5=Emergency, 4=Alert, 3=Warning, 2=Notice, 1=Info)
-        $sevMap = [5 => 'critical', 4 => 'warning', 3 => 'medium', 2 => 'low', 1 => 'info'];
+
+        // Some API responses can repeat an alert across page boundaries. De-duplicate
+        // by the provider ID before ticket handling while preserving provider order.
+        $deduplicated = [];
+        $seenIds = [];
+        foreach ($raw as $alert) {
+            if (!is_array($alert)) {
+                continue;
+            }
+            $id = trim((string)($alert['id'] ?? $alert['alertId'] ?? $alert['alert_id'] ?? ''));
+            if ($id !== '' && isset($seenIds[$id])) {
+                continue;
+            }
+            if ($id !== '') {
+                $seenIds[$id] = true;
+            }
+            $deduplicated[] = $alert;
+        }
+        $raw = $deduplicated;
+
+        // Preserve the source code. Values outside the known mapping remain unknown;
+        // they must never silently inherit the low-severity "info" default.
+        $textSeverityMap = [
+            'emergency' => 'critical', 'alert' => 'critical', 'critical' => 'critical',
+            'error' => 'critical', 'warning' => 'warning', 'warn' => 'warning',
+            'medium' => 'medium', 'notice' => 'low', 'low' => 'low',
+            'information' => 'info', 'informational' => 'info', 'info' => 'info',
+        ];
         foreach ($raw as &$a) {
             // id (may be int)
             $a['id'] = (string)($a['id'] ?? $a['alertId'] ?? $a['alert_id'] ?? '');
@@ -1084,10 +1117,20 @@ class API {
             } elseif ($a['createTime'] > 0 && $a['createTime'] < 9999999999) {
                 $a['createTime'] = (int)$a['createTime'] * 1000;
             }
-            // severity string
-            if (empty($a['severity'])) {
-                $lvl = $a['level'] ?? $a['alertLevel'] ?? $a['alert_level'] ?? null;
-                $a['severity'] = is_int($lvl) ? ($sevMap[$lvl] ?? 'info') : (string)($lvl ?? 'info');
+            // Severity: only documented text labels are mapped. Grandstream's public guide
+            // exposes named levels, but not the numeric API enum; preserve numeric codes
+            // as unknown until that mapping is verified against vendor documentation.
+            $lvl = $a['level'] ?? $a['alertLevel'] ?? $a['alert_level'] ?? null;
+            $a['severityCode'] = is_scalar($lvl) ? (string)$lvl : '';
+            $providedSeverity = strtolower(trim((string)($a['severity'] ?? '')));
+            if ($providedSeverity !== '') {
+                $a['severity'] = $textSeverityMap[$providedSeverity] ?? 'unknown';
+            } elseif (is_numeric($lvl)) {
+                $a['severity'] = 'unknown';
+            } elseif (is_string($lvl) && trim($lvl) !== '') {
+                $a['severity'] = $textSeverityMap[strtolower(trim($lvl))] ?? 'unknown';
+            } else {
+                $a['severity'] = 'unknown';
             }
             // deviceName — actual field is detailMap.apName
             if (empty($a['deviceName'])) {
@@ -1230,11 +1273,7 @@ class API {
 
         $normalized = [];
         foreach ($networkIds as $networkId) {
-            if (!empty($rawByNetwork[$networkId])) {
-                \GlpiPlugin\Gdmsintegration\Utils::debug(
-                    'GWN alert sample (network ' . $networkId . '): ' . json_encode($rawByNetwork[$networkId][0])
-                );
-            }
+            // normalizeGwnAlerts logs at most one sample and deduplicates IDs.
             $normalized[$networkId] = self::normalizeGwnAlerts($rawByNetwork[$networkId], $networkId);
         }
         return $normalized;
@@ -1610,8 +1649,10 @@ class API {
             if (!is_array($row)) {
                 continue;
             }
-            $mac = strtolower(str_replace(['-', ' '], ':', trim((string)($row['mac'] ?? ''))));
-            if ($mac === '') {
+            // Compare by a normalized 12-hex-digit key so colon-separated,
+            // hyphenated and compact vendor responses all match the same device.
+            $mac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string)($row['mac'] ?? ''))) ?? '');
+            if (strlen($mac) !== 12) {
                 continue;
             }
             $version = self::gwnFirmwareVersion($row);
@@ -1634,8 +1675,8 @@ class API {
         }
 
         foreach ($rows as &$row) {
-            $mac = strtolower(str_replace(['-', ' '], ':', trim((string)($row['mac'] ?? ''))));
-            $row['stableVersion'] = $byMac[$mac]['stable'] ?? '';
+            $mac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string)($row['mac'] ?? ''))) ?? '');
+            $row['stableVersion'] = strlen($mac) === 12 ? ($byMac[$mac]['stable'] ?? '') : '';
             $row['betaVersion'] = ''; // pre-release firmware is never exposed as actionable
         }
         unset($row);
@@ -1656,15 +1697,18 @@ class API {
      */
     public static function gwnGetFirmwareVersionsBatch(array $config, array $networkIds): array {
         self::$lastFirmwareErrors = [];
-        $token = self::gwnGetToken($config);
-        if (!$token || $networkIds === []) {
-            return [];
-        }
-        $config['gwn_access_token'] = $token;
         $networkIds = array_values(array_unique(array_filter(array_map('intval', $networkIds), static fn(int $id): bool => $id > 0)));
         if ($networkIds === []) {
             return [];
         }
+        $token = self::gwnGetToken($config);
+        if (!$token) {
+            foreach ($networkIds as $networkId) {
+                self::$lastFirmwareErrors[$networkId] = __('Unable to obtain a valid GWN Cloud API token', 'gdmsintegration');
+            }
+            return array_fill_keys($networkIds, []);
+        }
+        $config['gwn_access_token'] = $token;
 
         [$results, $failed] = self::gwnFirmwareVersionsBatchRound($config, $networkIds);
         if ($failed !== []) {
@@ -1974,24 +2018,204 @@ class API {
     }
 
     // -----------------------------------------------------------------------
-    // Grandstream firmware page scraper
-    // Returns ['official' => 'x.x.x.x'|null, 'officialUrl' => '...'|null]
-    // $slug — URL slug e.g. 'ucm6300', 'grp260x'
-    // -----------------------------------------------------------------------
+    // Grandstream product-page firmware scraper. Official and beta channels are
+    // fetched separately so an installed beta is never mistaken for a downgrade.
     public static function scrapeFirmwareVersions(string $slug): array {
-        $base   = 'https://www.grandstream.com/support/firmware/';
-        $result = ['official' => null, 'officialUrl' => null];
+        $base = 'https://www.grandstream.com/support/firmware/';
+        $result = [
+            'official' => null,
+            'beta' => null,
+            'officialUrl' => null,
+            'betaUrl' => null,
+            'officialChecked' => false,
+            'betaChecked' => false,
+            // A stable-version check is authoritative only if the official channel
+            // was retrieved and a firmware version was actually parsed.
+            'sourceChecked' => false,
+        ];
 
-        $html = self::curlGet($base . $slug . '-official-firmware');
-        if ($html && preg_match('/(\d+\.\d+\.\d+\.\d+)/', $html, $m)) {
-            $result['official'] = $m[1];
-            if (preg_match('/href=["\']([^"\']+\.bin)["\']/', $html, $um)) {
-                $fn = preg_replace('/fw[\d.]+\.bin$/i', 'fw.bin', basename($um[1]));
-                $result['officialUrl'] = 'https://firmware.grandstream.com/' . $fn;
+        foreach (['official' => 'official-firmware', 'beta' => 'beta-firmware'] as $channel => $suffix) {
+            $html = self::curlGet($base . $slug . '-' . $suffix);
+            if ($html === false) {
+                continue;
+            }
+            $result[$channel . 'Checked'] = true;
+            $version = self::extractFirmwareVersionFromHtml($html);
+            if ($version !== null) {
+                $result[$channel] = $version;
+            }
+            if (preg_match('/href=["\']([^"\']+\.bin(?:\?[^"\']*)?)["\']/i', $html, $um)) {
+                $url = html_entity_decode($um[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                if (str_starts_with($url, '//')) {
+                    $url = 'https:' . $url;
+                } elseif (!preg_match('~^https?://~i', $url)) {
+                    // Do not guess the host for relative links from the vendor page.
+                    $url = '';
+                }
+                $host = strtolower((string)(parse_url($url, PHP_URL_HOST) ?? ''));
+                if (in_array($host, ['firmware.grandstream.com', 'fw.gdms.cloud'], true)) {
+                    $result[$channel . 'Url'] = $url;
+                }
+            }
+        }
+        $result['sourceChecked'] = $result['officialChecked'] && $result['official'] !== null;
+
+        return $result;
+    }
+
+    /**
+     * Retrieve the official Grandstream firmware catalog once per request.
+     * The returned model keys are normalized (uppercase alphanumeric only).
+     * Missing entries and failed HTTP retrieval are represented separately.
+     *
+     * @return array{ok:bool,models:array<string,array{official:?string,beta:?string,modelLabel:string}>,error:?string}
+     */
+    public static function scrapeFirmwareCatalog(): array {
+        $html = self::curlGet('https://www.grandstream.com/support/firmware');
+        if ($html === false) {
+            return ['ok' => false, 'models' => [], 'error' => __('Grandstream firmware catalog could not be retrieved', 'gdmsintegration')];
+        }
+        return self::parseFirmwareCatalogHtml($html);
+    }
+
+    /** Parse a saved catalog response; separated for deterministic regression tests. */
+    public static function parseFirmwareCatalogHtml(string $html): array {
+        $models = [];
+        if (!preg_match_all('/<table\b[^>]*>(.*?)<\/table>/is', $html, $tables)) {
+            return ['ok' => false, 'models' => [], 'error' => __('Grandstream firmware catalog has no readable tables', 'gdmsintegration')];
+        }
+
+        foreach ($tables[1] as $tableHtml) {
+            if (!preg_match_all('/<tr\b[^>]*>(.*?)<\/tr>/is', $tableHtml, $rows)) {
+                continue;
+            }
+            $columns = null;
+            foreach ($rows[1] as $rowHtml) {
+                if (!preg_match_all('/<(?:th|td)\b[^>]*>(.*?)<\/(?:th|td)>/is', $rowHtml, $cells)) {
+                    continue;
+                }
+                $cellHtml = $cells[1];
+                $cellText = array_map([self::class, 'firmwareHtmlText'], $cellHtml);
+                if ($cellText === []) {
+                    continue;
+                }
+
+                $header = [];
+                foreach ($cellText as $idx => $value) {
+                    $label = strtolower(trim(preg_replace('/\s+/', ' ', $value) ?? $value));
+                    if ($label === 'model') $header['model'] = $idx;
+                    if (str_contains($label, 'general firmware')) $header['official'] = $idx;
+                    if (str_contains($label, 'beta firmware')) $header['beta'] = $idx;
+                }
+                if (isset($header['model'], $header['official'])) {
+                    $columns = $header;
+                    continue;
+                }
+                if ($columns === null
+                    || !array_key_exists($columns['model'], $cellText)
+                    || !array_key_exists($columns['official'], $cellText)) {
+                    continue;
+                }
+
+                $modelLabel = trim($cellText[$columns['model']]);
+                $official = self::firstFirmwareVersion($cellText[$columns['official']]);
+                $betaText = isset($columns['beta']) && array_key_exists($columns['beta'], $cellText)
+                    ? $cellText[$columns['beta']]
+                    : '';
+                $beta = self::firstFirmwareVersion($betaText);
+                if ($modelLabel === '' || ($official === null && $beta === null)) {
+                    continue;
+                }
+
+                foreach (self::firmwareCatalogModelAliases($modelLabel) as $modelKey) {
+                    $models[$modelKey] = [
+                        'official' => $official,
+                        'beta' => $beta,
+                        'modelLabel' => $modelLabel,
+                    ];
+                }
             }
         }
 
-        return $result;
+        if ($models === []) {
+            return ['ok' => false, 'models' => [], 'error' => __('Grandstream firmware catalog was retrieved but no model/version rows could be parsed', 'gdmsintegration')];
+        }
+
+        return ['ok' => true, 'models' => $models, 'error' => null];
+    }
+
+    /** Find the most specific catalog row for a device model. */
+    public static function findFirmwareCatalogEntry(array $catalog, string $model): ?array {
+        if (empty($catalog['ok']) || !is_array($catalog['models'] ?? null)) {
+            return null;
+        }
+        $normalized = strtoupper(preg_replace('/[^A-Z0-9]/', '', trim($model)) ?? '');
+        if ($normalized === '') {
+            return null;
+        }
+        if (isset($catalog['models'][$normalized])) {
+            return $catalog['models'][$normalized];
+        }
+
+        // A model explicitly marked V2/V3 must not fall back to its older hardware
+        // family row (e.g. HT801V2 must not be compared with HT801 firmware).
+        if (preg_match('/V[23]$/', $normalized)) {
+            return null;
+        }
+
+        $bestKey = '';
+        foreach (array_keys($catalog['models']) as $key) {
+            if ($key !== '' && str_starts_with($normalized, $key) && strlen($key) > strlen($bestKey)) {
+                $bestKey = $key;
+            }
+        }
+        return $bestKey !== '' ? $catalog['models'][$bestKey] : null;
+    }
+
+    private static function firmwareCatalogModelAliases(string $modelLabel): array {
+        $aliases = [];
+        $prefixes = '(?:GWN|GSS|GRP|HT|GAC|GSC|UCM|GCC|GXP|GXV|GXW|WP|DP|GHP|GDS|GBX)';
+        $parts = preg_split('/(?=' . $prefixes . '[A-Z]*[0-9])/i', $modelLabel) ?: [];
+        foreach ($parts as $part) {
+            if (!preg_match('/^(' . $prefixes . '[A-Z]*[0-9]+[A-Z0-9]*)(?:\s+V[23])?/i', trim($part), $match)) {
+                continue;
+            }
+            $baseText = $match[1];
+            if (preg_match('/^' . $prefixes . '[A-Z]*[0-9]+[A-Z0-9]*\s+(V[23])/i', trim($part), $hardwareRevision)) {
+                $baseText .= $hardwareRevision[1];
+            }
+            $base = strtoupper(preg_replace('/[^A-Z0-9]/', '', $baseText) ?? '');
+            if ($base !== '') $aliases[$base] = true;
+
+            // Compact forms such as GWN7001/7002/7003 omit the family prefix from
+            // subsequent models. Expand numeric slash-siblings, never P/G/W variants.
+            $tail = preg_replace('/^' . preg_quote($match[1], '/') . '/i', '', trim($part)) ?? '';
+            if (preg_match('/^([A-Z]+)[0-9]/i', $match[1], $family) && preg_match_all('/\/\s*([0-9]+[A-Z0-9]*)/', $tail, $siblings)) {
+                foreach ($siblings[1] as $sibling) {
+                    $key = strtoupper($family[1] . $sibling);
+                    if ($key !== '') $aliases[$key] = true;
+                }
+            }
+        }
+        return array_keys($aliases);
+    }
+
+    private static function firmwareHtmlText(string $html): string {
+        $html = preg_replace('/<(script|style|noscript)\b[^>]*>.*?<\/\1>/is', ' ', $html) ?? $html;
+        $html = preg_replace('/<\s*br\s*\/?\s*>/i', ' ', $html) ?? $html;
+        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        return trim(preg_replace('/[\s\x{00A0}]+/u', ' ', $text) ?? $text);
+    }
+
+    private static function firstFirmwareVersion(string $text): ?string {
+        return preg_match('/(?<![0-9])([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)(?![0-9])/', $text, $match)
+            ? $match[1]
+            : null;
+    }
+
+    private static function extractFirmwareVersionFromHtml(string $html): ?string {
+        $text = self::firmwareHtmlText($html);
+        return self::firstFirmwareVersion($text);
     }
 
     // Simple GET-only curl helper for public pages (no auth required)

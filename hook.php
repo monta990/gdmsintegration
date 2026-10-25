@@ -8,6 +8,91 @@
  * hooks and class registration remain in setup.php.
  */
 
+/**
+ * Ensure GDMS's native GLPI automatic action is registered correctly.
+ *
+ * $force is used during installation to refresh mode/frequency. At runtime the
+ * fast path only checks the canonical task, allowing a replaced 1.6.6 candidate
+ * to self-heal its malformed leading-slash row without requiring a reinstall.
+ */
+function plugin_gdmsintegration_ensure_cron_task(bool $force = false): bool {
+    global $DB;
+
+    $itemtype = \GlpiPlugin\Gdmsintegration\Sync::class;
+    if (!$force) {
+        $existingTask = new CronTask();
+        if ($existingTask->getFromDBbyName($itemtype, 'SyncDevices')) {
+            return true;
+        }
+    }
+
+    // Avoid duplicate repair/registration when several web requests start just
+    // after an in-place plugin update. This lock is taken only when repair is needed.
+    $repairLock = 'gdmsintegration.cron.repair';
+    if (!$DB->getLock($repairLock)) {
+        // Another process is repairing the task. A later request will verify it.
+        return !$force;
+    }
+
+    try {
+        // Recheck after acquiring the lock in case another request completed repair.
+        if (!$force) {
+            $existingTask = new CronTask();
+            if ($existingTask->getFromDBbyName($itemtype, 'SyncDevices')) {
+                return true;
+            }
+        }
+
+        // Remove well-formed plugin-owned task entries with GLPI's native API.
+        CronTask::unregister('gdmsintegration');
+
+        // The prior 1.6.6 candidate stored a leading slash in itemtype. GLPI's
+        // isPluginItemType() and unregister() do not recognize that malformed row.
+        $legacyItemtype = '\\GlpiPlugin\\Gdmsintegration\\Sync';
+        $legacyCronTask = new CronTask();
+        foreach ($DB->request([
+            'FROM'  => CronTask::getTable(),
+            'WHERE' => [
+                'itemtype' => $legacyItemtype,
+                'name'     => ['IN', ['SyncDevices', 'syncDevices']],
+            ],
+        ]) as $legacyTaskRow) {
+            if (!$legacyCronTask->delete($legacyTaskRow)) {
+                \GlpiPlugin\Gdmsintegration\Utils::warning(
+                    'Could not remove legacy malformed SyncDevices cron task (id=' . (int)($legacyTaskRow['id'] ?? 0) . ').'
+                );
+            }
+        }
+
+        // The canonical ::class value has no leading slash and is recognized by
+        // GLPI 11/12 plugin-itemtype detection and disabled-plugin checks.
+        $registered = CronTask::register(
+            $itemtype,
+            'SyncDevices',
+            10 * MINUTE_TIMESTAMP,
+            [
+                'comment' => 'Synchronize GDMS/GWN cloud devices with GLPI',
+                'mode'    => CronTask::MODE_EXTERNAL,
+            ]
+        );
+        if (!$registered) {
+            // If a competing request won registration, treat the now-existing row as success.
+            $existingTask = new CronTask();
+            if (!$force && $existingTask->getFromDBbyName($itemtype, 'SyncDevices')) {
+                return true;
+            }
+            \GlpiPlugin\Gdmsintegration\Utils::warning(
+                'Could not register the SyncDevices automatic action. Check GLPI CronTask configuration and logs.'
+            );
+            return false;
+        }
+
+        return true;
+    } finally {
+        $DB->releaseLock($repairLock);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Install
 // ---------------------------------------------------------------------------
@@ -340,21 +425,18 @@ function plugin_gdmsintegration_install(): bool {
     // historical tickets keep a valid source value.
     \GlpiPlugin\Gdmsintegration\Config::ensureRequestTypeConfiguration();
 
-    // Remove the obsolete task name shipped by an earlier 1.6.0 build, then
-    // register the task using GLPI's documented CronTask API. No direct writes
-    // to GLPI's core cron table are required.
-    CronTask::unregister('gdmsintegration');
-    CronTask::register(
-        '\GlpiPlugin\Gdmsintegration\Sync',
-        'SyncDevices',
-        10 * MINUTE_TIMESTAMP,
-        [
-            'comment' => 'Synchronize GDMS/GWN cloud devices with GLPI',
-            'mode'    => CronTask::MODE_EXTERNAL,
-        ]
-    );
+    // Install hook also repairs the native task; plugin_init can self-heal an
+    // existing installation when a candidate ZIP replaces files in place.
+    if (!plugin_gdmsintegration_ensure_cron_task(true)) {
+        return false;
+    }
 
     return true;
+}
+
+/** Ensure the native automatic action is repaired whenever the plugin is enabled. */
+function plugin_gdmsintegration_activate(): bool {
+    return plugin_gdmsintegration_ensure_cron_task();
 }
 
 // ---------------------------------------------------------------------------

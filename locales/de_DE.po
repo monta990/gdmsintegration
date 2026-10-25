@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.3\n"
+"Project-Id-Version: gdmsintegration 1.6.6\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-12 00:00+0000\n"
-"PO-Revision-Date: 2026-10-08 00:00+0000\n"
+"POT-Creation-Date: 2026-10-25 00:00+0000\n"
+"PO-Revision-Date: 2026-10-25 00:00+0000\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language: de_DE\n"
 "Language-Team: de_DE\n"
@@ -2079,3 +2079,105 @@ msgstr "Zugriff verweigert"
 #: src/Service/FirmwareService.php:399 src/Service/FirmwareService.php:455 src/Service/FirmwareService.php:479
 msgid "Device not found"
 msgstr "Gerät nicht gefunden"
+
+#: src/Service/FirmwareService.php:139
+msgid "Stable firmware update available"
+msgstr "Stabiles Firmware-Update verfügbar"
+
+#: src/Service/FirmwareService.php:140
+msgid "Installed firmware matches the official stable version"
+msgstr "Die installierte Firmware entspricht der offiziellen stabilen Version"
+
+#: src/Service/FirmwareService.php:141
+msgid "A beta firmware version is installed; automatic downgrade is blocked"
+msgstr "Eine Beta-Firmwareversion ist installiert; ein automatisches Downgrade wird blockiert"
+
+#: src/Service/FirmwareService.php:142
+msgid "Installed version is newer than the known stable version; channel not confirmed"
+msgstr "Die installierte Version ist neuer als die bekannte stabile Version; der Kanal wurde nicht bestätigt"
+
+#: src/Service/FirmwareService.php:143
+msgid "Firmware could not be verified because the source could not be queried"
+msgstr "Die Firmware konnte nicht verifiziert werden, da die Quelle nicht abgefragt werden konnte"
+
+#: src/Service/FirmwareService.php:144
+msgid "This model was not found in the official firmware catalog"
+msgstr "Dieses Modell wurde im offiziellen Firmware-Katalog nicht gefunden"
+
+#: src/Service/FirmwareService.php:145 src/Service/DashboardService.php templates/dashboard.html.twig
+msgid "Firmware version could not be verified"
+msgstr "Die Firmwareversion konnte nicht verifiziert werden"
+
+#: src/Service/FirmwareService.php:491
+msgid "Installed firmware is newer than the stable version found; beta channel could not be confirmed. Automatic downgrade is blocked."
+msgstr "Die installierte Firmware ist neuer als die gefundene stabile Version; der Beta-Kanal konnte nicht bestätigt werden. Ein automatisches Downgrade wird blockiert."
+
+#: src/Service/FirmwareService.php:494
+msgid "GWN Cloud did not provide a verified per-device stable version; the official catalog is shown for reference and scheduling is disabled until GWN Cloud verification succeeds."
+msgstr "GWN Cloud hat keine verifizierte stabile Version pro Gerät bereitgestellt; der offizielle Katalog wird nur als Referenz angezeigt und die Planung bleibt deaktiviert, bis GWN Cloud die Version bestätigt."
+
+#: src/Service/FirmwareService.php:497
+msgid "GWN Cloud credentials are missing; firmware scheduling is disabled."
+msgstr "Die GWN-Cloud-Anmeldedaten fehlen; die Firmwareplanung ist deaktiviert."
+
+#: src/Service/FirmwareService.php:500
+msgid "An update was detected, but no verified download path is available for this model; automatic scheduling is disabled."
+msgstr "Ein Update wurde erkannt, aber für dieses Modell ist kein verifizierter Downloadpfad verfügbar; die automatische Planung ist deaktiviert."
+
+#: src/Service/FirmwareService.php:521
+msgid "Firmware source unavailable"
+msgstr "Firmwarequelle nicht verfügbar"
+
+#: src/Sync.php:1766
+msgid "Alert ID"
+msgstr "Alarm-ID"
+
+#: src/Sync.php:1770
+msgid "Event time (UTC)"
+msgstr "Ereigniszeit (UTC)"
+
+#: src/Sync.php:1760
+#, python-format
+msgid "Unknown (source level %s)"
+msgstr "Unbekannt (Quellstufe %s)"
+
+#: src/Service/DashboardService.php:690
+msgid "Firmware status"
+msgstr "Firmwarestatus"
+
+#: src/Service/DashboardService.php:691
+msgid "Beta channel published version"
+msgstr "Im Beta-Kanal veröffentlichte Version"
+
+#: src/API.php:gwnGetFirmwareVersionsBatch
+msgid "Unable to obtain a valid GWN Cloud API token"
+msgstr "Ein gültiges GWN-Cloud-API-Token konnte nicht abgerufen werden"
+
+#: src/API.php:2076
+msgid "Grandstream firmware catalog could not be retrieved"
+msgstr "Der Grandstream-Firmwarekatalog konnte nicht abgerufen werden"
+
+#: src/API.php:2085
+msgid "Grandstream firmware catalog has no readable tables"
+msgstr "Der Grandstream-Firmwarekatalog enthält keine lesbaren Tabellen"
+
+#: src/API.php:2141
+msgid "Grandstream firmware catalog was retrieved but no model/version rows could be parsed"
+msgstr "Der Grandstream-Firmwarekatalog wurde abgerufen, aber es konnten keine Modell-/Versionszeilen verarbeitet werden"
+
+#: src/Service/FirmwareService.php:615
+msgid "GWN firmware upgrade blocked for one or more devices because the installed version is not older than a verified official stable version, or firmware verification failed."
+msgstr "Das GWN-Firmwareupgrade wurde für mindestens ein Gerät blockiert, weil die installierte Version nicht älter als eine verifizierte offizielle stabile Version ist oder die Firmwareprüfung fehlgeschlagen ist."
+
+#: src/Service/FirmwareService.php:657
+msgid "MAC address and verified stable firmware version are required"
+msgstr "MAC-Adresse und verifizierte stabile Firmwareversion sind erforderlich"
+
+#: src/Service/FirmwareService.php:681
+msgid "Firmware upgrade blocked: the requested version is not the currently verified official stable version, or it is not newer than the installed firmware. Refresh the firmware check and review the device before retrying."
+msgstr "Das Firmwareupgrade wurde blockiert: Die angeforderte Version ist nicht die aktuell verifizierte offizielle stabile Version oder nicht neuer als die installierte Firmware. Prüfen Sie die Firmware erneut und kontrollieren Sie das Gerät, bevor Sie es nochmals versuchen."
+
+#: src/Service/FirmwareService.php:697
+msgid "No verified official firmware download path is available for this model; automatic scheduling is disabled."
+msgstr "Für dieses Modell ist kein verifizierter offizieller Firmware-Downloadpfad verfügbar; die automatische Planung ist deaktiviert."
+

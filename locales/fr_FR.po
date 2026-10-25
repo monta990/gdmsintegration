@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.3\n"
+"Project-Id-Version: gdmsintegration 1.6.6\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-12 00:00+0000\n"
-"PO-Revision-Date: 2026-10-08 00:00+0000\n"
+"POT-Creation-Date: 2026-10-25 00:00+0000\n"
+"PO-Revision-Date: 2026-10-25 00:00+0000\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language: fr_FR\n"
 "Language-Team: fr_FR\n"
@@ -2079,3 +2079,105 @@ msgstr "Accès refusé"
 #: src/Service/FirmwareService.php:399 src/Service/FirmwareService.php:455 src/Service/FirmwareService.php:479
 msgid "Device not found"
 msgstr "Périphérique introuvable"
+
+#: src/Service/FirmwareService.php:139
+msgid "Stable firmware update available"
+msgstr "Mise à jour stable du micrologiciel disponible"
+
+#: src/Service/FirmwareService.php:140
+msgid "Installed firmware matches the official stable version"
+msgstr "Le micrologiciel installé correspond à la version stable officielle"
+
+#: src/Service/FirmwareService.php:141
+msgid "A beta firmware version is installed; automatic downgrade is blocked"
+msgstr "Une version bêta du micrologiciel est installée ; la rétrogradation automatique est bloquée"
+
+#: src/Service/FirmwareService.php:142
+msgid "Installed version is newer than the known stable version; channel not confirmed"
+msgstr "La version installée est plus récente que la version stable connue ; le canal n’est pas confirmé"
+
+#: src/Service/FirmwareService.php:143
+msgid "Firmware could not be verified because the source could not be queried"
+msgstr "Le micrologiciel n’a pas pu être vérifié, car la source n’a pas pu être interrogée"
+
+#: src/Service/FirmwareService.php:144
+msgid "This model was not found in the official firmware catalog"
+msgstr "Ce modèle est introuvable dans le catalogue officiel des micrologiciels"
+
+#: src/Service/FirmwareService.php:145 src/Service/DashboardService.php templates/dashboard.html.twig
+msgid "Firmware version could not be verified"
+msgstr "La version du micrologiciel n’a pas pu être vérifiée"
+
+#: src/Service/FirmwareService.php:491
+msgid "Installed firmware is newer than the stable version found; beta channel could not be confirmed. Automatic downgrade is blocked."
+msgstr "Le micrologiciel installé est plus récent que la version stable trouvée ; le canal bêta n’a pas pu être confirmé. La rétrogradation automatique est bloquée."
+
+#: src/Service/FirmwareService.php:494
+msgid "GWN Cloud did not provide a verified per-device stable version; the official catalog is shown for reference and scheduling is disabled until GWN Cloud verification succeeds."
+msgstr "GWN Cloud n’a pas fourni de version stable vérifiée pour chaque appareil ; le catalogue officiel est affiché à titre indicatif et la programmation est désactivée jusqu’à ce que GWN Cloud confirme la version."
+
+#: src/Service/FirmwareService.php:497
+msgid "GWN Cloud credentials are missing; firmware scheduling is disabled."
+msgstr "Les identifiants GWN Cloud sont manquants ; la programmation du micrologiciel est désactivée."
+
+#: src/Service/FirmwareService.php:500
+msgid "An update was detected, but no verified download path is available for this model; automatic scheduling is disabled."
+msgstr "Une mise à jour a été détectée, mais aucun chemin de téléchargement vérifié n’est disponible pour ce modèle ; la programmation automatique est désactivée."
+
+#: src/Service/FirmwareService.php:521
+msgid "Firmware source unavailable"
+msgstr "Source du micrologiciel indisponible"
+
+#: src/Sync.php:1766
+msgid "Alert ID"
+msgstr "ID de l’alerte"
+
+#: src/Sync.php:1770
+msgid "Event time (UTC)"
+msgstr "Heure de l’événement (UTC)"
+
+#: src/Sync.php:1760
+#, python-format
+msgid "Unknown (source level %s)"
+msgstr "Inconnu (niveau source %s)"
+
+#: src/Service/DashboardService.php:690
+msgid "Firmware status"
+msgstr "État du micrologiciel"
+
+#: src/Service/DashboardService.php:691
+msgid "Beta channel published version"
+msgstr "Version publiée sur le canal bêta"
+
+#: src/API.php:gwnGetFirmwareVersionsBatch
+msgid "Unable to obtain a valid GWN Cloud API token"
+msgstr "Impossible d’obtenir un jeton API GWN Cloud valide"
+
+#: src/API.php:2076
+msgid "Grandstream firmware catalog could not be retrieved"
+msgstr "Impossible de récupérer le catalogue de micrologiciels Grandstream"
+
+#: src/API.php:2085
+msgid "Grandstream firmware catalog has no readable tables"
+msgstr "Le catalogue de micrologiciels Grandstream ne contient aucun tableau lisible"
+
+#: src/API.php:2141
+msgid "Grandstream firmware catalog was retrieved but no model/version rows could be parsed"
+msgstr "Le catalogue de micrologiciels Grandstream a été récupéré, mais aucune ligne de modèle/version n’a pu être analysée"
+
+#: src/Service/FirmwareService.php:615
+msgid "GWN firmware upgrade blocked for one or more devices because the installed version is not older than a verified official stable version, or firmware verification failed."
+msgstr "La mise à niveau du micrologiciel GWN a été bloquée pour un ou plusieurs appareils, car la version installée n’est pas antérieure à une version stable officielle vérifiée ou que la vérification du micrologiciel a échoué."
+
+#: src/Service/FirmwareService.php:657
+msgid "MAC address and verified stable firmware version are required"
+msgstr "L’adresse MAC et une version stable vérifiée du micrologiciel sont requises"
+
+#: src/Service/FirmwareService.php:681
+msgid "Firmware upgrade blocked: the requested version is not the currently verified official stable version, or it is not newer than the installed firmware. Refresh the firmware check and review the device before retrying."
+msgstr "La mise à niveau du micrologiciel a été bloquée : la version demandée n’est pas la version stable officielle actuellement vérifiée ou n’est pas plus récente que le micrologiciel installé. Relancez la vérification et examinez l’appareil avant de réessayer."
+
+#: src/Service/FirmwareService.php:697
+msgid "No verified official firmware download path is available for this model; automatic scheduling is disabled."
+msgstr "Aucun chemin de téléchargement officiel vérifié du micrologiciel n’est disponible pour ce modèle ; la programmation automatique est désactivée."
+
