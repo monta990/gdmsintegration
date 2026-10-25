@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.6.6] — 2026-10-25
 
+### Fixed
+
+- Converted HTML-formatted ticket descriptions to readable plain text in the XLSX Tickets sheet, preserving paragraphs, line breaks, and table field/value rows while keeping descriptions as explicit text cells with wrapping and calculated row height.
+
 Final package prepared on 2026-10-25. This release retains GWN Networking alerts only; GDMS Unified Communications alert listing is not included because no supported listing endpoint was confirmed in the available API documentation.
 
 ### Fixed
