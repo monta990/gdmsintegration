@@ -460,13 +460,17 @@ final class HistoryExportService
 
             $url = \Ticket::getFormURLWithID($tid);
 
+            // Tickets now store safe HTML for GLPI and email rendering. Excel cells
+            // should contain readable plain text instead of literal HTML markup.
+            $description = self::ticketContentToPlainText((string)($row['content'] ?? ''));
+
             $values = [
                 $tid,
                 $created,
                 $updated,
                 self::ticketStatusLabel((int)($row['status'] ?? 0)),
                 (string)($row['name'] ?? ''),
-                (string)($row['content'] ?? ''),
+                $description,
                 self::ticketTypeLabel((int)($row['type'] ?? 0)),
                 (int)($row['urgency'] ?? 0),
                 (int)($row['impact'] ?? 0),
@@ -491,7 +495,15 @@ final class HistoryExportService
             // enforce string cell types explicitly as defense in depth. This keeps
             // imported/human-created ticket text from becoming an XLSX formula.
             $sheet->setCellValueExplicit('E' . $row_num, (string) ($row['name'] ?? ''), DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit('F' . $row_num, (string) ($row['content'] ?? ''), DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit('F' . $row_num, $description, DataType::TYPE_STRING);
+
+            // Give multiline descriptions enough initial height to remain readable
+            // on opening in Excel; wrapText is also enabled for the Description column.
+            $estimatedLines = 0;
+            foreach (explode("\n", $description) as $descriptionLine) {
+                $estimatedLines += max(1, (int) ceil(mb_strlen($descriptionLine, 'UTF-8') / 70));
+            }
+            $sheet->getRowDimension($row_num)->setRowHeight(min(240, max(30, $estimatedLines * 15)));
 
             $sheet->getCell('A' . $row_num)->getHyperlink()->setUrl($url);
             $sheet->getStyle('A' . $row_num)->getFont()->setUnderline(Font::UNDERLINE_SINGLE);
@@ -518,6 +530,93 @@ final class HistoryExportService
         }
         $sheet->getStyle('E2:F' . $last_row)->getAlignment()->setWrapText(true);
         $sheet->getStyle('A1:V' . $last_row)->getAlignment()->setVertical(Alignment::VERTICAL_TOP);
+    }
+
+    /**
+     * Convert ticket HTML to spreadsheet-friendly plain text.
+     *
+     * Plugin-generated ticket tables become one \`Field: Value\` line per row;
+     * headings and paragraphs remain separated, and all output is written to
+     * XLSX as an explicit string cell (never as HTML or a formula).
+     */
+    private static function ticketContentToPlainText(string $content): string {
+        $content = trim($content);
+        if ($content === '') {
+            return '';
+        }
+
+        // Do not export embedded script/style contents as ticket description text.
+        $content = preg_replace('~<(script|style)\b[^>]*>.*?</\1>~is', ' ', $content) ?? $content;
+
+        // Translate simple table rows before stripping tags, otherwise cell boundaries
+        // would be lost (e.g. \`Severitywarning\` instead of \`Severity: warning\`).
+        $content = preg_replace_callback('~<table\b[^>]*>.*?</table>~is', static function (array $match): string {
+            if (!preg_match_all('~<tr\b[^>]*>(.*?)</tr>~is', $match[0], $rowMatches)) {
+                return "\n";
+            }
+
+            $lines = [];
+            foreach ($rowMatches[1] as $rowHtml) {
+                if (!preg_match_all('~<(td|th)\b[^>]*>(.*?)</\1>~is', $rowHtml, $cellMatches, PREG_SET_ORDER)) {
+                    continue;
+                }
+
+                // Header rows are labels for the table structure, not ticket details.
+                $allHeaders = true;
+                $cells = [];
+                foreach ($cellMatches as $cellMatch) {
+                    if (strtolower($cellMatch[1]) !== 'th') {
+                        $allHeaders = false;
+                    }
+                    $cells[] = self::htmlFragmentToPlainText($cellMatch[2]);
+                }
+                if ($allHeaders) {
+                    continue;
+                }
+
+                $cells = array_map(static fn(string $cell): string => trim($cell), $cells);
+                if (count($cells) === 1) {
+                    $line = $cells[0];
+                } elseif (count($cells) === 2) {
+                    $line = $cells[0] !== '' ? $cells[0] . ': ' . $cells[1] : $cells[1];
+                } else {
+                    $line = implode(' | ', array_values(array_filter($cells, static fn(string $cell): bool => $cell !== '')));
+                }
+
+                if (trim($line) !== '') {
+                    $lines[] = trim($line);
+                }
+            }
+
+            // Re-escape row text before reinserting it into the HTML fragment so
+            // the final strip_tags pass cannot mistake literal text such as \`<updated>\`
+            // (originally encoded as \`&lt;updated&gt;\`) for an actual HTML element.
+            $escapedLines = array_map(
+                static fn(string $line): string => htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
+                $lines
+            );
+            return $escapedLines === [] ? "\n" : "\n" . implode("\n", $escapedLines) . "\n";
+        }, $content) ?? $content;
+
+        return self::normalizePlainText(self::htmlFragmentToPlainText($content));
+    }
+
+    /** Strip one HTML fragment while preserving common text structure. */
+    private static function htmlFragmentToPlainText(string $html): string {
+        $html = preg_replace('~<br\s*/?>~i', "\n", $html) ?? $html;
+        $html = preg_replace('~<li\b[^>]*>~i', "\n• ", $html) ?? $html;
+        $html = preg_replace('~</(?:p|div|h[1-6]|section|article|blockquote|li|ul|ol|pre|tr)>~i', "\n", $html) ?? $html;
+        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = str_replace(["\r\n", "\r", "\xC2\xA0"], ["\n", "\n", ' '], $text);
+        return self::normalizePlainText($text);
+    }
+
+    /** Normalize whitespace without collapsing meaningful line breaks. */
+    private static function normalizePlainText(string $text): string {
+        $text = preg_replace('/[ \t]+/u', ' ', $text) ?? $text;
+        $text = preg_replace('/ *\n */u', "\n", $text) ?? $text;
+        $text = preg_replace('/\n{3,}/u', "\n\n", $text) ?? $text;
+        return trim($text);
     }
 
     /** @param array<int,bool> $ids @return array<int,string> */
