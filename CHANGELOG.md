@@ -11,7 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Dependencies
 
-- Retained the bundled, self-hosted `vis-network` 10.1.2 distribution and applied the focused upstream animation fix without introducing a CDN dependency. This release does not claim a full dependency upgrade to 10.1.4.
+- Preserved the bundled, self-hosted `vis-network` 10.1.2 distribution and backported the upstream view-animation correction from 10.1.4; no CDN dependency was introduced.
 
 ## [1.6.6] — 2026-10-25
 
