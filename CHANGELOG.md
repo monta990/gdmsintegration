@@ -1,5 +1,8 @@
 # Changelog — GDMS Integration
 
+All notable changes to this project are documented in this file.
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
 ## [1.6.7] — 2026-10-31
 
 ### Fixed
