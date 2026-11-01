@@ -1,16 +1,14 @@
 # Changelog — GDMS Integration
 
-## [1.6.7] — Draft (not release-ready)
+## [1.6.7] — 2026-10-31
 
-### Pending
+### Fixed
 
-- Replace `public/js/vis-network.min.js` with the exact standalone UMD bundle from the official npm package `vis-network@10.1.4`. The checked-in bundle remains at 10.1.2 until that archive is available; this draft does not claim that the dependency has been upgraded.
-- After replacement, verify the bundle header, JavaScript syntax, and the `vis.DataSet` / `vis.Network` exports before making this PR mergeable.
+- Backported the upstream `vis-network` view-animation fix introduced in 10.1.4: a pending camera animation is now completed before a new one starts, including when the previous animation has not rendered its first frame. This prevents overlapping animation handlers during repeated topology navigation.
 
-### Planned
+### Dependencies
 
-- Include upstream animation fix `3a757c6`, which completes an animation still pending its first rendered frame before starting another view animation.
-- Keep the dependency self-hosted; do not add a CDN runtime dependency.
+- Retained the bundled, self-hosted `vis-network` 10.1.2 distribution and applied the focused upstream animation fix without introducing a CDN dependency. This release does not claim a full dependency upgrade to 10.1.4.
 
 ## [1.6.6] — 2026-10-25
 
