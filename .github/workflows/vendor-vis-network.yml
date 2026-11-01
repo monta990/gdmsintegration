@@ -1,0 +1,52 @@
+name: Vendor vis-network 10.1.4
+
+on:
+  push:
+    branches:
+      - maintenance/vis-network-10.1.4
+    paths:
+      - public/js/vis-network.min.js
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    if: ${{ !contains(github.event.head_commit.message, 'build: vendor vis-network 10.1.4') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out maintenance branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Retrieve official npm package and validate standalone UMD bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_file="$(npm pack vis-network@10.1.4 --pack-destination "$RUNNER_TEMP")"
+          mkdir -p "$RUNNER_TEMP/vis-network"
+          tar -xzf "$RUNNER_TEMP/$package_file" -C "$RUNNER_TEMP/vis-network"
+          cp "$RUNNER_TEMP/vis-network/package/standalone/umd/vis-network.min.js" public/js/vis-network.min.js
+          grep -q '@version 10.1.4' public/js/vis-network.min.js
+          node --check public/js/vis-network.min.js
+          node - <<'NODE'
+          const vis = require('./public/js/vis-network.min.js');
+          if (typeof vis.DataSet !== 'function' || typeof vis.Network !== 'function') {
+            throw new Error('Standalone UMD bundle does not expose vis.DataSet and vis.Network');
+          }
+          console.log('vis-network 10.1.4 UMD smoke test passed');
+          NODE
+          sha256sum public/js/vis-network.min.js
+          wc -c < public/js/vis-network.min.js
+
+      - name: Commit official bundle and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/vendor-vis-network.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/js/vis-network.min.js .github/workflows/vendor-vis-network.yml
+          git commit -m "build: vendor vis-network 10.1.4"
+          git push origin "HEAD:$GITHUB_REF_NAME"

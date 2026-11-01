@@ -1,5 +1,18 @@
 # Changelog — GDMS Integration
 
+## [1.6.7] — 2026-10-31
+
+### Dependencies
+
+- Updated the bundled standalone UMD build of `vis-network` from 10.1.2 to 10.1.4.
+- Includes upstream fix `3a757c6`: completes a pending view animation before starting a new one, including when the previous animation has not rendered its first frame.
+- Preserves the local, self-hosted bundle; no CDN dependency or runtime network request is introduced.
+
+### Compatibility
+
+- Retains the existing GLPI 11 and GLPI 12 compatibility range.
+- No changes to GDMS API synchronization, topology data generation, or the `vis.DataSet` / `vis.Network` initialization contract.
+
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
