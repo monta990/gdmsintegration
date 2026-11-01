@@ -12,7 +12,6 @@ permissions:
 
 jobs:
   vendor:
-    if: ${{ !contains(github.event.head_commit.message, 'build: vendor vis-network 10.1.4') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out maintenance branch
@@ -40,13 +39,12 @@ jobs:
           sha256sum public/js/vis-network.min.js
           wc -c < public/js/vis-network.min.js
 
-      - name: Commit official bundle and remove temporary workflow
+      - name: Commit official bundle
         shell: bash
         run: |
           set -euo pipefail
-          rm .github/workflows/vendor-vis-network.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/js/vis-network.min.js .github/workflows/vendor-vis-network.yml
+          git add public/js/vis-network.min.js
           git commit -m "build: vendor vis-network 10.1.4"
           git push origin "HEAD:$GITHUB_REF_NAME"
