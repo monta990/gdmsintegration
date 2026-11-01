@@ -488,6 +488,20 @@
 
     var STR = {{ js_json.strings|raw }};
 
+    // Escape untrusted values for both HTML text nodes and quoted attributes.
+    // Keep one implementation shared by the dynamic modal/table renderers.
+    function esc(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function(character) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[character];
+        });
+    }
+
     // Tooltips use GLPI's native initTooltips() implementation.
 
     // Byte formatter
@@ -731,15 +745,13 @@
         var dtInput  = document.getElementById('gdmsFwDatetime');
         var fpWrap   = document.getElementById('gdmsFwFlatpickrWrap');
 
-        var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML; };
-
         var firmwareStatus = info.firmwareStatus || (info.hasUpdate ? 'update_available' : 'unverified');
         var statusLabel = info.firmwareStatusLabel || STR.firmwareUnverified;
         var mustBlockDowngrade = firmwareStatus === 'beta_installed' || firmwareStatus === 'ahead_of_stable';
         var versionRows = '';
         if (official && info.hasUpdate && info.canScheduleUpdate === true) {
             versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
-              + '<input type="radio" name="gdmsFwVersion" value="' + esc(official) + '" data-url="' + esc(officialUrl || '') + '" class="form-check-input mt-0" checked>'
+              + '<input type="radio" id="gdmsFwVersionRadio" name="gdmsFwVersion" class="form-check-input mt-0" checked>'
               + '<code class="text-warning">' + esc(official) + '</code>'
               + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
               + '</label></td></tr>';
@@ -778,6 +790,14 @@
             + STR.gdmsVersionNote
             + ' <a href="https://www.grandstream.com/support/firmware" target="_blank" rel="noopener" class="ms-1">'
             + STR.fwPageLbl + ' <i class="ti ti-external-link" style="font-size:.8em;"></i></a></div>';
+
+        // Assign the scraped URL through the DOM API, never through HTML string parsing.
+        // This keeps quotes and markup characters in the value inert.
+        var firmwareRadio = body.querySelector('#gdmsFwVersionRadio');
+        if (firmwareRadio) {
+            firmwareRadio.value = String(official || '');
+            firmwareRadio.setAttribute('data-url', String(officialUrl || ''));
+        }
 
         var _macEl = document.getElementById('gdmsFwMacCode');
         initTooltips(document.getElementById('gdmsFwModalBody'));
@@ -1262,7 +1282,6 @@
                     body.innerHTML = '<p class="text-muted text-center py-3">' + STR.noClients + '</p>';
                     return;
                 }
-                var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || '—'))); return d.innerHTML; };
                 var html = (resp.partial ? '<div class="alert alert-warning py-2 px-3 m-2 small">' + STR.clientsPartialNotice + '</div>' : '') + '<div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead><tr>'
                     + '<th class="ps-3">' + STR.hostname + '</th>'
                     + '<th>IP</th><th>MAC</th>'
@@ -1330,8 +1349,6 @@
         var registered = sip === 'registered';
         var sipColor   = registered ? '#28a745' : '#dc3545';
         var sipLabel   = registered ? STR.sipRegistered : STR.sipUnregistered;
-
-        var esc = function(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s || '—'))); return d.innerHTML; };
 
         var rows = [];
         rows.push(['<i class="ti ti-phone-call me-1"></i>' + STR.sipStatusLbl,
@@ -1521,7 +1538,6 @@
                         return;
                     }
 var sevColor = {'critical':'danger','warning':'warning','medium':'warning','info':'info','low':'secondary','error':'danger'};
-                    var esc = function(s){ var d = document.createElement('div'); d.appendChild(document.createTextNode(String(s||''))); return d.innerHTML; };
                     var html = (resp.partial ? '<div class="alert alert-warning py-2 px-3 m-2 small">' + STR.alertsPartialNotice + '</div>' : '') + '<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle"><thead><tr>'
                       + '<th class="ps-3" style="white-space:nowrap">' + STR.alertTime + '</th>'
                       + '<th>' + STR.alertSev + '</th>'

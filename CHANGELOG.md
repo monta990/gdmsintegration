@@ -3,9 +3,21 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.6.6] — 2026-10-25
+## [1.6.7] — 2026-11-01
 
-Final package prepared on 2026-10-25. This release retains GWN Networking alerts only; GDMS Unified Communications alert listing is not included because no supported listing endpoint was confirmed in the available API documentation.
+### Fixed
+
+- Backported the upstream `vis-network` view-animation fix introduced in 10.1.4: a pending camera animation is now completed before a new one starts, including when the previous animation has not rendered its first frame. This prevents overlapping animation handlers during repeated topology navigation.
+
+### Security
+
+- Fixed the firmware modal DOM-XSS path by removing the scraped download URL from HTML-string interpolation and assigning it with the DOM API. Consolidated dynamic HTML escaping so both double and single quotes are encoded in text/attribute contexts. Firmware URLs scraped from Grandstream pages are now accepted only after HTML entity decoding, HTTPS/host validation, and a strict plain `.bin` path check; malformed, encoded, or quote-bearing paths and unsafe query characters are rejected.
+
+### Dependencies
+
+- Preserved the bundled, self-hosted `vis-network` 10.1.2 distribution and backported the upstream view-animation correction from 10.1.4; no CDN dependency was introduced.
+
+## [1.6.6] — 2026-10-25
 
 ### Fixed
 
