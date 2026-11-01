@@ -2017,6 +2017,56 @@ class API {
         return ['success' => true, 'mac' => $mac];
     }
 
+    /**
+     * Validate a firmware URL extracted from a Grandstream product page.
+     *
+     * The vendor host alone is not sufficient: require HTTPS and a plain .bin
+     * file path with conservative path characters. Validation runs after HTML
+     * entity decoding so encoded quotes and path metacharacters are rejected.
+     */
+    private static function isValidScrapedFirmwareUrl(string $url): bool {
+        if ($url === '' || preg_match('~[\x00-\x20\x7F<>\"\'\\\\]~', $url) === 1) {
+            return false;
+        }
+
+        $parts = parse_url($url);
+        if (!is_array($parts)) {
+            return false;
+        }
+
+        $scheme = strtolower((string)($parts['scheme'] ?? ''));
+        $host = strtolower((string)($parts['host'] ?? ''));
+        if ($scheme !== 'https'
+            || !in_array($host, ['firmware.grandstream.com', 'fw.gdms.cloud'], true)
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || (isset($parts['port']) && (int)$parts['port'] !== 443)
+            || array_key_exists('fragment', $parts)) {
+            return false;
+        }
+
+        // Only plain path segments and a .bin filename are accepted. Percent-
+        // encoded paths, quotes, dot-segments, backslashes and other URL syntax
+        // cannot be introduced into the firmware path by the source page.
+        $path = (string)($parts['path'] ?? '');
+        if (preg_match('~\A/(?:[A-Za-z0-9_-][A-Za-z0-9._-]*/)*[A-Za-z0-9_-][A-Za-z0-9._-]*\.bin\z~D', $path) !== 1) {
+            return false;
+        }
+
+        // Preserve ordinary vendor query parameters, but reject malformed or
+        // encoded control/markup characters after URL decoding.
+        if (array_key_exists('query', $parts)) {
+            $query = (string)$parts['query'];
+            if (preg_match('#\A[A-Za-z0-9._~!$&()*+,;=:@/?%-]*\z#D', $query) !== 1
+                || preg_match('/%(?![A-Fa-f0-9]{2})/', $query)
+                || preg_match('~[\x00-\x20\x7F<>\"\'\\\\]~', rawurldecode($query)) === 1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     // -----------------------------------------------------------------------
     // Grandstream product-page firmware scraper. Official and beta channels are
     // fetched separately so an installed beta is never mistaken for a downgrade.
@@ -2052,8 +2102,7 @@ class API {
                     // Do not guess the host for relative links from the vendor page.
                     $url = '';
                 }
-                $host = strtolower((string)(parse_url($url, PHP_URL_HOST) ?? ''));
-                if (in_array($host, ['firmware.grandstream.com', 'fw.gdms.cloud'], true)) {
+                if (self::isValidScrapedFirmwareUrl($url)) {
                     $result[$channel . 'Url'] = $url;
                 }
             }
