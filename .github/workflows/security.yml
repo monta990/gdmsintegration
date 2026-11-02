@@ -92,7 +92,7 @@ jobs:
           vendor/bin/twigcs \
             --ansi \
             --no-interaction \
-            --ruleset='Glpi\\Tools\\GlpiTwigRuleset' \
+            --ruleset='Glpi\Tools\GlpiTwigRuleset' \
             plugins/gdmsintegration/templates
 
       - name: PHPStan level 8 with GLPI extensions
