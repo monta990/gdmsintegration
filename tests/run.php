@@ -113,7 +113,7 @@ namespace {
             $assertTrue(str_contains($html, '<br>'), 'Multiline values must preserve line breaks.');
             $assertFalse(str_contains($html, '<script>'), 'No untrusted script element may remain executable.');
             $assertFalse(str_contains($html, '<img'), 'No untrusted image element may remain executable.');
-            $assertFalse(str_contains($html, 'onerror='), 'Event-handler attributes must be escaped.');
+            $assertTrue(str_contains($html, 'onerror=&quot;'), 'Event-handler attributes must be rendered only as escaped text.');\n            $assertFalse(str_contains($html, '<img src=x onerror='), 'No active event-handler element may remain in the HTML.');
             $assertFalse(str_contains($html, 'not scalar'), 'Non-scalar values must not be stringified.');
             $assertSame(1, RichText::$calls, 'The completed ticket HTML must pass through GLPI rich-text sanitization.');
         },
