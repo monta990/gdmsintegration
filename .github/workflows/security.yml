@@ -25,6 +25,8 @@ concurrency:
 jobs:
   glpi-static-analysis:
     name: GLPI-aware PHP and Twig analysis — GLPI ${{ matrix.glpi }}
+    # Use fresh GitHub-hosted runners for untrusted PR source. Do not add caches,
+    # upload PR-derived artifacts, or pass PR data to privileged workflow_run jobs.
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,8 +44,10 @@ jobs:
 
     steps:
       # PR source is inspected only in this unprivileged pull_request job:
-      # contents:read, no repository secrets, no persisted checkout credentials,
-      # and no execution of plugin-defined scripts. Do not change this to pull_request_target.
+      # fork PRs receive a read-only GITHUB_TOKEN and no repository secrets;
+      # checkout credentials are not persisted and plugin-defined scripts are not run.
+      # Keep this on GitHub-hosted runners, without caches or PR artifact handoffs.
+      # Do not change this to pull_request_target.
       - name: Checkout plugin source for static analysis
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
