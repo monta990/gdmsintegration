@@ -113,7 +113,8 @@ namespace {
             $assertTrue(str_contains($html, '<br>'), 'Multiline values must preserve line breaks.');
             $assertFalse(str_contains($html, '<script>'), 'No untrusted script element may remain executable.');
             $assertFalse(str_contains($html, '<img'), 'No untrusted image element may remain executable.');
-            $assertTrue(str_contains($html, 'onerror=&quot;'), 'Event-handler attributes must be rendered only as escaped text.');\n            $assertFalse(str_contains($html, '<img src=x onerror='), 'No active event-handler element may remain in the HTML.');
+            $assertTrue(str_contains($html, 'onerror=&quot;'), 'Event-handler attributes must be rendered only as escaped text.');
+            $assertFalse(str_contains($html, '<img src=x onerror='), 'No active event-handler element may remain in the HTML.');
             $assertFalse(str_contains($html, 'not scalar'), 'Non-scalar values must not be stringified.');
             $assertSame(1, RichText::$calls, 'The completed ticket HTML must pass through GLPI rich-text sanitization.');
         },
@@ -129,7 +130,7 @@ namespace {
             $assertSame(1, RichText::$calls, 'The follow-up note must use GLPI rich-text sanitization.');
         },
 
-        'Firmware MAC normalization' => static function () use ($assertSame): void {
+        'Firmware MAC normalization' => static function () use ($assertSame, $invokePrivate): void {
             $assertSame(
                 'AA:BB:CC:DD:EE:FF',
                 $invokePrivate('normalizeMacAddress', ['aa-bb-cc-dd-ee-ff']),
@@ -143,7 +144,7 @@ namespace {
             $assertSame('', $invokePrivate('normalizeMacAddress', ['not-a-mac']), 'Invalid MAC lengths must be rejected.');
         },
 
-        'Firmware version format validation' => static function () use ($assertTrue, $assertFalse): void {
+        'Firmware version format validation' => static function () use ($assertTrue, $assertFalse, $invokePrivate): void {
             $assertTrue($invokePrivate('isFirmwareVersion', ['1.0.7']), 'Three-part firmware versions must be accepted.');
             $assertTrue($invokePrivate('isFirmwareVersion', ['1.0.7.71']), 'Four-part firmware versions must be accepted.');
             $assertFalse($invokePrivate('isFirmwareVersion', ['1.0']), 'Incomplete versions must be rejected.');
@@ -151,7 +152,7 @@ namespace {
             $assertFalse($invokePrivate('isFirmwareVersion', ['']), 'Empty firmware versions must be rejected.');
         },
 
-        'Trusted firmware download hosts' => static function () use ($assertTrue, $assertFalse): void {
+        'Trusted firmware download hosts' => static function () use ($assertTrue, $assertFalse, $invokePrivate): void {
             $assertTrue(
                 $invokePrivate('isTrustedFirmwareDownloadUrl', ['https://firmware.grandstream.com/grp2600fw.bin']),
                 'The official Grandstream firmware host must be accepted.'
@@ -174,7 +175,7 @@ namespace {
             );
         },
 
-        'Firmware scheduling requires the exact newer official stable version' => static function () use ($assertTrue, $assertFalse): void {
+        'Firmware scheduling requires the exact newer official stable version' => static function () use ($assertTrue, $assertFalse, $invokePrivate): void {
             $assertTrue(
                 $invokePrivate('canScheduleStableFirmware', ['1.0.7.66', '1.0.7.71', '1.0.7.71']),
                 'A verified official version newer than the installed version must be schedulable.'
@@ -201,7 +202,7 @@ namespace {
             );
         },
 
-        'Firmware CDN mapping is explicit and refuses unknown families' => static function () use ($assertSame): void {
+        'Firmware CDN mapping is explicit and refuses unknown families' => static function () use ($assertSame, $invokePrivate): void {
             $assertSame(
                 'https://firmware.grandstream.com/grp2600fw.bin',
                 $invokePrivate('gdmsCdnUrl', ['GRP-2604']),
