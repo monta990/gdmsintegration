@@ -4,6 +4,9 @@ includes:
 
 parameters:
     level: 8
+    scanDirectories:
+        - inc
+        - src
     bootstrapFiles:
         - stubs/db_config_classes.php
         - stubs/glpi_constants.php
