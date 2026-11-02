@@ -94,7 +94,9 @@ jobs:
           unzip -Z1 "$archive" | grep -qx 'gdmsintegration/public/js/vis-network.min.js'
 
       - name: Upload validated installation ZIP
-        if: matrix.php == '8.3' && !matrix.experimental
+        # Only trusted main-branch builds may publish an installable ZIP artifact.
+        # PR-generated artifacts are intentionally not uploaded or handed to privileged workflows.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.php == '8.3' && !matrix.experimental
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: gdmsintegration-cli-package
