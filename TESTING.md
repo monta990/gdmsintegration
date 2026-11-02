@@ -126,3 +126,7 @@ A passing CLI workflow does not replace the GLPI staging checks above. Review th
 - [ ] The release notes and plugin version are reviewed separately from the test-infrastructure change.
 
 This document is an acceptance checklist. A checked item must correspond to an actual executed test; the existence of a checklist is not evidence that a manual test has passed.
+
+### PR workflow isolation
+
+The GLPI-aware static-analysis job intentionally uses only the unprivileged `pull_request` event (never `pull_request_target`), with job-level `contents: read`, no repository secrets, and `persist-credentials: false` on both checkouts. The plugin source is inspected by PHP/Twig static-analysis tools; plugin-defined scripts are not executed. Composer installation is restricted with `--no-scripts`. Keep these controls in place. GitHub CodeQL may report its medium-severity informational finding for untrusted checkout in this non-privileged context; this is preferable to checking out PR code in a privileged workflow. Do not “fix” it by switching to `pull_request_target` or granting write permissions.
