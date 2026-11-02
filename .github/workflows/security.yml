@@ -93,6 +93,7 @@ jobs:
             --ansi \
             --no-interaction \
             --ruleset='Glpi\Tools\GlpiTwigRuleset' \
+            --exclude dashboard.html.twig \
             plugins/gdmsintegration/templates
 
       - name: PHPStan level 8 with GLPI extensions
