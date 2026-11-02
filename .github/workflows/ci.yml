@@ -62,7 +62,7 @@ jobs:
 
       - name: PHP syntax
         run: |
-          find setup.php hook.php src tests -type f -name '*.php' -print0 \
+          find setup.php hook.php src tests .github -type f -name '*.php' -print0 \
             | sort -z \
             | xargs -0 -r -n1 php -l
 
