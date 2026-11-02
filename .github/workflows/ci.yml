@@ -1,0 +1,103 @@
+name: GDMS Integration CI
+
+on:
+  push:
+    branches:
+      - main
+      - "ci/**"
+      - "test/**"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gdms-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cli-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: "8.2"
+            experimental: false
+          - php: "8.3"
+            experimental: false
+          - php: "8.4"
+            experimental: false
+          - php: "8.5"
+            experimental: false
+          - php: "8.6"
+            experimental: true
+    continue-on-error: ${{ matrix.experimental }}
+    name: CLI and package checks — PHP ${{ matrix.php }}${{ matrix.experimental && ' (experimental)' || '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, fileinfo, mbstring, zip
+          coverage: none
+
+      - name: Install ZIP tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip unzip
+
+      - name: Show runtime
+        run: php -v
+
+      - name: PHP syntax
+        run: |
+          find setup.php hook.php src tests -type f -name '*.php' -print0 \
+            | sort -z \
+            | xargs -0 -r -n1 php -l
+
+      - name: Run CLI business-logic tests
+        run: php tests/run.php
+
+      - name: Validate release metadata and source layout
+        run: php tests/validate-release.php
+
+      - name: Build and validate installation ZIP
+        run: |
+          mkdir -p "$RUNNER_TEMP/gdms-dist"
+          bash scripts/package.sh "$RUNNER_TEMP/gdms-dist"
+          archive="$RUNNER_TEMP/gdms-dist/gdmsintegration-$(sed -nE "s/.*PLUGIN_GDMSINTEGRATION_VERSION', '([^']+)'.*/\\1/p" setup.php).zip"
+          test -f "$archive"
+          unzip -t "$archive"
+          if unzip -Z1 "$archive" | grep -Evq '^gdmsintegration(/|$)'; then
+            echo "The archive contains a path outside gdmsintegration/." >&2
+            exit 1
+          fi
+          if unzip -Z1 "$archive" | grep -Eq '^gdmsintegration/(tests|scripts|\.github|vendor)(/|$)'; then
+            echo "Development files leaked into the installation ZIP." >&2
+            exit 1
+          fi
+          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/setup.php'
+          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/hook.php'
+          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/src/Sync.php'
+          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/templates/dashboard.html.twig'
+          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/public/js/vis-network.min.js'
+
+      - name: Upload validated installation ZIP
+        if: matrix.php == '8.3' && !matrix.experimental
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gdmsintegration-cli-package
+          path: ${{ runner.temp }}/gdms-dist/gdmsintegration-*.zip
+          if-no-files-found: error
+          retention-days: 14
