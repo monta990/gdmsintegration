@@ -108,9 +108,9 @@ The GitHub Actions checks validate the exact commit under review:
 - A release ZIP build and archive-content audit.
 - PHPStan level 8 with GLPI's PHPStan extension.
 - Psalm security/taint analysis.
-- GLPI-aware PHP lint with deprecated-syntax detection and TwigCS using GLPI's ruleset.
+- GLPI-aware PHP lint with deprecated-syntax detection and TwigCS using GLPI's ruleset. The existing dashboard template is excluded from the blocking TwigCS pass because it embeds large JavaScript object literals with 82 pre-existing formatting findings; it is kept byte-for-byte unchanged by this tooling-only PR. The configuration template remains linted.
 - The same static-analysis workflow against GLPI 11.0 and GLPI 12.0.
-- CodeQL security-extended analysis for JavaScript and GitHub Actions.
+- CodeQL security-extended analysis for GitHub Actions. The repository currently contains no maintained JavaScript/TypeScript source file: its only JavaScript bundle is the minified third-party `vis-network.min.js`, so CodeQL JavaScript extraction is intentionally not configured.
 - Gitleaks repository-history scanning and zizmor workflow auditing.
 - Dependabot checks for GitHub Actions updates.
 
