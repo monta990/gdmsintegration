@@ -1,0 +1,16 @@
+includes:
+    - vendor/glpi-project/phpstan-glpi/extension.neon
+    - vendor/phpstan/phpstan-deprecation-rules/rules.neon
+
+parameters:
+    level: 8
+    bootstrapFiles:
+        - stubs/db_config_classes.php
+        - stubs/glpi_constants.php
+        - stubs/plugins_migrations_classes.php
+    paths:
+        - plugins/gdmsintegration/setup.php
+        - plugins/gdmsintegration/hook.php
+        - plugins/gdmsintegration/src
+    tmpDir: /tmp/phpstan-gdmsintegration
+    treatPhpDocTypesAsCertain: false
