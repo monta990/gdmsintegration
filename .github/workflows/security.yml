@@ -174,7 +174,7 @@ jobs:
           vendor/bin/twigcs \
             --ansi \
             --no-interaction \
-            --ruleset='Glpi\\Tools\\GlpiTwigRuleset' \
+            --ruleset='Glpi\Tools\GlpiTwigRuleset' \
             plugins/gdmsintegration/templates/dashboard.html.twig
 
   codeql:
