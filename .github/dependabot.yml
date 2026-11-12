@@ -7,3 +7,10 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "ci"
+    groups:
+      codeql-actions:
+        applies-to: version-updates
+        # CodeQL init and analyze must be upgraded together to the same version.
+        patterns:
+          - "github/codeql-action/init"
+          - "github/codeql-action/analyze"
