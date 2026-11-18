@@ -193,39 +193,60 @@ class Sync extends \CommonGLPI {
                                 (int)round((microtime(true) - $firmwareStarted) * 1000)
                             ));
                             $fw_errors = \GlpiPlugin\Gdmsintegration\API::gwnGetLastFirmwareErrors();
-                            $fw_by_mac = [];
+                            $fw_explicit_stable_by_mac = [];
                             foreach ($fw_by_net as $fwList) {
                                 foreach ($fwList as $fw) {
-                                    $fmac = strtolower(str_replace(':', '', $fw['mac'] ?? ''));
-                                    if ($fmac && !empty($fw['stableVersion'])) {
-                                        $fw_by_mac[$fmac] = $fw['stableVersion'];
+                                    $fmac = strtolower(preg_replace('/[^0-9a-f]/i', '', (string)($fw['mac'] ?? '')) ?? '');
+                                    $explicitStable = trim((string)($fw['stableVersion'] ?? ''));
+                                    if ($fmac !== '' && $explicitStable !== '') {
+                                        $fw_explicit_stable_by_mac[$fmac] = $explicitStable;
                                     }
                                 }
                             }
+
+                            // The vendor's General Firmware column is authoritative for
+                            // stable GWN firmware. A cloud response with an unlabeled numeric
+                            // version may actually be a beta (for example GWN7001 1.0.11.63).
+                            $firmware_catalog = \GlpiPlugin\Gdmsintegration\API::scrapeFirmwareCatalog();
                             foreach ($gwnDevices as &$gdev) {
-                                $dmac = strtolower(str_replace(':', '', $gdev['mac'] ?? ''));
+                                $dmac = strtolower(preg_replace('/[^0-9a-f]/i', '', (string)($gdev['mac'] ?? '')) ?? '');
                                 $nid = (int)($gdev['networkId'] ?? $gdev['network_id'] ?? 0);
                                 if (isset($fw_errors[$nid])) {
                                     // Preserve the last known firmware_latest when GWN could not
                                     // authoritatively answer upgrade/version for this network.
                                     $gdev['_preserve_firmware_latest'] = true;
-                                } else {
-                                    // A successful GWN response with only beta/RC/etc. means
-                                    // there is no newer stable firmware to advertise. Keep the
-                                    // current installed stable version as the compliance baseline
-                                    // instead of persisting the pre-release reference.
-                                    $gwnStable = $fw_by_mac[$dmac] ?? '';
-                                    if ($gwnStable === '') {
-                                        $gwnStable = trim((string)($gdev['versionFirmware'] ?? $gdev['firmwareVersion'] ?? $gdev['firmware'] ?? ''));
-                                    }
-                                    $gdev['firmware_latest'] = $gwnStable;
+                                    continue;
                                 }
+
+                                $model = trim((string)($gdev['deviceType'] ?? $gdev['apType'] ?? $gdev['model'] ?? ''));
+                                $catalogEntry = \GlpiPlugin\Gdmsintegration\API::findFirmwareCatalogEntry($firmware_catalog, $model);
+                                $gwnStable = trim((string)($catalogEntry['official'] ?? ''));
+
+                                // If the public catalog has no row for the model, accept only
+                                // a version that GWN itself explicitly labels stable/official.
+                                if ($gwnStable === '' && $dmac !== '') {
+                                    $gwnStable = trim((string)($fw_explicit_stable_by_mac[$dmac] ?? ''));
+                                }
+
+                                if ($gwnStable === '' || preg_match('/^\d+(?:\.\d+){2,3}$/', $gwnStable) !== 1) {
+                                    // Do not fall back to the installed version or an unclassified
+                                    // cloud candidate: preserve the previous verified baseline.
+                                    $gdev['_preserve_firmware_latest'] = true;
+                                    \GlpiPlugin\Gdmsintegration\Utils::debug(
+                                        'GWN stable firmware not verified for ' . ($model !== '' ? $model : $dmac)
+                                        . '; retaining the last known verified firmware baseline.'
+                                    );
+                                    continue;
+                                }
+
+                                $gdev['firmware_latest'] = $gwnStable;
                             }
                             unset($gdev);
                         }
 
-                        // 1.6.0: ingest actionable cloud alerts into GLPI tickets.
-                        if (!empty($net_ids)) {
+                        // Cloud alerts remain visible in the dashboard regardless of ticketing preference.
+                        // Automatic tickets are controlled separately from offline/WAN incident tickets.
+                        if (!empty($net_ids) && (int)($config['gwn_alert_tickets_enabled'] ?? 1) === 1) {
                             $alertsStarted = microtime(true);
                             self::syncGwnAlertTickets($config, $entities_id, array_map('intval', $net_ids), $gwnDevices);
                             \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
@@ -1688,7 +1709,7 @@ class Sync extends \CommonGLPI {
      * source severity codes are surfaced at normal priority instead of discarded.
      */
     private static function syncGwnAlertTickets(array $config, int $entities_id, array $networkIds, array $devices): void {
-        if (!class_exists('Ticket')) {
+        if ((int)($config['gwn_alert_tickets_enabled'] ?? 1) !== 1 || !class_exists('Ticket')) {
             return;
         }
 

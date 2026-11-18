@@ -138,8 +138,7 @@ final class FirmwareService
         return match ($status) {
             'update_available' => __('Stable firmware update available', 'gdmsintegration'),
             'up_to_date' => __('Installed firmware matches the official stable version', 'gdmsintegration'),
-            'beta_installed' => __('A beta firmware version is installed; automatic downgrade is blocked', 'gdmsintegration'),
-            'ahead_of_stable' => __('Installed version is newer than the known stable version; channel not confirmed', 'gdmsintegration'),
+            'beta_installed', 'ahead_of_stable' => __('Installed firmware does not match the verified stable release; automatic downgrade is blocked', 'gdmsintegration'),
             'check_error' => __('Firmware could not be verified because the source could not be queried', 'gdmsintegration'),
             'unsupported' => __('This model was not found in the official firmware catalog', 'gdmsintegration'),
             default => __('Firmware version could not be verified', 'gdmsintegration'),
@@ -294,26 +293,25 @@ final class FirmwareService
                 $mac_data[$macKey] = $row;
             }
 
-            // GWN official stable versions via upgrade/version. Do not use the highest
-            // version installed on another peer as a proxy for the official release.
-            $official_latest = [];
+            // Use Grandstream's General Firmware column as the release-channel
+            // authority. The GWN API can return a beta version without a beta flag.
+            $catalog = \GlpiPlugin\Gdmsintegration\API::scrapeFirmwareCatalog();
+            $cloud_versions = [];
             $firmware_errors = [];
             if (!empty($config['gwn_client_id']) && !empty($config['gwn_client_secret'])) {
-                $by_network = [];
-                foreach ($mac_data as $macKey => $row) {
-                    $nid = (int)($row['network_id'] ?? 0);
-                    if ($nid > 0) $by_network[$nid][] = $macKey;
+                $networkIds = [];
+                foreach ($mac_data as $row) {
+                    $networkId = (int)($row['network_id'] ?? 0);
+                    if ($networkId > 0) $networkIds[$networkId] = $networkId;
                 }
-                foreach ($by_network as $network_id => $unusedMacKeys) {
-                    $versions = \GlpiPlugin\Gdmsintegration\API::gwnGetFirmwareVersions($config, (int)$network_id);
-                    $firmware_errors += \GlpiPlugin\Gdmsintegration\API::gwnGetLastFirmwareErrors();
-                    foreach ($versions as $v) {
-                        $apiMac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string)($v['mac'] ?? ''))) ?? '');
-                        $stable = trim((string)($v['stableVersion'] ?? ''));
-                        if (strlen($apiMac) === 12 && self::isFirmwareVersion($stable)) {
-                            if (!isset($official_latest[$apiMac]) || version_compare($stable, $official_latest[$apiMac], '>')) {
-                                $official_latest[$apiMac] = $stable;
-                            }
+                $versionsByNetwork = \GlpiPlugin\Gdmsintegration\API::gwnGetFirmwareVersionsBatch($config, array_values($networkIds));
+                $firmware_errors = \GlpiPlugin\Gdmsintegration\API::gwnGetLastFirmwareErrors();
+                foreach ($versionsByNetwork as $versions) {
+                    foreach ($versions as $versionRow) {
+                        $apiMac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string)($versionRow['mac'] ?? ''))) ?? '');
+                        $reported = trim((string)($versionRow['reportedVersion'] ?? $versionRow['stableVersion'] ?? ''));
+                        if (strlen($apiMac) === 12 && self::isFirmwareVersion($reported)) {
+                            $cloud_versions[$apiMac] = $reported;
                         }
                     }
                 }
@@ -322,10 +320,19 @@ final class FirmwareService
             $result = [];
             foreach ($mac_data as $macKey => $row) {
                 $current = trim((string)($row['firmware'] ?? ''));
-                $official = $official_latest[$macKey] ?? '';
                 $networkId = (int)($row['network_id'] ?? 0);
+                $channels = \GlpiPlugin\Gdmsintegration\API::resolveGwnFirmwareChannel(
+                    (string)($row['model'] ?? ''),
+                    (string)($cloud_versions[$macKey] ?? ''),
+                    $catalog
+                );
+                $official = (string)($channels['official'] ?? '');
                 $checkError = $firmware_errors[$networkId] ?? null;
+                // The legacy endpoint has no separate scheduling flag, so only
+                // report an update when the cloud's candidate exactly matches
+                // the catalog's General Firmware channel.
                 $hasUpdate = empty($checkError)
+                    && ($channels['channel'] ?? '') === 'stable'
                     && self::isFirmwareVersion($current)
                     && self::isFirmwareVersion($official)
                     && version_compare($official, $current, '>');
@@ -358,8 +365,8 @@ final class FirmwareService
             $all       = $state_obj->find(AccessService::entityCriteria($state_obj->getTable(), $entities_id));
             if (empty($all)) { return new \Symfony\Component\HttpFoundation\JsonResponse([]); }
 
-            // One public catalog request provides stable/beta versions for product
-            // families whose version is listed in the main Grandstream catalog.
+            // One public catalog request provides the authoritative General/Beta
+            // channel split for GWN devices and catalog-listed UC products.
             $catalog = \GlpiPlugin\Gdmsintegration\API::scrapeFirmwareCatalog();
             if (empty($catalog['ok'])) {
                 \GlpiPlugin\Gdmsintegration\Utils::debug('Firmware catalog unavailable: ' . (string)($catalog['error'] ?? 'unknown error'));
@@ -367,7 +374,8 @@ final class FirmwareService
 
             // Product pages provide more reliable channel detail for UCM families.
             $slug_cache = [];
-            $gwn_official = [];
+            $gwn_cloud_versions = [];
+            $gwn_explicit_stable = [];
             $firmware_errors = [];
             if (!empty($config['gwn_client_id'])) {
                 $networkIds = [];
@@ -383,9 +391,13 @@ final class FirmwareService
                     foreach ($allVersions as $versions) {
                         foreach ($versions as $v) {
                             $apiMac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string)($v['mac'] ?? ''))) ?? '');
-                            $stable = trim((string)($v['stableVersion'] ?? ''));
-                            if (strlen($apiMac) === 12 && $stable !== '') {
-                                $gwn_official[$apiMac] = $stable;
+                            $reported = trim((string)($v['reportedVersion'] ?? $v['stableVersion'] ?? ''));
+                            $explicitStable = trim((string)($v['stableVersion'] ?? ''));
+                            if (strlen($apiMac) === 12 && $reported !== '') {
+                                $gwn_cloud_versions[$apiMac] = $reported;
+                            }
+                            if (strlen($apiMac) === 12 && $explicitStable !== '') {
+                                $gwn_explicit_stable[$apiMac] = $explicitStable;
                             }
                         }
                     }
@@ -412,23 +424,34 @@ final class FirmwareService
                 $source = 'none';
 
                 if ($isGwn) {
-                    $official = $gwn_official[$macKey] ?? null;
                     $networkId = (int)($row['network_id'] ?? 0);
+                    $channels = \GlpiPlugin\Gdmsintegration\API::resolveGwnFirmwareChannel(
+                        $model,
+                        (string)($gwn_cloud_versions[$macKey] ?? ''),
+                        $catalog
+                    );
+                    $official = $channels['official'];
+                    $beta = $channels['beta'];
+                    $cloudChannel = (string)($channels['channel'] ?? 'unknown');
                     $sourceError = isset($firmware_errors[$networkId])
                         || (empty($config['gwn_client_id']) && empty($catalog['ok']));
-                    if ($official !== null) {
-                        $modelFound = true;
+
+                    // If the public catalog is temporarily unavailable, allow only
+                    // a positively channel-labeled stable value from GWN Cloud.
+                    if ($official === null && !empty($gwn_explicit_stable[$macKey])) {
+                        $official = $gwn_explicit_stable[$macKey];
+                        $cloudChannel = version_compare(
+                            (string)($gwn_cloud_versions[$macKey] ?? ''),
+                            (string)$official,
+                            '='
+                        ) ? 'stable' : 'unverified';
+                    }
+
+                    $modelFound = $official !== null || $beta !== null;
+                    if ($cloudChannel === 'stable') {
                         $source = 'gwn_cloud';
-                    } else {
-                        // The official catalog is a fallback when GWN Cloud returns
-                        // no per-device stable version. Keep the API error visible.
-                        $entry = \GlpiPlugin\Gdmsintegration\API::findFirmwareCatalogEntry($catalog, $model);
-                        if ($entry !== null) {
-                            $official = $entry['official'] ?? null;
-                            $beta = $entry['beta'] ?? null;
-                            $modelFound = true;
-                            $source = 'grandstream_catalog_fallback';
-                        }
+                    } elseif ($modelFound) {
+                        $source = 'grandstream_catalog';
                     }
                 } else {
                     $slugInfo = self::gdmsFirmwareSlug($model);
@@ -473,6 +496,11 @@ final class FirmwareService
                 // A source's missing version is not proof that there is no update.
                 // Only a known, higher official stable version is actionable.
                 $status = self::resolveFirmwareStatus($current, $official, $beta, $sourceError, $modelFound);
+                // A catalog-only GWN candidate is not confirmed by GWN Cloud.
+                // Do not label it as an actionable stable update or as already up to date.
+                if ($isGwn && $source === 'grandstream_catalog' && in_array($status, ['update_available', 'up_to_date'], true)) {
+                    $status = 'unverified';
+                }
                 if ($isGwn && $official === null && $beta === null && $source === 'none' && !$sourceError) {
                     // The provider may omit a firmware row even though the catalog
                     // itself is reachable; this is unverified, not proof the model is unsupported.
@@ -487,17 +515,14 @@ final class FirmwareService
                 }
 
                 $statusLabel = self::firmwareStatusLabel($status);
-                if ($status === 'ahead_of_stable' && $beta === null) {
-                    $statusLabel = __('Installed firmware is newer than the stable version found; beta channel could not be confirmed. Automatic downgrade is blocked.', 'gdmsintegration');
-                }
-                if ($isGwn && $source === 'grandstream_catalog_fallback') {
-                    $statusLabel .= ' ' . __('GWN Cloud did not provide a verified per-device stable version; the official catalog is shown for reference and scheduling is disabled until GWN Cloud verification succeeds.', 'gdmsintegration');
+                if ($isGwn && $source === 'grandstream_catalog' && $status === 'unverified') {
+                    $statusLabel = __('GWN Cloud has not confirmed the catalog stable version; scheduling is disabled', 'gdmsintegration');
                 }
                 if ($isGwn && $hasUpdate && (empty($config['gwn_client_id']) || empty($config['gwn_client_secret']))) {
-                    $statusLabel .= ' ' . __('GWN Cloud credentials are missing; firmware scheduling is disabled.', 'gdmsintegration');
+                    $statusLabel = __('GWN credentials are missing; firmware scheduling is disabled', 'gdmsintegration');
                 }
                 if ($hasUpdate && !$isGwn && !self::isTrustedFirmwareDownloadUrl((string)$officialUrl)) {
-                    $statusLabel .= ' ' . __('An update was detected, but no verified download path is available for this model; automatic scheduling is disabled.', 'gdmsintegration');
+                    $statusLabel = __('No verified firmware download path is available; scheduling is disabled', 'gdmsintegration');
                 }
 
                 \GlpiPlugin\Gdmsintegration\Utils::debug(
@@ -577,7 +602,8 @@ final class FirmwareService
                 $networkId = (int)($allowedRowsByMac[$mac]['network_id'] ?? 0);
                 if ($networkId > 0) $networkIds[$networkId] = $networkId;
             }
-            $stableByMac = [];
+            $reportedByMac = [];
+            $explicitStableByMac = [];
             $firmwareErrors = [];
             if ($networkIds !== []) {
                 $versionRowsByNetwork = \GlpiPlugin\Gdmsintegration\API::gwnGetFirmwareVersionsBatch($config, array_values($networkIds));
@@ -586,26 +612,50 @@ final class FirmwareService
                     foreach ($versionRows as $versionRow) {
                         $firmwareMac = self::normalizeMacAddress((string)($versionRow['mac'] ?? ''));
                         if ($firmwareMac === '') continue;
-                        $stable = trim((string)($versionRow['stableVersion'] ?? ''));
-                        if ($stable !== '') $stableByMac[$firmwareMac] = $stable;
+                        $reported = trim((string)($versionRow['reportedVersion'] ?? $versionRow['stableVersion'] ?? ''));
+                        $explicitStable = trim((string)($versionRow['stableVersion'] ?? ''));
+                        if ($reported !== '') $reportedByMac[$firmwareMac] = $reported;
+                        if ($explicitStable !== '') $explicitStableByMac[$firmwareMac] = $explicitStable;
                     }
                 }
             }
+            $catalog = \GlpiPlugin\Gdmsintegration\API::scrapeFirmwareCatalog();
             $unsafeTargets = [];
             foreach ($macs as $mac) {
                 $row = $allowedRowsByMac[$mac];
                 $networkId = (int)($row['network_id'] ?? 0);
                 $current = trim((string)($row['firmware'] ?? ''));
-                $stable = $stableByMac[$mac] ?? null;
+                $model = trim((string)($row['model'] ?? ''));
+                $channels = \GlpiPlugin\Gdmsintegration\API::resolveGwnFirmwareChannel(
+                    $model,
+                    (string)($reportedByMac[$mac] ?? ''),
+                    $catalog
+                );
+                $stable = $channels['official'];
+                $cloudChannel = (string)($channels['channel'] ?? 'unknown');
+                if ($stable === null && !empty($explicitStableByMac[$mac])) {
+                    $stable = $explicitStableByMac[$mac];
+                    $cloudChannel = version_compare((string)($reportedByMac[$mac] ?? ''), (string)$stable, '=')
+                        ? 'stable'
+                        : 'unverified';
+                }
+                $stable = is_string($stable) ? $stable : '';
+                $channelVerified = $cloudChannel === 'stable';
                 if (isset($firmwareErrors[$networkId]) || !self::isFirmwareVersion($current)
-                    || !self::isFirmwareVersion((string)$stable) || version_compare($current, (string)$stable) >= 0) {
+                    || !self::isFirmwareVersion($stable) || !$channelVerified
+                    || version_compare($current, $stable) >= 0) {
+                    $reason = isset($firmwareErrors[$networkId]) ? 'firmware version source failed'
+                        : ((!self::isFirmwareVersion($stable)) ? 'official stable version unverified'
+                        : ((!$channelVerified) ? 'GWN Cloud candidate does not match Grandstream General Firmware (beta or unverified channel)'
+                        : ((!self::isFirmwareVersion($current)) ? 'installed version unverified' : 'device is already at or newer than stable')));
                     $unsafeTargets[] = [
                         'mac' => $mac,
+                        'model' => $model,
                         'currentVersion' => $current ?: null,
-                        'officialStableVersion' => $stable,
-                        'reason' => isset($firmwareErrors[$networkId]) ? 'firmware version source failed'
-                            : ((!self::isFirmwareVersion((string)$stable)) ? 'official stable version unverified'
-                            : ((!self::isFirmwareVersion($current)) ? 'installed version unverified' : 'device is already at or newer than stable')),
+                        'cloudReportedVersion' => $reportedByMac[$mac] ?? null,
+                        'officialStableVersion' => $stable ?: null,
+                        'cloudChannel' => $cloudChannel,
+                        'reason' => $reason,
                     ];
                 }
             }

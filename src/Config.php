@@ -335,6 +335,7 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
      */
     public function saveConfig(array $input): bool {
         $existing = $this->find(['entities_id' => (int) $input['entities_id']]);
+        $existing_row = !empty($existing) ? reset($existing) : [];
 
         // Configuration saves invalidate the persisted OAuth session. This prevents a
         // token issued for old credentials/region from surviving a credential change.
@@ -370,6 +371,9 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
         $input['ticket_requester_id'] = (int)($input['ticket_requester_id'] ?? 0);
         $input['wan_debounce_seconds'] = max(0, min(3600, (int)($input['wan_debounce_seconds'] ?? 300)));
         $input['wan_tickets_enabled']  = isset($input['wan_tickets_enabled']) ? (int)(bool)$input['wan_tickets_enabled'] : 1;
+        $input['gwn_alert_tickets_enabled'] = array_key_exists('gwn_alert_tickets_enabled', $input)
+            ? (int)(bool)$input['gwn_alert_tickets_enabled']
+            : (int)($existing_row['gwn_alert_tickets_enabled'] ?? 1);
         $input['tickets_phone']  = isset($input['tickets_phone'])  ? (int)(bool)$input['tickets_phone']  : 1;
         $input['tickets_router'] = isset($input['tickets_router']) ? (int)(bool)$input['tickets_router'] : 1;
         $input['tickets_switch'] = isset($input['tickets_switch']) ? (int)(bool)$input['tickets_switch'] : 1;
@@ -377,7 +381,6 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
         $input['tickets_pbx']    = isset($input['tickets_pbx'])    ? (int)(bool)$input['tickets_pbx']    : 1;
 
         // Optional ticket categories: preserve existing values when importing older configs.
-        $existing_row = !empty($existing) ? reset($existing) : [];
         $network_category = array_key_exists('ticket_category_network_id', $input)
             ? (int)$input['ticket_category_network_id']
             : (int)($existing_row['ticket_category_network_id'] ?? 0);

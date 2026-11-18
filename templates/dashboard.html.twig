@@ -748,19 +748,14 @@
         var firmwareStatus = info.firmwareStatus || (info.hasUpdate ? 'update_available' : 'unverified');
         var statusLabel = info.firmwareStatusLabel || STR.firmwareUnverified;
         var mustBlockDowngrade = firmwareStatus === 'beta_installed' || firmwareStatus === 'ahead_of_stable';
+        var canSelectFirmware = Boolean(official && info.hasUpdate && info.canScheduleUpdate === true && !mustBlockDowngrade);
         var versionRows = '';
-        if (official && info.hasUpdate && info.canScheduleUpdate === true) {
+        if (canSelectFirmware) {
             versionRows += '<tr><td class="pe-2"><label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">'
               + '<input type="radio" id="gdmsFwVersionRadio" name="gdmsFwVersion" class="form-check-input mt-0" checked>'
               + '<code class="text-warning">' + esc(official) + '</code>'
               + ' <span class="badge bg-success ms-1">' + STR.officialFw + '</span>'
               + '</label></td></tr>';
-        } else if (official && info.hasUpdate) {
-            versionRows += '<tr><td><span class="text-warning">' + esc(official) + '</span><div class="small text-muted mt-1">' + esc(statusLabel) + '</div></td></tr>';
-        } else if (official && firmwareStatus === 'up_to_date') {
-            versionRows += '<tr><td><span class="text-success">' + esc(official) + ' — ' + esc(statusLabel) + '</span></td></tr>';
-        } else {
-            versionRows += '<tr><td><span class="text-muted">' + esc(statusLabel) + '</span></td></tr>';
         }
 
         var macUpper  = mac.toUpperCase();
@@ -776,12 +771,14 @@
           + (info.firmwareCheckError ? '<div class="small text-warning mt-1">' + esc(info.firmwareCheckError) + '</div>' : '')
           + (info.betaVersion ? '<div class="small text-muted mt-1">' + esc(STR.betaChannelPublished) + ': <code>' + esc(info.betaVersion) + '</code></div>' : '')
           + '</td></tr>';
+        var selectVersionRow = versionRows
+            ? '<tr><th class="text-muted fw-normal align-top pt-2">' + STR.selectVersion + '</th><td><table class="mb-0">' + versionRows + '</table></td></tr>'
+            : '';
         body.innerHTML = '<table class="table table-sm mb-0">'
           + macIpRow
           + '<tr><th class="text-muted fw-normal w-50">' + STR.curFw + '</th><td><code>' + esc(current) + '</code></td></tr>'
           + statusDetails
-          + '<tr><th class="text-muted fw-normal align-top pt-2">' + STR.selectVersion + '</th>'
-          + '<td>' + (versionRows ? '<table class="mb-0">' + versionRows + '</table>' : '<span class="text-muted">—</span>') + '</td></tr>'
+          + selectVersionRow
           + '<tr><th class="text-muted fw-normal">' + STR.deviceMac + '</th>'
           + '<td>' + macCell + ' <small class="text-muted ms-1" id="gdmsFwMacCopiedMsg" style="display:none;">' + STR.fwMacCopied + '</small></td></tr>'
           + '</table>'
@@ -844,7 +841,7 @@
         }
         // Scheduling is allowed only when the backend verified a newer stable
         // version and an actionable path. Unverified sources remain review-only.
-        var hasVersion = !mustBlockDowngrade && info.canScheduleUpdate === true;
+        var hasVersion = canSelectFirmware;
         schedRow.style.display = hasVersion ? '' : 'none';
         asapBtn.style.display  = hasVersion ? 'inline-block' : 'none';
         schedBtn.style.display = hasVersion ? 'inline-block' : 'none';

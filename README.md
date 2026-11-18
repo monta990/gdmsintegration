@@ -243,13 +243,15 @@ Availability history lost due to database migration, server move, or accidental 
 
 The dashboard checks firmware availability for all Grandstream devices 2 seconds after page load, in background, without blocking the sync or the device table. GLPI's native Flatpickr date/time picker is used for scheduling updates, with locale matching the active GLPI session.
 
+For GWN Networking routers, switches and APs, the plugin cross-checks the GWN Cloud candidate with Grandstream's published firmware catalog. The catalog's **General Firmware** column is the stable source of truth; **Beta Firmware** is kept separate. A plain numeric version from GWN Cloud is not assumed to be stable when the API omits a channel flag. If the cloud candidate matches the Beta Firmware column or cannot be verified, the stable version is shown for reference but firmware scheduling remains disabled until both sources agree.
+
 Only **official/stable firmware** is considered for update detection and installation. Beta, RC, alpha, preview, development, and test releases are intentionally ignored so they cannot create a false "new firmware" indicator or appear as an installable version. The dashboard also does not use stale stored pre-release information to display an update badge.
 
 **Version sources:**
 
 | Device family | Source |
 |---------------|--------|
-| GWN routers / switches / APs | GWN Cloud API `/upgrade/version` — direct, per-network |
+| GWN routers / switches / APs | Grandstream firmware catalog (General/Beta channel) cross-checked with GWN Cloud API `/upgrade/version` — per-network |
 | UCM / GCC PBX appliances | `grandstream.com/support/firmware` scraper |
 | GRP IP phones | `grandstream.com/support/firmware` scraper |
 | GXV video phones | `grandstream.com/support/firmware` scraper |
@@ -275,6 +277,7 @@ An amber **⬆** icon appears next to the firmware version only when the current
 
 ### Incident Tickets
 
+- **GWN cloud-alert ticket toggle** — cloud alerts continue to appear in the dashboard, but automatic ticket creation for those alerts can be enabled or disabled independently in the plugin configuration. This does not disable offline-device or WAN incident tickets; those retain their separate settings.
 - **Parent-device protection** — WAN incidents are suppressed while the parent network equipment is offline. The device-level offline ticket is the only incident opened for that outage; the last known WAN links remain visible in the dashboard as down and are re-evaluated when the router returns online.
 - **Auto-open** — `[GDMS]` incident ticket created on:
   - Device `online → offline` transition (device unreachable).
@@ -332,6 +335,14 @@ The result is cached in the current GLPI session for six hours. A GitHub or netw
 3. Go to **Tools → GDMS Integration → Configuration** and enter your credentials.
 4. Run the first sync manually from the dashboard or wait for the cron.
 
+For an existing 1.6.7 installation, update to 1.6.8 without uninstalling the plugin:
+
+1. Back up the GLPI database and the existing `plugins/gdmsintegration` directory.
+2. Replace the plugin directory with the contents of the 1.6.8 ZIP, keeping the folder name `gdmsintegration`.
+3. In GLPI, open **Setup → Plugins** and use the **Update** action for GDMS Integration so GLPI runs the plugin update hook and applies the idempotent configuration-column migration.
+4. Keep the plugin installed and enabled; do not uninstall it. Existing settings and plugin data are preserved.
+5. Open **Tools → GDMS Integration → Configuration** and review **Create tickets for GWN cloud alerts**. Disable it to stop automatic `[GWN-ALERT:...]` ticket creation while keeping cloud alerts visible.
+
 ---
 
 ## Configuration
@@ -369,6 +380,7 @@ The result is cached in the current GLPI session for six hours. A GitHub or netw
 | Ticket category — Grandstream telephony | Selects a real GLPI ITIL incident category for automatically generated tickets related to Grandstream phones / telephony devices. The option is optional. |
 | WAN no-internet debounce (seconds) | Seconds to wait before opening a "no internet" WAN ticket. Filters false alerts from transient high-latency events. 0 = open immediately. Default: 300. |
 | Create WAN port tickets | Toggle (on by default). When disabled, the plugin suppresses all WAN link-down and no-internet incident tickets. Port state tracking and debounce timers continue running so re-enabling takes effect immediately. Resolved tickets are still closed automatically. |
+| Create tickets for GWN cloud alerts | Toggle (on by default). When disabled, cloud alerts remain visible in the dashboard but do not create tickets. This is independent of offline-device and WAN incident ticket settings. |
 
 **Ticket creation by device type** — five independent toggles (all on by default):
 
