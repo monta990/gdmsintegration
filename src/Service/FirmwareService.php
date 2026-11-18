@@ -186,6 +186,20 @@ final class FirmwareService
         };
     }
 
+    /**
+     * A catalog-only GWN check may establish that an installed version is already
+     * the official General release. Cloud confirmation is required only before
+     * offering an upgrade to a device that is behind that release.
+     */
+    private static function applyGwnCatalogUpdateGuard(string $status, bool $isGwn, string $source): string
+    {
+        if ($isGwn && $source === 'grandstream_catalog' && $status === 'update_available') {
+            return 'unverified';
+        }
+
+        return $status;
+    }
+
     private static function resolveFirmwareStatus(
         string $current,
         ?string $official,
@@ -550,11 +564,10 @@ final class FirmwareService
                 // A source's missing version is not proof that there is no update.
                 // Only a known, higher official stable version is actionable.
                 $status = self::resolveFirmwareStatus($current, $official, $beta, $sourceError, $modelFound);
-                // A catalog-only GWN candidate is not confirmed by GWN Cloud.
-                // Do not label it as an actionable stable update or as already up to date.
-                if ($isGwn && $source === 'grandstream_catalog' && in_array($status, ['update_available', 'up_to_date'], true)) {
-                    $status = 'unverified';
-                }
+                // Cloud confirmation is required before scheduling a catalog-only
+                // upgrade, but an installed version matching General Firmware is
+                // still positively identified as stable and up to date.
+                $status = self::applyGwnCatalogUpdateGuard($status, $isGwn, $source);
                 if ($isGwn && $official === null && $beta === null && $source === 'none' && !$sourceError) {
                     // The provider may omit a firmware row even though the catalog
                     // itself is reachable; this is unverified, not proof the model is unsupported.

@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 
 - Unified firmware validation copy for beta, ahead-of-stable, and catalog-only GWN states; the modal now displays the diagnostic once and hides version selection unless a verified stable update can actually be scheduled.
+- Fixed an over-restrictive GWN catalog fallback that marked devices already running the exact General Firmware release as unverified when GWN Cloud did not confirm an upgrade candidate. Installed stable and beta states are now classified independently; unconfirmed upgrades remain blocked.
 
 
 ### Release

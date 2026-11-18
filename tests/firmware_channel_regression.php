@@ -74,6 +74,34 @@ $assertSame('', $annotated[0]['stableVersion'], 'unlabeled numeric candidate is 
 $assertSame('1.0.11.61', $annotated[1]['stableVersion'], 'explicit stable marker remains supported');
 $assertSame('1.0.11.63', $annotated[2]['betaVersion'], 'explicit beta marker remains supported');
 
+// The installed firmware is independently compared with the official catalog.
+// GWN Cloud confirmation is required to schedule a newer version, not to identify
+// a device that already runs the exact General Firmware release.
+$resolveInstalledStatus = new ReflectionMethod(FirmwareService::class, 'resolveFirmwareStatus');
+$resolveInstalledStatus->setAccessible(true);
+$installedStable = $resolveInstalledStatus->invoke(null, '1.0.11.61', '1.0.11.61', '1.0.11.63', false, true);
+$installedBeta = $resolveInstalledStatus->invoke(null, '1.0.11.63', '1.0.11.61', '1.0.11.63', false, true);
+$assertSame('up_to_date', $installedStable, 'installed General Firmware is recognized as stable and up to date');
+$assertSame('beta_installed', $installedBeta, 'installed Beta Firmware remains classified as beta');
+
+$catalogGuard = new ReflectionMethod(FirmwareService::class, 'applyGwnCatalogUpdateGuard');
+$catalogGuard->setAccessible(true);
+$assertSame(
+    'up_to_date',
+    $catalogGuard->invoke(null, $installedStable, true, 'grandstream_catalog'),
+    'catalog-only GWN check does not downgrade a confirmed installed General version to unverified'
+);
+$assertSame(
+    'unverified',
+    $catalogGuard->invoke(null, 'update_available', true, 'grandstream_catalog'),
+    'catalog-only GWN check still blocks scheduling when a newer stable update is not cloud-confirmed'
+);
+$assertSame(
+    'beta_installed',
+    $catalogGuard->invoke(null, $installedBeta, true, 'grandstream_catalog'),
+    'catalog-only guard preserves the beta-installed state'
+);
+
 // Beta and unverified/ahead-of-stable states deliberately share one concise
 // diagnostic so the dashboard does not present competing explanations.
 $statusLabel = new ReflectionMethod(FirmwareService::class, 'firmwareStatusLabel');
