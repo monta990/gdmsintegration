@@ -93,7 +93,7 @@ jobs:
             echo "The archive contains a path outside gdmsintegration/." >&2
             exit 1
           fi
-          if unzip -Z1 "$archive" | grep -Eq '^gdmsintegration/(tests|scripts|\\.github|vendor)(/|$)'; then
+          if unzip -Z1 "$archive" | grep -Eq '^gdmsintegration/(tests|scripts|\.github|vendor)(/|$)'; then
             echo "Development files leaked into the installation ZIP." >&2
             exit 1
           fi
@@ -107,8 +107,8 @@ jobs:
           # duplicating the plugin version in the workflow definition.
           checksum="${archive}.sha256"
           sha256sum "$archive" > "$checksum"
-          printf 'archive_path=%s\\n' "$archive" >> "$GITHUB_OUTPUT"
-          printf 'checksum_path=%s\\n' "$checksum" >> "$GITHUB_OUTPUT"
+          printf 'archive_path=%s\n' "$archive" >> "$GITHUB_OUTPUT"
+          printf 'checksum_path=%s\n' "$checksum" >> "$GITHUB_OUTPUT"
 
       - name: Upload installable GDMS Integration ZIP
         # This unprivileged PR/push workflow uploads the package artifact;
