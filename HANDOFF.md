@@ -62,6 +62,10 @@ For an existing 1.6.7 installation:
 5. Open **Tools → GDMS Integration → Configuration**. In **Cloud alert ticket creation**, disable **Create tickets for GWN cloud alerts** to stop `[GWN-ALERT:...]` tickets while keeping alerts visible. Save the configuration.
 6. Run a GWN sync and confirm cloud alerts remain listed without generating new alert tickets. Verify WAN/offline ticket settings separately if those are in use.
 
+## Automated installation package artifact (2026-11-18)
+
+The CLI workflow builds the installable ZIP with `scripts/package.sh`, validates its root/layout and required runtime files, and creates a SHA-256 checksum. It uploads the exact ZIP and checksum as the `gdmsintegration-installable` Actions artifact on pull requests and branch pushes as well as main-branch builds. Upload runs only in the PHP 8.3 matrix leg to avoid duplicate artifacts. The artifact is produced by the unprivileged CI workflow and is not consumed by privileged workflows. Download it from the successful **GDMS Integration CI** run under **Actions → Artifacts**.
+
 ## Validation performed
 
 - Standalone firmware regression test: `php tests/firmware_channel_regression.php` — **18 assertions passed**.

@@ -76,7 +76,9 @@ jobs:
         run: php tests/validate-release.php
 
       - name: Build and validate installation ZIP
+        id: package
         run: |
+          set -euo pipefail
           mkdir -p "$RUNNER_TEMP/gdms-dist"
           bash scripts/package.sh "$RUNNER_TEMP/gdms-dist"
           mapfile -t archives < <(find "$RUNNER_TEMP/gdms-dist" -maxdepth 1 -type f -name 'gdmsintegration-*.zip' -print)
@@ -91,7 +93,7 @@ jobs:
             echo "The archive contains a path outside gdmsintegration/." >&2
             exit 1
           fi
-          if unzip -Z1 "$archive" | grep -Eq '^gdmsintegration/(tests|scripts|\.github|vendor)(/|$)'; then
+          if unzip -Z1 "$archive" | grep -Eq '^gdmsintegration/(tests|scripts|\\.github|vendor)(/|$)'; then
             echo "Development files leaked into the installation ZIP." >&2
             exit 1
           fi
@@ -101,13 +103,22 @@ jobs:
           unzip -Z1 "$archive" | grep -qx 'gdmsintegration/templates/dashboard.html.twig'
           unzip -Z1 "$archive" | grep -qx 'gdmsintegration/public/js/vis-network.min.js'
 
-      - name: Upload validated installation ZIP
-        # Only trusted main-branch builds may publish an installable ZIP artifact.
-        # PR-generated artifacts are intentionally not uploaded or handed to privileged workflows.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.php == '8.3' && !matrix.experimental
+          # Upload the exact archive created by the packager, without
+          # duplicating the plugin version in the workflow definition.
+          checksum="${archive}.sha256"
+          sha256sum "$archive" > "$checksum"
+          printf 'archive_path=%s\\n' "$archive" >> "$GITHUB_OUTPUT"
+          printf 'checksum_path=%s\\n' "$checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Upload installable GDMS Integration ZIP
+        # This unprivileged PR/push workflow uploads the package artifact;
+        # no privileged workflow consumes artifacts built from PR code.
+        if: matrix.php == '8.3' && !matrix.experimental
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: gdmsintegration-cli-package
-          path: ${{ runner.temp }}/gdms-dist/gdmsintegration-*.zip
+          name: gdmsintegration-installable
+          path: |
+            ${{ steps.package.outputs.archive_path }}
+            ${{ steps.package.outputs.checksum_path }}
           if-no-files-found: error
           retention-days: 14
