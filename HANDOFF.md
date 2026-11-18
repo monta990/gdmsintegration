@@ -68,11 +68,12 @@ The CLI workflow builds the installable ZIP with `scripts/package.sh`, validates
 
 ## Validation performed
 
-- Standalone firmware regression test: `php tests/firmware_channel_regression.php` — **18 assertions passed**.
+- Standalone firmware regression test: `php tests/firmware_channel_regression.php` — **23 assertions passed**.
 - PHP syntax checks: all 26 PHP files in the package passed `php -l`.
 - JavaScript syntax checks: all 4 inline JavaScript blocks in `templates/dashboard.html.twig` passed `node --check` after substituting inert stand-ins for Twig expressions.
 - Translation catalogs: all 4 `.po` files (es_MX, fr_FR, de_DE and pt_BR) parsed, compiled to `.mo`, and checked for the new settings/status messages.
 - Feature wiring: verified the configuration form, per-entity save/load/export/import paths, install migration and GWN ticket-creation guard are all connected.
+- Installed GWN firmware regression: General `1.0.11.61` remains `up_to_date`, Beta `1.0.11.63` remains `beta_installed`, and catalog-only update candidates remain blocked unless GWN Cloud confirms them.
 - Compact firmware status consistency: beta and ahead-of-stable labels share one message; duplicate selection-row diagnostics are removed, and no selectable version is rendered unless scheduling is verified.
 - Package checks: `setup.php` and `plugin.xml` both declare `1.6.8`; final ZIP integrity is checked as part of packaging.
 
