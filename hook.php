@@ -1,5 +1,9 @@
 <?php
 
+use GlpiPlugin\Gdmsintegration\Config;
+use GlpiPlugin\Gdmsintegration\Sync;
+use GlpiPlugin\Gdmsintegration\Utils;
+
 /**
  * GDMS Integration — installation and uninstallation hooks.
  *
@@ -15,10 +19,11 @@
  * fast path only checks the canonical task, allowing a replaced 1.6.6 candidate
  * to self-heal its malformed leading-slash row without requiring a reinstall.
  */
-function plugin_gdmsintegration_ensure_cron_task(bool $force = false): bool {
+function plugin_gdmsintegration_ensure_cron_task(bool $force = false): bool
+{
     global $DB;
 
-    $itemtype = \GlpiPlugin\Gdmsintegration\Sync::class;
+    $itemtype = Sync::class;
     if (!$force) {
         $existingTask = new CronTask();
         if ($existingTask->getFromDBbyName($itemtype, 'SyncDevices')) {
@@ -58,8 +63,8 @@ function plugin_gdmsintegration_ensure_cron_task(bool $force = false): bool {
             ],
         ]) as $legacyTaskRow) {
             if (!$legacyCronTask->delete($legacyTaskRow)) {
-                \GlpiPlugin\Gdmsintegration\Utils::warning(
-                    'Could not remove legacy malformed SyncDevices cron task (id=' . (int)($legacyTaskRow['id'] ?? 0) . ').'
+                Utils::warning(
+                    'Could not remove legacy malformed SyncDevices cron task (id=' . (int) ($legacyTaskRow['id'] ?? 0) . ').',
                 );
             }
         }
@@ -73,7 +78,7 @@ function plugin_gdmsintegration_ensure_cron_task(bool $force = false): bool {
             [
                 'comment' => 'Synchronize GDMS/GWN cloud devices with GLPI',
                 'mode'    => CronTask::MODE_EXTERNAL,
-            ]
+            ],
         );
         if (!$registered) {
             // If a competing request won registration, treat the now-existing row as success.
@@ -82,7 +87,7 @@ function plugin_gdmsintegration_ensure_cron_task(bool $force = false): bool {
                 return true;
             }
             \GlpiPlugin\Gdmsintegration\Utils::warning(
-                'Could not register the SyncDevices automatic action. Check GLPI CronTask configuration and logs.'
+                'Could not register the SyncDevices automatic action. Check GLPI CronTask configuration and logs.',
             );
             return false;
         }
@@ -96,7 +101,8 @@ function plugin_gdmsintegration_ensure_cron_task(bool $force = false): bool {
 // ---------------------------------------------------------------------------
 // Install
 // ---------------------------------------------------------------------------
-function plugin_gdmsintegration_install(): bool {
+function plugin_gdmsintegration_install(): bool
+{
     global $DB;
 
     $charset   = DBConnection::getDefaultCharset();
@@ -397,8 +403,8 @@ function plugin_gdmsintegration_install(): bool {
                 'FROM'   => 'glpi_plugin_gdmsintegration_devices',
                 'WHERE'  => ['entities_id' => ['>', 0]],
             ]) as $device_row) {
-                $device_mac = strtolower(trim((string)($device_row['mac'] ?? '')));
-                $device_entity = (int)($device_row['entities_id'] ?? 0);
+                $device_mac = strtolower(trim((string) ($device_row['mac'] ?? '')));
+                $device_entity = (int) ($device_row['entities_id'] ?? 0);
                 if ($device_mac === '' || $device_entity <= 0) {
                     continue;
                 }
@@ -412,20 +418,21 @@ function plugin_gdmsintegration_install(): bool {
                 }
             }
             foreach ($entity_by_mac as $device_mac => $device_entity) {
-                $DB->update('glpi_plugin_gdmsintegration_history',
+                $DB->update(
+                    'glpi_plugin_gdmsintegration_history',
                     ['entities_id' => $device_entity],
-                    ['mac' => $device_mac, 'entities_id' => 0]
+                    ['mac' => $device_mac, 'entities_id' => 0],
                 );
             }
-        } catch (\Throwable $e) {
-            \GlpiPlugin\Gdmsintegration\Utils::debug('Legacy history entity backfill skipped: ' . $e->getMessage());
+        } catch (Throwable $e) {
+            Utils::debug('Legacy history entity backfill skipped: ' . $e->getMessage());
         }
     }
 
     // Register/reuse the native GLPI request source and initialize defaults.
     // The request source is deliberately not removed during uninstall so
     // historical tickets keep a valid source value.
-    \GlpiPlugin\Gdmsintegration\Config::ensureRequestTypeConfiguration();
+    Config::ensureRequestTypeConfiguration();
 
     // Install hook also repairs the native task; plugin_init can self-heal an
     // existing installation when a candidate ZIP replaces files in place.
@@ -437,14 +444,16 @@ function plugin_gdmsintegration_install(): bool {
 }
 
 /** Ensure the native automatic action is repaired whenever the plugin is enabled. */
-function plugin_gdmsintegration_activate(): bool {
+function plugin_gdmsintegration_activate(): bool
+{
     return plugin_gdmsintegration_ensure_cron_task();
 }
 
 // ---------------------------------------------------------------------------
 // Uninstall
 // ---------------------------------------------------------------------------
-function plugin_gdmsintegration_uninstall(): bool {
+function plugin_gdmsintegration_uninstall(): bool
+{
     global $DB;
 
     $migration = new Migration(PLUGIN_GDMSINTEGRATION_VERSION);

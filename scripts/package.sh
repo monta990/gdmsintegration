@@ -13,7 +13,7 @@ if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
     exit 1
 fi
 
-VERSION="$(sed -nE "s/.*PLUGIN_GDMSINTEGRATION_VERSION', '([^']+)'.*/\\1/p" "$ROOT/setup.php" | head -n 1)"
+VERSION="$(php -r 'require $argv[1]; echo PLUGIN_GDMSINTEGRATION_VERSION;' "$ROOT/setup.php")"
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Could not read a valid semantic version from setup.php." >&2
     exit 1
