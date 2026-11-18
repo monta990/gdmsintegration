@@ -134,7 +134,7 @@ final class ConfigService
                     'ip_version'=>$cfg2['ip_version']??'ipv4','debug_logging'=>(int)($cfg2['debug_logging']??0),
                     'chart_days'=>(int)($cfg2['chart_days']??60),'show_topology'=>(int)($cfg2['show_topology']??1),
                     'ticket_requester_id'=>(int)($cfg2['ticket_requester_id']??0),'ticket_requesttype_id'=>(int)($cfg2['ticket_requesttype_id']??0),'ticket_category_network_id'=>(int)($cfg2['ticket_category_network_id']??0),'ticket_category_telephony_id'=>(int)($cfg2['ticket_category_telephony_id']??0),'wan_debounce_seconds'=>(int)($cfg2['wan_debounce_seconds']??300),
-                    'wan_tickets_enabled'=>(int)($cfg2['wan_tickets_enabled']??1),'tickets_phone'=>(int)($cfg2['tickets_phone']??1),
+                    'wan_tickets_enabled'=>(int)($cfg2['wan_tickets_enabled']??1),'gwn_alert_tickets_enabled'=>(int)($cfg2['gwn_alert_tickets_enabled']??1),'tickets_phone'=>(int)($cfg2['tickets_phone']??1),
                     'tickets_router'=>(int)($cfg2['tickets_router']??1),'tickets_switch'=>(int)($cfg2['tickets_switch']??1),
                     'tickets_ap'=>(int)($cfg2['tickets_ap']??1),'tickets_pbx'=>(int)($cfg2['tickets_pbx']??1),
                     'max_xlsx_size_mb'=>(int)($cfg2['max_xlsx_size_mb']??5),
@@ -168,7 +168,7 @@ final class ConfigService
                         $eid2 = (int)$request->request->get('entities_id', $data['entities_id'] ?? \Session::getActiveEntity());
                         AccessService::requireEntityAccess($eid2);
                         $inp = ['entities_id'=>$eid2];
-                        foreach (['refresh_interval','gdms_region','ip_version','debug_logging','chart_days','show_topology','ticket_requester_id','ticket_requesttype_id','ticket_category_network_id','ticket_category_telephony_id','wan_debounce_seconds','wan_tickets_enabled','tickets_phone','tickets_router','tickets_switch','tickets_ap','tickets_pbx','max_xlsx_size_mb','history_retention_days'] as $k) {
+                        foreach (['refresh_interval','gdms_region','ip_version','debug_logging','chart_days','show_topology','ticket_requester_id','ticket_requesttype_id','ticket_category_network_id','ticket_category_telephony_id','wan_debounce_seconds','wan_tickets_enabled','gwn_alert_tickets_enabled','tickets_phone','tickets_router','tickets_switch','tickets_ap','tickets_pbx','max_xlsx_size_mb','history_retention_days'] as $k) {
                             if (array_key_exists($k,$data)) $inp[$k]=$data[$k];
                         }
                         if (!empty($data['username'])) $inp['username']=$data['username'];
@@ -209,6 +209,7 @@ final class ConfigService
                     'ticket_category_telephony_id' => (int)($request->request->get('ticket_category_telephony_id', 0)),
                     'wan_debounce_seconds' => max(0, min(3600, (int)($request->request->get('wan_debounce_seconds', 300)))),
                     'wan_tickets_enabled'  => $request->request->has('wan_tickets_enabled') ? 1 : 0,
+                    'gwn_alert_tickets_enabled' => $request->request->has('gwn_alert_tickets_enabled') ? 1 : 0,
                     'max_xlsx_size_mb'     => max(1, min(50, (int)($request->request->get('max_xlsx_size_mb', 5)))),
                     'history_retention_days' => max(7, min(3650, (int)($request->request->get('history_retention_days', 90)))),
                     'tickets_phone'        => $request->request->has('tickets_phone')  ? 1 : 0,
@@ -278,6 +279,7 @@ final class ConfigService
             $ticket_category_options = \GlpiPlugin\Gdmsintegration\Config::getTicketCategoryOptions($entities_id);
             $wan_debounce_seconds = max(0, min(3600, (int)($cur['wan_debounce_seconds'] ?? 300)));
             $wan_tickets_enabled  = (int)($cur['wan_tickets_enabled'] ?? 1);
+            $gwn_alert_tickets_enabled = (int)($cur['gwn_alert_tickets_enabled'] ?? 1);
             $max_xlsx_size_mb     = max(1, min(50, (int)($cur['max_xlsx_size_mb'] ?? 5)));
             $history_retention_days = max(7, min(3650, (int)($cur['history_retention_days'] ?? 90)));
             $tickets_phone  = (int)($cur['tickets_phone']  ?? 1);
@@ -327,6 +329,7 @@ final class ConfigService
                 'ticket_category_options' => $ticket_category_options,
                 'wan_debounce_seconds' => $wan_debounce_seconds,
                 'wan_tickets_enabled'  => $wan_tickets_enabled,
+                'gwn_alert_tickets_enabled' => $gwn_alert_tickets_enabled,
                 'max_xlsx_size_mb'     => $max_xlsx_size_mb,
                 'history_retention_days' => $history_retention_days,
                 'tickets_phone'        => $tickets_phone,

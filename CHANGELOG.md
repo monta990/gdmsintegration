@@ -3,9 +3,25 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.6.7] — 2026-11-01
+## [1.6.8] — 2026-11-18
+### Fixed
+
+- Unified firmware validation copy for beta, ahead-of-stable, and catalog-only GWN states; the modal now displays the diagnostic once and hides version selection unless a verified stable update can actually be scheduled.
+
+
+### Release
+
+- Promoted the reviewed 1.6.7 maintenance package to version 1.6.8 so GLPI can detect it as a normal plugin update. This release carries forward the independent GWN cloud-alert ticket setting, strict General/Beta firmware classification, and Teclib DOM-XSS remediation documented below. A follow-up UI refinement unifies firmware validation messages and removes duplicate diagnostics from the version selector.
+
+## [1.6.7] — 2026-11-18
+
+### Added
+
+- Added an independent per-entity configuration switch for automatic GWN Networking cloud-alert tickets. Cloud alerts remain available in the dashboard when ticket creation is disabled; offline-device and WAN incident ticket controls are unchanged. Existing installations default to enabled to preserve their previous behavior.
 
 ### Fixed
+
+- Corrected GWN router firmware channel detection by cross-checking the GWN Cloud candidate against Grandstream's published General Firmware and Beta Firmware catalog columns. An unlabeled numeric cloud version is no longer treated as stable; beta or unverified candidates cannot be scheduled as stable upgrades. The General Firmware version is used as the verified stable baseline for device synchronization.
 
 - Backported the upstream `vis-network` view-animation fix introduced in 10.1.4: a pending camera animation is now completed before a new one starts, including when the previous animation has not rendered its first frame. This prevents overlapping animation handlers during repeated topology navigation.
 
@@ -18,6 +34,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Preserved the bundled, self-hosted `vis-network` 10.1.2 distribution and backported the upstream view-animation correction from 10.1.4; no CDN dependency was introduced.
 
 ## [1.6.6] — 2026-10-25
+
+Final package prepared on 2026-10-25. This release retains GWN Networking alerts only; GDMS Unified Communications alert listing is not included because no supported listing endpoint was confirmed in the available API documentation.
 
 ### Fixed
 

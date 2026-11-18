@@ -3,7 +3,7 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.6\n"
+"Project-Id-Version: gdmsintegration 1.6.8\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-10-25 00:00+0000\n"
 "PO-Revision-Date: 2026-10-25 00:00+0000\n"
@@ -1546,3 +1546,35 @@ msgstr ""
 msgid "No verified official firmware download path is available for this model; automatic scheduling is disabled."
 msgstr ""
 
+
+#: templates/config_form.html.twig:306
+msgid "Cloud alert ticket creation"
+msgstr ""
+
+#: templates/config_form.html.twig:306
+msgid "Create tickets for GWN cloud alerts"
+msgstr ""
+
+#: templates/config_form.html.twig:306
+msgid "When enabled, actionable GWN Networking cloud alerts can create tickets. Disable this to keep alerts visible in the dashboard without creating tickets. Offline-device and WAN incident tickets are controlled separately."
+msgstr ""
+
+#: src/Service/FirmwareService.php:490
+msgid "The official General Firmware version is shown from Grandstream’s catalog. GWN Cloud has not confirmed that version, so scheduling is disabled until both sources agree. Any reported alternative may be beta or unverified."
+msgstr ""
+
+#: src/Service/FirmwareService.php
+msgid "Installed firmware does not match the verified stable release; automatic downgrade is blocked"
+msgstr ""
+
+#: src/Service/FirmwareService.php
+msgid "GWN Cloud has not confirmed the catalog stable version; scheduling is disabled"
+msgstr ""
+
+#: src/Service/FirmwareService.php
+msgid "GWN credentials are missing; firmware scheduling is disabled"
+msgstr ""
+
+#: src/Service/FirmwareService.php
+msgid "No verified firmware download path is available; scheduling is disabled"
+msgstr ""

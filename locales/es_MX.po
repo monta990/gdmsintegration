@@ -3,7 +3,7 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.6\n"
+"Project-Id-Version: gdmsintegration 1.6.8\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-10-25 00:00+0000\n"
 "PO-Revision-Date: 2026-10-25 00:00+0000\n"
@@ -2180,3 +2180,35 @@ msgstr "Se bloqueó la actualización del firmware: la versión solicitada no es
 msgid "No verified official firmware download path is available for this model; automatic scheduling is disabled."
 msgstr "No hay una ruta de descarga oficial verificada de firmware para este modelo; se deshabilita la programación automática."
 
+
+#: templates/config_form.html.twig:306
+msgid "Cloud alert ticket creation"
+msgstr "Creación de tickets por alertas de nube"
+
+#: templates/config_form.html.twig:306
+msgid "Create tickets for GWN cloud alerts"
+msgstr "Crear tickets para alertas de nube de GWN"
+
+#: templates/config_form.html.twig:306
+msgid "When enabled, actionable GWN Networking cloud alerts can create tickets. Disable this to keep alerts visible in the dashboard without creating tickets. Offline-device and WAN incident tickets are controlled separately."
+msgstr "Cuando está habilitado, las alertas de nube de GWN Networking que requieren atención pueden crear tickets. Desactívelo para mantener las alertas visibles en el panel sin crear tickets. Los tickets por dispositivos desconectados y por incidentes WAN se controlan por separado."
+
+#: src/Service/FirmwareService.php:490
+msgid "The official General Firmware version is shown from Grandstream’s catalog. GWN Cloud has not confirmed that version, so scheduling is disabled until both sources agree. Any reported alternative may be beta or unverified."
+msgstr "Se muestra la versión de firmware general oficial del catálogo de Grandstream. GWN Cloud no ha confirmado esa versión, por lo que la programación permanece deshabilitada hasta que ambas fuentes coincidan. Cualquier versión alternativa reportada puede ser beta o no estar verificada."
+
+#: src/Service/FirmwareService.php
+msgid "Installed firmware does not match the verified stable release; automatic downgrade is blocked"
+msgstr "El firmware instalado no coincide con la versión estable verificada; se bloquea la degradación automática."
+
+#: src/Service/FirmwareService.php
+msgid "GWN Cloud has not confirmed the catalog stable version; scheduling is disabled"
+msgstr "GWN Cloud no ha confirmado la versión estable del catálogo; programación deshabilitada."
+
+#: src/Service/FirmwareService.php
+msgid "GWN credentials are missing; firmware scheduling is disabled"
+msgstr "Faltan las credenciales de GWN; la programación de firmware está deshabilitada."
+
+#: src/Service/FirmwareService.php
+msgid "No verified firmware download path is available; scheduling is disabled"
+msgstr "No hay una ruta de descarga de firmware verificada; la programación está deshabilitada."

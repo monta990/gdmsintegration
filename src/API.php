@@ -1624,7 +1624,7 @@ class API {
     }
 
     /**
-     * Extracts the firmware version exposed by an upgrade/version row.
+     * Extract the firmware version exposed by an upgrade/version row.
      */
     private static function gwnFirmwareVersion(array $row): string {
         foreach (['lastVersion', 'version', 'firmwareVersion', 'versionFirmware'] as $key) {
@@ -1639,9 +1639,82 @@ class API {
     }
 
     /**
-     * Adds stable/beta metadata without changing the original API response fields.
-     * stableVersion is the highest official/non-pre-release version for the device.
-     * Pre-release channels are intentionally not exposed as actionable firmware.
+     * The GWN upgrade/version endpoint can report an available version without
+     * identifying its release channel. Absence of a "beta" flag is NOT proof
+     * that a version is stable; require an explicit stable/official channel marker.
+     */
+    private static function gwnFirmwareIsExplicitlyStable(array $row): bool {
+        foreach (['isStable', 'stable', 'isOfficial', 'official'] as $key) {
+            if (!array_key_exists($key, $row)) {
+                continue;
+            }
+            $value = $row[$key];
+            if ($value === true || $value === 1 || $value === '1') {
+                return true;
+            }
+            if (is_string($value) && preg_match('/^(stable|official|general|release|production)$/i', trim($value))) {
+                return true;
+            }
+        }
+
+        foreach (['releaseType', 'versionType', 'channel', 'firmwareType', 'releaseChannel', 'firmwareChannel'] as $key) {
+            if (isset($row[$key]) && is_scalar($row[$key])
+                && preg_match('/^(stable|official|general|release|production)$/i', trim((string)$row[$key]))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Resolve a GWN cloud-reported version against Grandstream's published
+     * General Firmware / Beta Firmware columns. The vendor catalog is the source
+     * of truth; the GWN API value is only a candidate and can be beta.
+     *
+     * @return array{official:?string,beta:?string,reported:?string,channel:string,modelLabel:?string}
+     */
+    public static function resolveGwnFirmwareChannel(string $model, string $cloudVersion, array $catalog): array {
+        $entry = self::findFirmwareCatalogEntry($catalog, $model);
+        $official = is_array($entry) ? trim((string)($entry['official'] ?? '')) : '';
+        $beta = is_array($entry) ? trim((string)($entry['beta'] ?? '')) : '';
+        $reported = trim($cloudVersion);
+        $isValidVersion = static fn(string $version): bool => preg_match('/^\d+(?:\.\d+){2,3}$/', $version) === 1;
+
+        if (!$isValidVersion($official)) {
+            $official = '';
+        }
+        if (!$isValidVersion($beta)) {
+            $beta = '';
+        }
+        if (!$isValidVersion($reported)) {
+            $reported = '';
+        }
+
+        $channel = 'unknown';
+        if ($reported !== '' && $beta !== '' && version_compare($reported, $beta, '=')) {
+            $channel = 'beta';
+        } elseif ($reported !== '' && $official !== '' && version_compare($reported, $official, '=')) {
+            $channel = 'stable';
+        } elseif ($reported !== '') {
+            $channel = 'unverified';
+        } elseif ($official !== '') {
+            $channel = 'catalog_only';
+        }
+
+        return [
+            'official' => $official !== '' ? $official : null,
+            'beta' => $beta !== '' ? $beta : null,
+            'reported' => $reported !== '' ? $reported : null,
+            'channel' => $channel,
+            'modelLabel' => is_array($entry) ? (string)($entry['modelLabel'] ?? '') : null,
+        ];
+    }
+
+    /**
+     * Annotate GWN firmware rows while keeping an unknown cloud version separate
+     * from a positively identified stable version. A plain numeric version is
+     * not automatically stable; the official catalog performs the channel check.
      */
     private static function gwnAnnotateFirmwareRows(array $rows): array {
         $byMac = [];
@@ -1649,8 +1722,6 @@ class API {
             if (!is_array($row)) {
                 continue;
             }
-            // Compare by a normalized 12-hex-digit key so colon-separated,
-            // hyphenated and compact vendor responses all match the same device.
             $mac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string)($row['mac'] ?? ''))) ?? '');
             if (strlen($mac) !== 12) {
                 continue;
@@ -1659,25 +1730,32 @@ class API {
             if ($version === '') {
                 continue;
             }
-            // Beta/RC/alpha/dev/test rows are intentionally ignored.
-            // This endpoint is used only to determine the official/actionable firmware.
-            // Grandstream may return multiple release channels in the same response;
-            // pre-release rows must never become a compliance baseline or update badge.
+            $byMac[$mac] ??= ['reported' => '', 'stable' => '', 'beta' => ''];
+
+            if ($byMac[$mac]['reported'] === '' || version_compare($version, $byMac[$mac]['reported'], '>')) {
+                $byMac[$mac]['reported'] = $version;
+            }
+
             if (self::gwnFirmwareIsPreRelease($row, $version)) {
+                if ($byMac[$mac]['beta'] === '' || version_compare($version, $byMac[$mac]['beta'], '>')) {
+                    $byMac[$mac]['beta'] = $version;
+                }
                 continue;
             }
-            if (!isset($byMac[$mac])) {
-                $byMac[$mac] = ['stable' => ''];
-            }
-            if ($byMac[$mac]['stable'] === '' || version_compare($version, $byMac[$mac]['stable'], '>')) {
+
+            // The endpoint can return unlabeled beta builds. Do not promote them
+            // to stable solely because their version string is numeric.
+            if (self::gwnFirmwareIsExplicitlyStable($row)
+                && ($byMac[$mac]['stable'] === '' || version_compare($version, $byMac[$mac]['stable'], '>'))) {
                 $byMac[$mac]['stable'] = $version;
             }
         }
 
         foreach ($rows as &$row) {
             $mac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string)($row['mac'] ?? ''))) ?? '');
+            $row['reportedVersion'] = strlen($mac) === 12 ? ($byMac[$mac]['reported'] ?? '') : '';
             $row['stableVersion'] = strlen($mac) === 12 ? ($byMac[$mac]['stable'] ?? '') : '';
-            $row['betaVersion'] = ''; // pre-release firmware is never exposed as actionable
+            $row['betaVersion'] = strlen($mac) === 12 ? ($byMac[$mac]['beta'] ?? '') : '';
         }
         unset($row);
         return $rows;
