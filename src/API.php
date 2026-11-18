@@ -1,6 +1,7 @@
 <?php
 
 namespace GlpiPlugin\Gdmsintegration;
+
 /**
  * GDMS Integration — \GlpiPlugin\Gdmsintegration\API
  *
@@ -20,8 +21,8 @@ namespace GlpiPlugin\Gdmsintegration;
  *   Auth: client_credentials grant — only client_id + secret (no username needed)
  *   Base URL: https://www.gwn.cloud (legacy, still works for API calls)
  */
-class API {
-
+class API
+{
     private const GDMS_BASE_US = 'https://www.gdms.cloud/oapi';
     private const GDMS_BASE_EU = 'https://eu.gdms.cloud/oapi';
     private const GWN_BASE  = 'https://www.gwn.cloud';
@@ -30,13 +31,15 @@ class API {
     private const MAX_PAGES = 50;
     private const INFO_BATCH_SIZE = 40;
 
-    private static function gdmsBase(array $config): string {
-        return strtolower((string)($config['gdms_region'] ?? 'us')) === 'eu'
+    private static function gdmsBase(array $config): string
+    {
+        return strtolower((string) ($config['gdms_region'] ?? 'us')) === 'eu'
             ? self::GDMS_BASE_EU
             : self::GDMS_BASE_US;
     }
 
-    private static function redactUrl(string $url): string {
+    private static function redactUrl(string $url): string
+    {
         return preg_replace('/([?&](?:access_token|refresh_token|token|Authorization|client_secret|secretKey|password)=)[^&\s"\']+/i', '$1[REDACTED]', $url) ?? $url;
     }
 
@@ -46,13 +49,18 @@ class API {
     private const PHONE_PREFIXES = ['GRP','GXP','GXV','GXW','WP','HT','DP','GHP','GVC','GSC','GDS','GAC'];
     private const PBX_PREFIXES   = ['UCM','GCC','CLOUDUCM','SOFTWAREUCM'];
 
-    public static function classifyModel(string $model): ?string {
+    public static function classifyModel(string $model): ?string
+    {
         $upper = strtoupper(trim($model));
         foreach (self::PHONE_PREFIXES as $p) {
-            if (str_starts_with($upper, $p)) return 'Phone';
+            if (str_starts_with($upper, $p)) {
+                return 'Phone';
+            }
         }
         foreach (self::PBX_PREFIXES as $p) {
-            if (str_starts_with($upper, $p)) return 'NetworkEquipment';
+            if (str_starts_with($upper, $p)) {
+                return 'NetworkEquipment';
+            }
         }
         return null;
     }
@@ -61,17 +69,28 @@ class API {
      * Returns device category string for ticket-type gating:
      * 'phone' | 'router' | 'switch' | 'ap' | 'pbx' | 'unknown'
      */
-    public static function getDeviceCategory(string $model): string {
+    public static function getDeviceCategory(string $model): string
+    {
         $upper = strtoupper(trim($model));
         foreach (self::PHONE_PREFIXES as $p) {
-            if (str_starts_with($upper, $p)) return 'phone';
+            if (str_starts_with($upper, $p)) {
+                return 'phone';
+            }
         }
         foreach (self::PBX_PREFIXES as $p) {
-            if (str_starts_with($upper, $p)) return 'pbx';
+            if (str_starts_with($upper, $p)) {
+                return 'pbx';
+            }
         }
-        if (preg_match('/^GWN700[123]/i', $upper)) return 'router';
-        if (preg_match('/^GWN78|^GSS/i', $upper))  return 'switch';
-        if (str_starts_with($upper, 'GWN'))          return 'ap';
+        if (preg_match('/^GWN700[123]/i', $upper)) {
+            return 'router';
+        }
+        if (preg_match('/^GWN78|^GSS/i', $upper)) {
+            return 'switch';
+        }
+        if (str_starts_with($upper, 'GWN')) {
+            return 'ap';
+        }
         return 'unknown';
     }
 
@@ -82,7 +101,7 @@ class API {
         string $url,
         array $headers = [],
         ?string $body = null,
-        bool $retrySafe = false
+        bool $retrySafe = false,
     ): array|false {
         // Keep retries bounded so a transient cloud/API problem cannot make a
         // browser-triggered sync or external cron appear to hang for minutes.
@@ -104,8 +123,8 @@ class API {
             }
             $response = curl_exec($ch);
             $err      = curl_error($ch);
-            $code     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $headerSz = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+            $code     = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $headerSz = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
             $raw      = is_string($response) ? substr($response, $headerSz) : '';
             $rawHdr   = is_string($response) ? substr($response, 0, $headerSz) : '';
             curl_close($ch);
@@ -114,20 +133,20 @@ class API {
             if ($retryable && $attempt < $attempts) {
                 $waitUs = 250000 * (2 ** ($attempt - 1));
                 if ($code === 429 && preg_match('/^Retry-After:\s*(\d+)/mi', $rawHdr, $m)) {
-                    $waitUs = min(5000000, max($waitUs, (int)$m[1] * 1000000));
+                    $waitUs = min(5000000, max($waitUs, (int) $m[1] * 1000000));
                 }
                 $waitUs += random_int(0, 150000);
-                \GlpiPlugin\Gdmsintegration\Utils::debug('API transient error — retry ' . ($attempt + 1) . "/{$attempts} | HTTP:{$code}");
+                Utils::debug('API transient error — retry ' . ($attempt + 1) . "/{$attempts} | HTTP:{$code}");
                 usleep($waitUs);
                 continue;
             }
             if ($err || $code >= 400) {
-                self::logStructuredApiError(str_contains($url,'/oapi')?'GDMS':'GWN',$url,$code,$err,$raw,$retryable);
+                self::logStructuredApiError(str_contains($url, '/oapi') ? 'GDMS' : 'GWN', $url, $code, $err, $raw, $retryable);
                 return false;
             }
             $decoded = json_decode($raw, true);
             if (!is_array($decoded)) {
-                \GlpiPlugin\Gdmsintegration\Utils::debug('API — non-JSON response from ' . self::redactUrl($url) . " | HTTP:{$code} | raw:" . substr($raw, 0, 300));
+                Utils::debug('API — non-JSON response from ' . self::redactUrl($url) . " | HTTP:{$code} | raw:" . substr($raw, 0, 300));
                 return false;
             }
             return $decoded;
@@ -135,32 +154,40 @@ class API {
         return false;
     }
 
-    
-    private static function logStructuredApiError(string $provider,string $endpoint,int $httpCode,string $curlError,string $raw,bool $retryable): void {
-        $decoded=json_decode($raw,true);
-        $retCode=is_array($decoded)?($decoded['retCode']??'N/A'):'N/A';
-        $retMsg=is_array($decoded)?($decoded['retMsg']??($decoded['msg']??'N/A')):'N/A';
-        $cat='UNKNOWN';
-        if($httpCode===401){$cat='AUTHENTICATION';}
-        elseif($httpCode===403){$cat='PERMISSION';}
-        elseif($httpCode===404){$cat='NOT_FOUND';}
-        elseif(in_array($httpCode,[429],true)){$cat='RATE_LIMIT';}
-        elseif(in_array($httpCode,[500,502,503,504],true)){$cat='SERVER_ERROR';}
-        elseif($curlError!==''){$cat='NETWORK_ERROR';}
-        \GlpiPlugin\Gdmsintegration\Utils::log(
-            "==== {$provider} API ERROR ====".
-            "\nCategory      : {$cat}".
-            "\nEndpoint      : {$endpoint}".
-            "\nHTTP          : {$httpCode}".
-            "\nretCode       : {$retCode}".
-            "\nretMsg        : {$retMsg}".
-            "\nRetryable     : ".($retryable?'YES':'NO').
-            "\nURL           : ".self::redactUrl($endpoint).
-            ($curlError!==''?"\ncURL          : {$curlError}":"")
+
+    private static function logStructuredApiError(string $provider, string $endpoint, int $httpCode, string $curlError, string $raw, bool $retryable): void
+    {
+        $decoded = json_decode($raw, true);
+        $retCode = is_array($decoded) ? ($decoded['retCode'] ?? 'N/A') : 'N/A';
+        $retMsg = is_array($decoded) ? ($decoded['retMsg'] ?? ($decoded['msg'] ?? 'N/A')) : 'N/A';
+        $cat = 'UNKNOWN';
+        if ($httpCode === 401) {
+            $cat = 'AUTHENTICATION';
+        } elseif ($httpCode === 403) {
+            $cat = 'PERMISSION';
+        } elseif ($httpCode === 404) {
+            $cat = 'NOT_FOUND';
+        } elseif (in_array($httpCode, [429], true)) {
+            $cat = 'RATE_LIMIT';
+        } elseif (in_array($httpCode, [500,502,503,504], true)) {
+            $cat = 'SERVER_ERROR';
+        } elseif ($curlError !== '') {
+            $cat = 'NETWORK_ERROR';
+        }
+        Utils::log(
+            "==== {$provider} API ERROR ===="
+            . "\nCategory      : {$cat}"
+            . "\nEndpoint      : {$endpoint}"
+            . "\nHTTP          : {$httpCode}"
+            . "\nretCode       : {$retCode}"
+            . "\nretMsg        : {$retMsg}"
+            . "\nRetryable     : " . ($retryable ? 'YES' : 'NO')
+            . "\nURL           : " . self::redactUrl($endpoint)
+            . ($curlError !== '' ? "\ncURL          : {$curlError}" : ""),
         );
     }
 
-// -----------------------------------------------------------------------
+    // -----------------------------------------------------------------------
     // GDMS signature calculation
     // For POST+JSON body: sig = sha256( & sorted_params & sha256(body) & )
     // For GET / no body:  sig = sha256( & sorted_params & )
@@ -169,7 +196,7 @@ class API {
         array   $urlParams,   // params that go in the URL query string
         array   $config,
         int     $timestamp,
-        ?string $body = null  // raw JSON body string, or null
+        ?string $body = null,  // raw JSON body string, or null
     ): string {
         // Combine URL params + meta params (for signing only)
         $all = array_merge($urlParams, [
@@ -203,38 +230,44 @@ class API {
     /** In-process token cache: [cacheKey => [tokenData, expires_at]] */
     private static array $gdmsTokenCache = [];
 
-    private static function persistGdmsToken(array $config, array $tokenData): void {
+    private static function persistGdmsToken(array $config, array $tokenData): void
+    {
         global $DB;
-        $entity = (int)($config['entities_id'] ?? 0);
-        if ($entity < 0) return;
-        $expiresAt = time() + max(60, (int)($tokenData['expires_in'] ?? 3600));
+        $entity = (int) ($config['entities_id'] ?? 0);
+        if ($entity < 0) {
+            return;
+        }
+        $expiresAt = time() + max(60, (int) ($tokenData['expires_in'] ?? 3600));
         try {
-            $DB->update(\GlpiPlugin\Gdmsintegration\Config::getTable(), [
-                'gdms_access_token'     => \GlpiPlugin\Gdmsintegration\Utils::encrypt((string)$tokenData['access_token']),
-                'gdms_refresh_token'    => !empty($tokenData['refresh_token']) ? \GlpiPlugin\Gdmsintegration\Utils::encrypt((string)$tokenData['refresh_token']) : '',
+            $DB->update(Config::getTable(), [
+                'gdms_access_token'     => Utils::encrypt((string) $tokenData['access_token']),
+                'gdms_refresh_token'    => !empty($tokenData['refresh_token']) ? Utils::encrypt((string) $tokenData['refresh_token']) : '',
                 'gdms_token_expires_at' => $expiresAt,
             ], ['entities_id' => $entity]);
         } catch (\Throwable $e) {
-            \GlpiPlugin\Gdmsintegration\Utils::debug('GDMS token cache persistence unavailable: ' . $e->getMessage());
+            Utils::debug('GDMS token cache persistence unavailable: ' . $e->getMessage());
         }
     }
 
-    public static function gdmsGetToken(array $config, bool $forceRefresh = false): array|false {
-        $cacheKey = strtolower((string)($config['gdms_region'] ?? 'us')) . '|' . ($config['username'] ?? '') . '|' . ($config['client_id'] ?? '');
+    public static function gdmsGetToken(array $config, bool $forceRefresh = false): array|false
+    {
+        $cacheKey = strtolower((string) ($config['gdms_region'] ?? 'us')) . '|' . ($config['username'] ?? '') . '|' . ($config['client_id'] ?? '');
         $now = time();
         if (!$forceRefresh && isset(self::$gdmsTokenCache[$cacheKey])) {
             [$cachedData, $expiresAt] = self::$gdmsTokenCache[$cacheKey];
-            if ($now < $expiresAt) return $cachedData;
+            if ($now < $expiresAt) {
+                return $cachedData;
+            }
         }
 
         // Reuse the encrypted persistent token across PHP/cron processes. Keep a 60s
         // safety window so a token is not selected when it is about to expire.
         if (!$forceRefresh && !empty($config['gdms_access_token'])
-            && (int)($config['gdms_token_expires_at'] ?? 0) > $now + 60) {
-            $ttl = (int)$config['gdms_token_expires_at'] - $now;
+            && (int) ($config['gdms_token_expires_at'] ?? 0) > $now + 60) {
+            $ttl = (int) $config['gdms_token_expires_at'] - $now;
             $tokenData = [
-                'access_token' => (string)$config['gdms_access_token'],
-                'refresh_token' => (string)($config['gdms_refresh_token'] ?? ''),
+                'access_token' => (string) $config['gdms_access_token'],
+                'refresh_token' => (string) ($config['gdms_refresh_token'] ?? ''),
                 'expires_in' => $ttl,
             ];
             self::$gdmsTokenCache[$cacheKey] = [$tokenData, $now + $ttl - 30];
@@ -254,10 +287,10 @@ class API {
                     'client_id' => $config['client_id'],
                     'client_secret' => $config['client_secret'],
                 ]),
-                true
+                true,
             );
             if ($data === false || empty($data['access_token'])) {
-                \GlpiPlugin\Gdmsintegration\Utils::debug('GDMS refresh token rejected/unavailable — falling back to password grant.');
+                Utils::debug('GDMS refresh token rejected/unavailable — falling back to password grant.');
                 $data = false;
             }
         }
@@ -274,14 +307,14 @@ class API {
                     'client_id' => $config['client_id'],
                     'client_secret' => $config['client_secret'],
                 ]),
-                true
+                true,
             );
         }
         if ($data === false || empty($data['access_token'])) {
-            \GlpiPlugin\Gdmsintegration\Utils::log('GDMS token ERROR — region:' . ($config['gdms_region'] ?? 'us') . ' username:' . ($config['username'] ?? ''));
+            Utils::log('GDMS token ERROR — region:' . ($config['gdms_region'] ?? 'us') . ' username:' . ($config['username'] ?? ''));
             return false;
         }
-        $expiresIn = max(60, (int)($data['expires_in'] ?? 3600));
+        $expiresIn = max(60, (int) ($data['expires_in'] ?? 3600));
         $tokenData = [
             'access_token' => $data['access_token'],
             // Some OAuth servers rotate refresh tokens; preserve the previous one when omitted.
@@ -290,7 +323,7 @@ class API {
         ];
         self::$gdmsTokenCache[$cacheKey] = [$tokenData, $now + $expiresIn - 30];
         self::persistGdmsToken($config, $tokenData);
-        \GlpiPlugin\Gdmsintegration\Utils::debug("GDMS token OK — region:" . ($config['gdms_region'] ?? 'us') . " expires:{$expiresIn}s");
+        Utils::debug("GDMS token OK — region:" . ($config['gdms_region'] ?? 'us') . " expires:{$expiresIn}s");
         return $tokenData;
     }
 
@@ -299,7 +332,8 @@ class API {
     // URL query: access_token, timestamp, signature
     // Body: pageNum, pageSize, orgId (optional)
     // -----------------------------------------------------------------------
-    public static function gdmsGetDevices(array $config, ?bool &$complete = null): array {
+    public static function gdmsGetDevices(array $config, ?bool &$complete = null): array
+    {
         // Backward-compatible return type: callers still receive the device array.
         // $complete tells sync callers whether the list is authoritative enough to
         // infer removals. Any transport/API error or pagination ceiling makes it false.
@@ -326,7 +360,7 @@ class API {
                 $url,
                 ['Content-Type: application/json'],
                 $body,
-                true
+                true,
             );
 
             if ($data === false) {
@@ -336,7 +370,7 @@ class API {
                 $renewed = self::gdmsGetToken($config, true);
                 if ($renewed !== false) {
                     $config['access_token'] = $renewed['access_token'];
-                    $ts = (int)(microtime(true) * 1000);
+                    $ts = (int) (microtime(true) * 1000);
                     $urlParams = ['access_token' => $config['access_token']];
                     $sig = self::gdmsBuildSignature($urlParams, $config, $ts, $body);
                     $url = self::gdmsBase($config) . '/' . self::VERSION . '/device/list?' . http_build_query([
@@ -345,20 +379,20 @@ class API {
                     $data = self::curl($url, ['Content-Type: application/json'], $body, true);
                 }
                 if ($data === false) {
-                    \GlpiPlugin\Gdmsintegration\Utils::log("GDMS device/list incomplete — API error on page {$page}; removal detection disabled for this cycle.");
+                    Utils::log("GDMS device/list incomplete — API error on page {$page}; removal detection disabled for this cycle.");
                     return $all;
                 }
             }
-            if ((int)($data['retCode'] ?? -1) !== 0) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("GDMS device/list error on page {$page}: " . ($data['msg'] ?? json_encode($data)) . "; removal detection disabled for this cycle.");
+            if ((int) ($data['retCode'] ?? -1) !== 0) {
+                Utils::log("GDMS device/list error on page {$page}: " . ($data['msg'] ?? json_encode($data)) . "; removal detection disabled for this cycle.");
                 return $all;
             }
             $batch = $data['data']['result'] ?? [];
             $batch = is_array($batch) ? $batch : [];
-            \GlpiPlugin\Gdmsintegration\Utils::log("GDMS page {$page}: " . count($batch) . " device(s)");
+            Utils::log("GDMS page {$page}: " . count($batch) . " device(s)");
             if ($page === 1 && !empty($batch)) {
-                \GlpiPlugin\Gdmsintegration\Utils::debug("GDMS device/list fields (first device): " . json_encode(array_keys($batch[0])));
-                \GlpiPlugin\Gdmsintegration\Utils::debug("GDMS device/list sample: " . json_encode($batch[0]));
+                Utils::debug("GDMS device/list fields (first device): " . json_encode(array_keys($batch[0])));
+                Utils::debug("GDMS device/list sample: " . json_encode($batch[0]));
             }
             $all       = array_merge($all, $batch);
             $lastBatch = $batch;
@@ -375,9 +409,9 @@ class API {
         // additional devices. Keep the partial data for normal updates, but never
         // use it to infer that unseen devices were removed.
         if (count($lastBatch) >= 100) {
-            \GlpiPlugin\Gdmsintegration\Utils::log(
+            Utils::log(
                 'GDMS WARNING: device list reached the pagination safety ceiling at page ' . self::MAX_PAGES
-                . ' (~' . (self::MAX_PAGES * 100) . ' devices). Partial data will be synchronized, but removal detection is disabled for this cycle.'
+                . ' (~' . (self::MAX_PAGES * 100) . ' devices). Partial data will be synchronized, but removal detection is disabled for this cycle.',
             );
             return $all;
         }
@@ -396,7 +430,7 @@ class API {
         string  $appId,
         string  $secretKey,
         int     $timestamp,
-        ?string $body = null
+        ?string $body = null,
     ): string {
         $params = [
             'access_token' => $accessToken,
@@ -428,56 +462,57 @@ class API {
     /** In-process token cache: [cacheKey => [token, expires_at]] */
     private static array $gwnTokenCache = [];
 
-    public static function gwnGetToken(array $config, bool $forceRefresh = false): string|false {
+    public static function gwnGetToken(array $config, bool $forceRefresh = false): string|false
+    {
         $cacheKey = ($config['gwn_client_id'] ?? '') . '|' . ($config['gwn_client_secret'] ?? '');
         $now      = time();
         if (!$forceRefresh && isset(self::$gwnTokenCache[$cacheKey])) {
             [$cachedToken, $expiresAt] = self::$gwnTokenCache[$cacheKey];
             if ($now < $expiresAt) {
-                \GlpiPlugin\Gdmsintegration\Utils::debug("GWN token OK (cached) — appID:{$config['gwn_client_id']}");
+                Utils::debug("GWN token OK (cached) — appID:{$config['gwn_client_id']}");
                 return $cachedToken;
             }
         }
         // Reuse the encrypted persistent token across PHP requests. The 60-second
         // margin avoids signing a request with a token that expires in flight.
         if (!$forceRefresh && !empty($config['gwn_access_token'])
-            && (int)($config['gwn_token_expires_at'] ?? 0) > $now + 60) {
-            $expiresAt = (int)$config['gwn_token_expires_at'];
-            self::$gwnTokenCache[$cacheKey] = [(string)$config['gwn_access_token'], $expiresAt - 30];
-            \GlpiPlugin\Gdmsintegration\Utils::debug("GWN token OK (persistent cache) — appID:{$config['gwn_client_id']}");
-            return (string)$config['gwn_access_token'];
+            && (int) ($config['gwn_token_expires_at'] ?? 0) > $now + 60) {
+            $expiresAt = (int) $config['gwn_token_expires_at'];
+            self::$gwnTokenCache[$cacheKey] = [(string) $config['gwn_access_token'], $expiresAt - 30];
+            Utils::debug("GWN token OK (persistent cache) — appID:{$config['gwn_client_id']}");
+            return (string) $config['gwn_access_token'];
         }
         $url = self::GWN_BASE . '/oauth/token?' . http_build_query([
             'grant_type'    => 'client_credentials',
             'client_id'     => $config['gwn_client_id'],
             'client_secret' => $config['gwn_client_secret'],
         ]);
-        \GlpiPlugin\Gdmsintegration\Utils::debug("GWN token request — appID:{$config['gwn_client_id']} [credentials redacted]");
+        Utils::debug("GWN token request — appID:{$config['gwn_client_id']} [credentials redacted]");
         $data = self::curl($url, [], null, true);
-        \GlpiPlugin\Gdmsintegration\Utils::debug("GWN token response — expires_in:" . ($data['expires_in'] ?? '?'));
+        Utils::debug("GWN token response — expires_in:" . ($data['expires_in'] ?? '?'));
         if ($data === false || empty($data['access_token'])) {
-            \GlpiPlugin\Gdmsintegration\Utils::log("GWN token ERROR — appID:{$config['gwn_client_id']}");
+            Utils::log("GWN token ERROR — appID:{$config['gwn_client_id']}");
             return false;
         }
-        $expiresIn = (int)($data['expires_in'] ?? 3599);
+        $expiresIn = (int) ($data['expires_in'] ?? 3599);
         $expiresAt = $now + max(60, $expiresIn);
         self::$gwnTokenCache[$cacheKey] = [$data['access_token'], $expiresAt - 30];
         // Persist encrypted just like GDMS OAuth so dashboard/AJAX/cron requests do
         // not each consume a new client_credentials token.
         if (!empty($config['entities_id'])) {
             global $DB;
-            $DB->update(\GlpiPlugin\Gdmsintegration\Config::getTable(), [
-                'gwn_access_token'     => \GlpiPlugin\Gdmsintegration\Utils::encrypt((string)$data['access_token']),
+            $DB->update(Config::getTable(), [
+                'gwn_access_token'     => Utils::encrypt((string) $data['access_token']),
                 'gwn_token_expires_at' => $expiresAt,
-            ], ['entities_id' => (int)$config['entities_id']]);
+            ], ['entities_id' => (int) $config['entities_id']]);
         } elseif (array_key_exists('entities_id', $config)) {
             global $DB;
-            $DB->update(\GlpiPlugin\Gdmsintegration\Config::getTable(), [
-                'gwn_access_token'     => \GlpiPlugin\Gdmsintegration\Utils::encrypt((string)$data['access_token']),
+            $DB->update(Config::getTable(), [
+                'gwn_access_token'     => Utils::encrypt((string) $data['access_token']),
                 'gwn_token_expires_at' => $expiresAt,
             ], ['entities_id' => 0]);
         }
-        \GlpiPlugin\Gdmsintegration\Utils::debug("GWN token OK — appID:{$config['gwn_client_id']}");
+        Utils::debug("GWN token OK — appID:{$config['gwn_client_id']}");
         return $data['access_token'];
     }
 
@@ -485,14 +520,15 @@ class API {
     // GWN — signed request helper
     // All GWN API calls need: access_token + appID + timestamp + signature in URL
     // -----------------------------------------------------------------------
-    private static function gwnSignedUrl(string $path, array $config, ?string $body = null): string {
+    private static function gwnSignedUrl(string $path, array $config, ?string $body = null): string
+    {
         $ts  = (int) (microtime(true) * 1000);
         $sig = self::gwnBuildSignature(
             $config['gwn_access_token'],
             $config['gwn_client_id'],
             $config['gwn_client_secret'],
             $ts,
-            $body
+            $body,
         );
         return self::GWN_BASE . '/oapi/' . self::VERSION . $path . '?' . http_build_query([
             'access_token' => $config['gwn_access_token'],
@@ -510,7 +546,8 @@ class API {
      *   An empty array means the account has no networks (valid).
      *   false means the API call itself failed (curl error or non-zero retCode).
      */
-    private static function gwnGetNetworkIds(array $config, ?bool &$complete = null): array|false {
+    private static function gwnGetNetworkIds(array $config, ?bool &$complete = null): array|false
+    {
         $complete = false;
         $map = [];
         $pageSize = 200;
@@ -526,51 +563,60 @@ class API {
                     $data = self::curl($url, ['Content-Type: application/json'], $body, true);
                 }
             }
-            if ($data === false || (int)($data['retCode'] ?? -1) !== 0) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("GWN network/list error page {$page}: " . ($data['msg'] ?? 'transport/API error'));
+            if ($data === false || (int) ($data['retCode'] ?? -1) !== 0) {
+                Utils::log("GWN network/list error page {$page}: " . ($data['msg'] ?? 'transport/API error'));
                 return $map === [] ? false : $map;
             }
             $networks = $data['data']['result'] ?? [];
-            if (!is_array($networks)) return false;
+            if (!is_array($networks)) {
+                return false;
+            }
             foreach ($networks as $nw) {
-                $id = (string)($nw['id'] ?? '');
-                if ($id !== '') $map[$id] = $nw['networkName'] ?? '';
+                $id = (string) ($nw['id'] ?? '');
+                if ($id !== '') {
+                    $map[$id] = $nw['networkName'] ?? '';
+                }
             }
             $meta = $data['data'] ?? [];
-            $totalPage = (int)($meta['totalPage'] ?? 0);
-            $currentPage = (int)($meta['currentPage'] ?? $page);
+            $totalPage = (int) ($meta['totalPage'] ?? 0);
+            $currentPage = (int) ($meta['currentPage'] ?? $page);
             if (($totalPage > 0 && $currentPage >= $totalPage) || count($networks) < $pageSize) {
                 $complete = true;
                 return $map;
             }
         }
-        \GlpiPlugin\Gdmsintegration\Utils::log('GWN network/list reached pagination safety ceiling; list is partial.');
+        Utils::log('GWN network/list reached pagination safety ceiling; list is partial.');
         return $map;
     }
 
     // -----------------------------------------------------------------------
     // GWN — device/info for a single device (returns sn, ip, model, etc.)
     // -----------------------------------------------------------------------
-    private static function gwnGetDeviceInfo(array $config, string $mac, string $networkId): ?array {
-        $body = json_encode(['mac' => $mac, 'networkId' => (int)$networkId]);
+    private static function gwnGetDeviceInfo(array $config, string $mac, string $networkId): ?array
+    {
+        $body = json_encode(['mac' => $mac, 'networkId' => (int) $networkId]);
         $url  = self::gwnSignedUrl('/device/info', $config, $body);
-        \GlpiPlugin\Gdmsintegration\Utils::debug("GWN device/info {$mac} URL: {$url}");
-        \GlpiPlugin\Gdmsintegration\Utils::debug("GWN device/info {$mac} body: {$body}");
+        Utils::debug("GWN device/info {$mac} URL: {$url}");
+        Utils::debug("GWN device/info {$mac} body: {$body}");
         $data = self::curl($url, ['Content-Type: application/json'], $body, true);
-        \GlpiPlugin\Gdmsintegration\Utils::debug("GWN device/info {$mac} response: " . substr(json_encode($data), 0, 500));
-        if ($data === false || (int)($data['retCode'] ?? -1) !== 0) {
-            \GlpiPlugin\Gdmsintegration\Utils::debug("GWN device/info {$mac} error: " . ($data['msg'] ?? json_encode($data)));
+        Utils::debug("GWN device/info {$mac} response: " . substr(json_encode($data), 0, 500));
+        if ($data === false || (int) ($data['retCode'] ?? -1) !== 0) {
+            Utils::debug("GWN device/info {$mac} error: " . ($data['msg'] ?? json_encode($data)));
             return null;
         }
         // result[] is array of {type, value, key} objects — find key==='sn'
         $outerData = $data['data'] ?? null;
-        if (!is_array($outerData)) return null;
+        if (!is_array($outerData)) {
+            return null;
+        }
 
         $rawResult = $outerData['result'] ?? null;
         $info = ['sn' => '', 'SN' => ''];
         if (is_array($rawResult)) {
             foreach ($rawResult as $item) {
-                if (!is_array($item)) continue;
+                if (!is_array($item)) {
+                    continue;
+                }
                 $k = strtolower($item['key'] ?? '');
                 $v = $item['value'] ?? '';
                 if ($k === 'sn' || $k === 'serial' || $k === 'serialno') {
@@ -578,7 +624,7 @@ class API {
                 } elseif ($k === 'firmwareversion' || $k === 'firmware') {
                     $info['firmwareVersion'] = $v;
                 } elseif ($k === 'uptime') {
-                    $info['upTime'] = (int)$v;
+                    $info['upTime'] = (int) $v;
                 } else {
                     $info[$item['key'] ?? $k] = $v;
                 }
@@ -589,7 +635,7 @@ class API {
         }
 
         $sn = $info['sn'] ?? '';
-        \GlpiPlugin\Gdmsintegration\Utils::debug("GWN device/info {$mac} SN:'{$sn}'");
+        Utils::debug("GWN device/info {$mac} SN:'{$sn}'");
         return array_merge($outerData, $info);
     }
 
@@ -603,17 +649,18 @@ class API {
      *
      * @return array|false
      */
-    public static function gwnGetDevices(array $config, ?bool &$complete = null): array|false {
+    public static function gwnGetDevices(array $config, ?bool &$complete = null): array|false
+    {
         $complete = false;
         $networkListComplete = false;
         $networkMap = self::gwnGetNetworkIds($config, $networkListComplete); // id => name, or false on error
         if ($networkMap === false) {
-            \GlpiPlugin\Gdmsintegration\Utils::log("GWN: network/list failed — aborting device fetch");
+            Utils::log("GWN: network/list failed — aborting device fetch");
             return false;
         }
         if (empty($networkMap)) {
             $complete = $networkListComplete;
-            \GlpiPlugin\Gdmsintegration\Utils::debug("GWN: no networks configured — skipping devices");
+            Utils::debug("GWN: no networks configured — skipping devices");
             return [];
         }
 
@@ -625,9 +672,11 @@ class API {
 
         // Pre-load SN cache for all managed MACs — avoids a DB query per device.
         $_snCache = [];
-        foreach ((new \GlpiPlugin\Gdmsintegration\Device())->find(['entities_id' => (int)($config['entities_id'] ?? 0)]) as $_row) {
+        foreach ((new Device())->find(['entities_id' => (int) ($config['entities_id'] ?? 0)]) as $_row) {
             $_m = strtolower(trim($_row['mac'] ?? ''));
-            if ($_m && !empty($_row['sn_cloud'])) $_snCache[$_m] = $_row['sn_cloud'];
+            if ($_m && !empty($_row['sn_cloud'])) {
+                $_snCache[$_m] = $_row['sn_cloud'];
+            }
         }
 
         // The old implementation visited networks one at a time. A slow ap/list
@@ -671,11 +720,11 @@ class API {
                 $key = (int) $request['networkId'] . '|' . (int) $request['page'];
                 $failedByKey[$key] = true;
                 $hadNetworkError = true;
-                \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
+                Utils::log(sprintf(
                     'GWN ap/list error network %d page %d: %s',
                     (int) $request['networkId'],
                     (int) $request['page'],
-                    (string) ($request['error'] ?? 'transport/API error after retries')
+                    (string) ($request['error'] ?? 'transport/API error after retries'),
                 ));
             }
 
@@ -694,7 +743,7 @@ class API {
                 $data = $pageResults[$key];
                 $raw = $data['data']['result'] ?? $data['data'] ?? [];
                 $batch = is_array($raw) ? $raw : [];
-                \GlpiPlugin\Gdmsintegration\Utils::log("GWN network {$networkId} page {$page}: " . count($batch) . " device(s)");
+                Utils::log("GWN network {$networkId} page {$page}: " . count($batch) . " device(s)");
 
                 if (!empty($batch)) {
                     $batch = array_map(static function (array $d) use ($networkId, $networkName): array {
@@ -724,8 +773,8 @@ class API {
                         ];
                     } else {
                         $hadNetworkError = true;
-                        \GlpiPlugin\Gdmsintegration\Utils::log(
-                            "GWN ap/list network {$networkId} reached pagination safety ceiling; list is partial."
+                        Utils::log(
+                            "GWN ap/list network {$networkId} reached pagination safety ceiling; list is partial.",
                         );
                     }
                 }
@@ -743,7 +792,7 @@ class API {
             }
             if (!empty($_snCache[$devMac])) {
                 $all[$idx]['sn'] = $_snCache[$devMac];
-                \GlpiPlugin\Gdmsintegration\Utils::debug("GWN SN cached for {$devMac}: {$_snCache[$devMac]}");
+                Utils::debug("GWN SN cached for {$devMac}: {$_snCache[$devMac]}");
             } else {
                 $needsInfo[$idx] = $dev;
             }
@@ -752,7 +801,9 @@ class API {
         if ($needsInfo !== []) {
             $infoResults = self::gwnGetDeviceInfoBatch($config, $needsInfo, 0, $token);
             foreach ($infoResults as $idx => $info) {
-                if ($info === null || !isset($all[$idx])) continue;
+                if ($info === null || !isset($all[$idx])) {
+                    continue;
+                }
                 $sn = $info['sn'] ?? $info['SN'] ?? $info['serialNo'] ?? $info['serial'] ?? '';
                 $all[$idx]['sn'] = $sn;
                 if (empty($all[$idx]['versionFirmware']) && !empty($info['firmwareVersion'])) {
@@ -813,7 +864,9 @@ class API {
                 $multiCode = curl_multi_exec($multi, $running);
                 if ($running > 0 && $multiCode === CURLM_OK) {
                     $selected = curl_multi_select($multi, 0.5);
-                    if ($selected === -1) usleep(10000);
+                    if ($selected === -1) {
+                        usleep(10000);
+                    }
                 }
             } while ($running > 0);
 
@@ -856,7 +909,8 @@ class API {
      * Batch parallel device/info using curl_multi — all requests fire simultaneously.
      * @param array $devices  [idx => device_row] only devices needing SN enrichment
      */
-    private static function gwnGetDeviceInfoBatch(array $config, array $devices, int $networkId, string $cachedToken = '', int $attempt = 0): array {
+    private static function gwnGetDeviceInfoBatch(array $config, array $devices, int $networkId, string $cachedToken = '', int $attempt = 0): array
+    {
         if (count($devices) > self::INFO_BATCH_SIZE) {
             $merged = [];
             foreach (array_chunk($devices, self::INFO_BATCH_SIZE, true) as $chunk) {
@@ -865,7 +919,9 @@ class API {
             return $merged;
         }
         $token   = $cachedToken ?: self::gwnGetToken($config);
-        if (!$token) return [];
+        if (!$token) {
+            return [];
+        }
         $appId   = $config['gwn_client_id']     ?? '';
         $secret  = $config['gwn_client_secret'] ?? '';
         $baseUrl = self::GWN_BASE . '/oapi/' . self::VERSION . '/device/info';
@@ -877,12 +933,12 @@ class API {
             $mac     = $dev['mac'];
             $deviceNetworkId = (int) ($dev['networkId'] ?? $dev['network_id'] ?? $networkId);
             $body    = json_encode(['mac' => $mac, 'networkId' => $deviceNetworkId]);
-            $ts      = (int)(microtime(true) * 1000);
+            $ts      = (int) (microtime(true) * 1000);
             $bHash   = hash('sha256', $body);
             $sigIn   = "&access_token={$token}&appID={$appId}&secretKey={$secret}&timestamp={$ts}&{$bHash}&";
             $sig     = hash('sha256', $sigIn);
             $url     = $baseUrl . '?access_token=' . urlencode($token)
-                                . '&appID='        . urlencode($appId)
+                                . '&appID=' . urlencode($appId)
                                 . "&timestamp={$ts}&signature={$sig}";
 
             $ch = curl_init($url);
@@ -903,18 +959,20 @@ class API {
         $running = null;
         do {
             curl_multi_exec($mh, $running);
-            if ($running) curl_multi_select($mh, 0.5);
+            if ($running) {
+                curl_multi_select($mh, 0.5);
+            }
         } while ($running > 0);
 
         $results = [];
         $failedDevices = [];
         foreach ($handles as $idx => $ch) {
             $raw  = curl_multi_getcontent($ch);
-            $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curlErr  = curl_error($ch);
             $data = $raw ? json_decode($raw, true) : null;
             $info = null;
-            if ($curlErr !== '' || $httpCode < 200 || $httpCode >= 300 || !is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
+            if ($curlErr !== '' || $httpCode < 200 || $httpCode >= 300 || !is_array($data) || (int) ($data['retCode'] ?? -1) !== 0) {
                 // Retry failed enrichment requests as a batch below. A single-request
                 // fallback here would serialize failures and could stall the whole
                 // sync for several seconds per missing serial number.
@@ -932,7 +990,9 @@ class API {
                     $info = ['sn' => '', 'SN' => ''];
                     if (is_array($rawRes)) {
                         foreach ($rawRes as $item) {
-                            if (!is_array($item)) continue;
+                            if (!is_array($item)) {
+                                continue;
+                            }
                             $k = strtolower($item['key'] ?? '');
                             $v = $item['value'] ?? '';
                             if ($k === 'sn' || $k === 'serial' || $k === 'serialno') {
@@ -940,9 +1000,11 @@ class API {
                             } elseif ($k === 'firmwareversion' || $k === 'firmware') {
                                 $info['firmwareVersion'] = $v;
                             } elseif ($k === 'uptime') {
-                                $info['upTime'] = (int)$v;
+                                $info['upTime'] = (int) $v;
                             } elseif ($k === 'ipv4' || $k === 'ip') {
-                                if (empty($info['ip'])) $info['ip'] = $v;
+                                if (empty($info['ip'])) {
+                                    $info['ip'] = $v;
+                                }
                             } else {
                                 $info[$item['key'] ?? $k] = $v;
                             }
@@ -956,9 +1018,9 @@ class API {
             }
             $mac = $devices[$idx]['mac'] ?? '?';
             $sn  = $info ? ($info['sn'] ?? $info['SN'] ?? '') : '';
-            \GlpiPlugin\Gdmsintegration\Utils::log(
-                "GWN batchInfo {$mac} SN:'{$sn}' sample:" .
-                substr(json_encode(array_slice((array)$info, 0, 6, true)), 0, 300)
+            Utils::log(
+                "GWN batchInfo {$mac} SN:'{$sn}' sample:"
+                . substr(json_encode(array_slice((array) $info, 0, 6, true)), 0, 300),
             );
             $results[$idx] = $info;
             curl_multi_remove_handle($mh, $ch);
@@ -983,7 +1045,7 @@ class API {
                 $failedDevices,
                 $networkId,
                 $retryToken,
-                $attempt + 1
+                $attempt + 1,
             );
             $results = array_replace($results, $retryResults);
         }
@@ -995,21 +1057,26 @@ class API {
      * POST /oapi/v1.0.0/client/list {networkId[, mac, pageNum, pageSize]}
      * Returns: [{mac, hostname, ip, rssi, band, ssid, apMac, connectTime, txRate, rxRate}]
      */
-    public static function gwnGetClientList(array $config, int $networkId, string $mac = '', int $pageSize = 200, ?bool &$complete = null): array {
+    public static function gwnGetClientList(array $config, int $networkId, string $mac = '', int $pageSize = 200, ?bool &$complete = null): array
+    {
         $complete = false;
         $token = self::gwnGetToken($config);
-        if (!$token) return [];
+        if (!$token) {
+            return [];
+        }
         $config['gwn_access_token'] = $token;
         $pageSize = max(1, min(200, $pageSize));
         $all = [];
         for ($page = 1; $page <= self::MAX_PAGES; $page++) {
             $body = ['networkId' => $networkId, 'pageNum' => $page, 'pageSize' => $pageSize];
-            if ($mac !== '') $body['mac'] = $mac;
+            if ($mac !== '') {
+                $body['mac'] = $mac;
+            }
             $bodyStr = json_encode($body);
             $url = self::gwnSignedUrl('/client/list', $config, $bodyStr);
             $data = self::curl($url, ['Content-Type: application/json'], $bodyStr, true);
-            if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
-                \GlpiPlugin\Gdmsintegration\Utils::debug("GWN client/list error network {$networkId} page {$page}: " . ($data['msg'] ?? 'transport/API error'));
+            if (!is_array($data) || (int) ($data['retCode'] ?? -1) !== 0) {
+                Utils::debug("GWN client/list error network {$networkId} page {$page}: " . ($data['msg'] ?? 'transport/API error'));
                 break;
             }
             $raw = $data['data']['result'] ?? $data['data'] ?? [];
@@ -1020,7 +1087,7 @@ class API {
                 break;
             }
             if ($page === self::MAX_PAGES) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("GWN client/list truncated at safety limit for network {$networkId}; result is partial.");
+                Utils::log("GWN client/list truncated at safety limit for network {$networkId}; result is partial.");
             }
         }
         return $all;
@@ -1031,10 +1098,13 @@ class API {
      * POST /oapi/v1.0.0/alert/list {networkId, pageNum, pageSize}
      * Returns normalized: [{id, alertType, severity, deviceMac, deviceName, description, createTime}]
      */
-    public static function gwnGetAlerts(array $config, int $networkId, int $pageSize = 50, ?bool &$complete = null): array {
+    public static function gwnGetAlerts(array $config, int $networkId, int $pageSize = 50, ?bool &$complete = null): array
+    {
         $complete = false;
         $token = self::gwnGetToken($config);
-        if (!$token) return [];
+        if (!$token) {
+            return [];
+        }
         $config['gwn_access_token'] = $token;
         $pageSize = max(1, min(200, $pageSize));
         $raw = [];
@@ -1042,8 +1112,8 @@ class API {
             $body = json_encode(['networkId' => $networkId, 'pageNum' => $page, 'pageSize' => $pageSize]);
             $url = self::gwnSignedUrl('/alert/list', $config, $body);
             $data = self::curl($url, ['Content-Type: application/json'], $body, true);
-            if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("GWN alert/list error network {$networkId} page {$page}: " . ($data['msg'] ?? 'transport/API error'));
+            if (!is_array($data) || (int) ($data['retCode'] ?? -1) !== 0) {
+                Utils::log("GWN alert/list error network {$networkId} page {$page}: " . ($data['msg'] ?? 'transport/API error'));
                 break;
             }
             $part = $data['data']['result'] ?? $data['data']['list'] ?? $data['data'] ?? [];
@@ -1054,7 +1124,7 @@ class API {
                 break;
             }
             if ($page === self::MAX_PAGES) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("GWN alert/list truncated at safety limit for network {$networkId}; result is partial.");
+                Utils::log("GWN alert/list truncated at safety limit for network {$networkId}; result is partial.");
             }
         }
         return self::normalizeGwnAlerts($raw, $networkId);
@@ -1069,11 +1139,11 @@ class API {
         // add noise without representing additional alerts.
         static $loggedSamples = [];
         if (!empty($raw) && is_array($raw[0] ?? null)) {
-            $sampleId = trim((string)($raw[0]['id'] ?? $raw[0]['alertId'] ?? $raw[0]['alert_id'] ?? ''));
-            $sampleKey = (string)$networkId . ':' . ($sampleId !== '' ? $sampleId : sha1((string)json_encode($raw[0])));
+            $sampleId = trim((string) ($raw[0]['id'] ?? $raw[0]['alertId'] ?? $raw[0]['alert_id'] ?? ''));
+            $sampleKey = (string) $networkId . ':' . ($sampleId !== '' ? $sampleId : sha1((string) json_encode($raw[0])));
             if (!isset($loggedSamples[$sampleKey])) {
                 $loggedSamples[$sampleKey] = true;
-                \GlpiPlugin\Gdmsintegration\Utils::debug("GWN alert sample (network {$networkId}): " . json_encode($raw[0]));
+                Utils::debug("GWN alert sample (network {$networkId}): " . json_encode($raw[0]));
             }
         }
 
@@ -1085,7 +1155,7 @@ class API {
             if (!is_array($alert)) {
                 continue;
             }
-            $id = trim((string)($alert['id'] ?? $alert['alertId'] ?? $alert['alert_id'] ?? ''));
+            $id = trim((string) ($alert['id'] ?? $alert['alertId'] ?? $alert['alert_id'] ?? ''));
             if ($id !== '' && isset($seenIds[$id])) {
                 continue;
             }
@@ -1106,23 +1176,25 @@ class API {
         ];
         foreach ($raw as &$a) {
             // id (may be int)
-            $a['id'] = (string)($a['id'] ?? $a['alertId'] ?? $a['alert_id'] ?? '');
+            $a['id'] = (string) ($a['id'] ?? $a['alertId'] ?? $a['alert_id'] ?? '');
             // createTime (ms) — actual field is 'time'
             if (empty($a['createTime'])) {
                 $ct = $a['time'] ?? $a['createAt'] ?? $a['create_at'] ?? $a['create_time']
                    ?? $a['alertTime'] ?? $a['alert_time'] ?? $a['alarmTime']
                    ?? $a['occurTime'] ?? $a['alertOccurTime'] ?? $a['timestamp'] ?? 0;
-                if ($ct && $ct < 9999999999) $ct *= 1000; // seconds → ms
-                $a['createTime'] = (int)$ct;
+                if ($ct && $ct < 9999999999) {
+                    $ct *= 1000;
+                } // seconds → ms
+                $a['createTime'] = (int) $ct;
             } elseif ($a['createTime'] > 0 && $a['createTime'] < 9999999999) {
-                $a['createTime'] = (int)$a['createTime'] * 1000;
+                $a['createTime'] = (int) $a['createTime'] * 1000;
             }
             // Severity: only documented text labels are mapped. Grandstream's public guide
             // exposes named levels, but not the numeric API enum; preserve numeric codes
             // as unknown until that mapping is verified against vendor documentation.
             $lvl = $a['level'] ?? $a['alertLevel'] ?? $a['alert_level'] ?? null;
-            $a['severityCode'] = is_scalar($lvl) ? (string)$lvl : '';
-            $providedSeverity = strtolower(trim((string)($a['severity'] ?? '')));
+            $a['severityCode'] = is_scalar($lvl) ? (string) $lvl : '';
+            $providedSeverity = strtolower(trim((string) ($a['severity'] ?? '')));
             if ($providedSeverity !== '') {
                 $a['severity'] = $textSeverityMap[$providedSeverity] ?? 'unknown';
             } elseif (is_numeric($lvl)) {
@@ -1158,9 +1230,15 @@ class API {
             // detailMap extras — reason and port_id for enriched display
             $dm = $a['detailMap'] ?? [];
             if (is_array($dm)) {
-                if (empty($a['reason']))      $a['reason']      = $dm['reason']      ?? $dm['failReason']   ?? '';
-                if (empty($a['port_id']))     $a['port_id']     = $dm['port_id']     ?? $dm['portId']       ?? '';
-                if (empty($a['deviceType']))  $a['deviceType']  = $dm['deviceType']  ?? '';
+                if (empty($a['reason'])) {
+                    $a['reason']      = $dm['reason']      ?? $dm['failReason']   ?? '';
+                }
+                if (empty($a['port_id'])) {
+                    $a['port_id']     = $dm['port_id']     ?? $dm['portId']       ?? '';
+                }
+                if (empty($a['deviceType'])) {
+                    $a['deviceType']  = $dm['deviceType']  ?? '';
+                }
             }
         }
         unset($a);
@@ -1182,7 +1260,7 @@ class API {
         $completeByNetwork = [];
         $networkIds = array_values(array_unique(array_filter(
             array_map('intval', $networkIds),
-            static fn(int $id): bool => $id > 0
+            static fn(int $id): bool => $id > 0,
         )));
         if ($networkIds === []) {
             return [];
@@ -1203,7 +1281,7 @@ class API {
                 'page' => 1,
                 'pageSize' => $pageSize,
             ],
-            $networkIds
+            $networkIds,
         );
         $refreshAttempted = false;
 
@@ -1232,10 +1310,10 @@ class API {
                 $key = (int) $request['networkId'] . '|' . (int) $request['page'];
                 $failedByKey[$key] = true;
                 $completeByNetwork[(int) $request['networkId']] = false;
-                \GlpiPlugin\Gdmsintegration\Utils::log(sprintf(
+                Utils::log(sprintf(
                     'GWN alert/list batch error network %d page %d: request failed after parallel retries',
                     (int) $request['networkId'],
-                    (int) $request['page']
+                    (int) $request['page'],
                 ));
             }
 
@@ -1262,8 +1340,8 @@ class API {
                         ];
                     } else {
                         $completeByNetwork[$networkId] = false;
-                        \GlpiPlugin\Gdmsintegration\Utils::log(
-                            "GWN alert/list truncated at safety limit for network {$networkId}; result is partial."
+                        Utils::log(
+                            "GWN alert/list truncated at safety limit for network {$networkId}; result is partial.",
                         );
                     }
                 }
@@ -1364,27 +1442,30 @@ class API {
      * Returns normalised port array (role=0, link, speed, type, customName, desc, txBytes, rxBytes, vlan).
      * Only meaningful for GWN78xx / GSS switches — routers/APs return empty.
      */
-    public static function gwnGetSwitchPortInfo(array $config, string $mac, int $networkId): array {
+    public static function gwnGetSwitchPortInfo(array $config, string $mac, int $networkId): array
+    {
         $token  = self::gwnGetToken($config);
-        if (!$token) return [];
+        if (!$token) {
+            return [];
+        }
         $appId  = $config['gwn_client_id']     ?? '';
         $secret = $config['gwn_client_secret'] ?? '';
 
         $body = json_encode(['mac' => $mac, 'networkId' => $networkId]);
-        $ts   = (int)(microtime(true) * 1000);
+        $ts   = (int) (microtime(true) * 1000);
         $sig  = self::gwnBuildSignature($token, $appId, $secret, $ts, $body);
         $url  = self::GWN_BASE . '/oapi/' . self::VERSION . '/switch/portInfo'
                 . '?access_token=' . urlencode($token)
-                . '&appID='        . urlencode($appId)
+                . '&appID=' . urlencode($appId)
                 . "&timestamp={$ts}&signature={$sig}";
 
         $data = self::curl($url, ['Content-Type: application/json'], $body, true);
-        if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
-            \GlpiPlugin\Gdmsintegration\Utils::log("GWN switch/portInfo error for {$mac}: " . ($data['msg'] ?? json_encode($data)));
+        if (!is_array($data) || (int) ($data['retCode'] ?? -1) !== 0) {
+            Utils::log("GWN switch/portInfo error for {$mac}: " . ($data['msg'] ?? json_encode($data)));
             return [];
         }
         $raw = $data['data']['result'] ?? [];
-        \GlpiPlugin\Gdmsintegration\Utils::debug("GWN switch/portInfo {$mac}: " . json_encode($raw));
+        Utils::debug("GWN switch/portInfo {$mac}: " . json_encode($raw));
         return is_array($raw) ? $raw : [];
     }
 
@@ -1393,23 +1474,26 @@ class API {
      * Returns portInfo[] and ipv4Info[] for the given router MAC.
      * Only meaningful for routers (GWN7001, GWN7002, etc.) — APs return empty portInfo.
      */
-    public static function gwnGetRouterPortInfo(array $config, string $mac, int $networkId): array {
+    public static function gwnGetRouterPortInfo(array $config, string $mac, int $networkId): array
+    {
         $token  = self::gwnGetToken($config);
-        if (!$token) return [];
+        if (!$token) {
+            return [];
+        }
         $appId  = $config['gwn_client_id']     ?? '';
         $secret = $config['gwn_client_secret'] ?? '';
 
         $body = json_encode(['mac' => $mac, 'networkId' => $networkId]);
-        $ts   = (int)(microtime(true) * 1000);
+        $ts   = (int) (microtime(true) * 1000);
         $sig  = self::gwnBuildSignature($token, $appId, $secret, $ts, $body);
         $url  = self::GWN_BASE . '/oapi/' . self::VERSION . '/device/info'
                 . '?access_token=' . urlencode($token)
-                . '&appID='        . urlencode($appId)
+                . '&appID=' . urlencode($appId)
                 . "&timestamp={$ts}&signature={$sig}";
 
         $data = self::curl($url, ['Content-Type: application/json'], $body, true);
-        if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
-            \GlpiPlugin\Gdmsintegration\Utils::log("GWN device/info port error for {$mac}: " . ($data['msg'] ?? json_encode($data)));
+        if (!is_array($data) || (int) ($data['retCode'] ?? -1) !== 0) {
+            Utils::log("GWN device/info port error for {$mac}: " . ($data['msg'] ?? json_encode($data)));
             return [];
         }
 
@@ -1425,7 +1509,7 @@ class API {
             }
         }
 
-        \GlpiPlugin\Gdmsintegration\Utils::debug("GWN portInfo for {$mac}: " . count(is_array($info['portInfo'] ?? null) ? $info['portInfo'] : []) . " port(s); WAN details parsed from embedded ipv4Info");
+        Utils::debug("GWN portInfo for {$mac}: " . count(is_array($info['portInfo'] ?? null) ? $info['portInfo'] : []) . " port(s); WAN details parsed from embedded ipv4Info");
         return [
             'portInfo'  => $info['portInfo']  ?? [],
             'ipv4Info'  => $info['ipv4Info']  ?? [],
@@ -1491,8 +1575,8 @@ class API {
                     $results[$key] = $value;
                 }
                 foreach ($stillFailed as $request) {
-                    \GlpiPlugin\Gdmsintegration\Utils::log(
-                        sprintf('GWN %s port query failed after parallel retry for %s', $request['type'], $request['mac'])
+                    Utils::log(
+                        sprintf('GWN %s port query failed after parallel retry for %s', $request['type'], $request['mac']),
                     );
                 }
             }
@@ -1597,14 +1681,15 @@ class API {
         return [$results, $failed];
     }
 
-        /**
+    /**
      * Determines whether a GWN firmware row/version is a pre-release.
      *
      * Grandstream may expose more than one channel in upgrade/version. The
      * plugin must never treat beta/RC/alpha/dev/test firmware as the official
      * firmware used for compliance or the actionable upgrade badge.
      */
-    private static function gwnFirmwareIsPreRelease(array $row, string $version): bool {
+    private static function gwnFirmwareIsPreRelease(array $row, string $version): bool
+    {
         foreach (['isBeta', 'beta', 'isRC', 'isRc', 'isAlpha', 'isDev', 'isPreview', 'isTest'] as $key) {
             if (array_key_exists($key, $row)) {
                 $value = $row[$key];
@@ -1615,7 +1700,7 @@ class API {
         }
 
         foreach (['releaseType', 'versionType', 'channel', 'firmwareType', 'type', 'status', 'releaseChannel'] as $key) {
-            if (isset($row[$key]) && is_scalar($row[$key]) && preg_match('/beta|rc|alpha|dev|preview|test/i', (string)$row[$key])) {
+            if (isset($row[$key]) && is_scalar($row[$key]) && preg_match('/beta|rc|alpha|dev|preview|test/i', (string) $row[$key])) {
                 return true;
             }
         }
@@ -1626,10 +1711,11 @@ class API {
     /**
      * Extract the firmware version exposed by an upgrade/version row.
      */
-    private static function gwnFirmwareVersion(array $row): string {
+    private static function gwnFirmwareVersion(array $row): string
+    {
         foreach (['lastVersion', 'version', 'firmwareVersion', 'versionFirmware'] as $key) {
             if (isset($row[$key]) && is_scalar($row[$key])) {
-                $value = trim((string)$row[$key]);
+                $value = trim((string) $row[$key]);
                 if ($value !== '') {
                     return $value;
                 }
@@ -1643,7 +1729,8 @@ class API {
      * identifying its release channel. Absence of a "beta" flag is NOT proof
      * that a version is stable; require an explicit stable/official channel marker.
      */
-    private static function gwnFirmwareIsExplicitlyStable(array $row): bool {
+    private static function gwnFirmwareIsExplicitlyStable(array $row): bool
+    {
         foreach (['isStable', 'stable', 'isOfficial', 'official'] as $key) {
             if (!array_key_exists($key, $row)) {
                 continue;
@@ -1659,7 +1746,7 @@ class API {
 
         foreach (['releaseType', 'versionType', 'channel', 'firmwareType', 'releaseChannel', 'firmwareChannel'] as $key) {
             if (isset($row[$key]) && is_scalar($row[$key])
-                && preg_match('/^(stable|official|general|release|production)$/i', trim((string)$row[$key]))) {
+                && preg_match('/^(stable|official|general|release|production)$/i', trim((string) $row[$key]))) {
                 return true;
             }
         }
@@ -1674,10 +1761,11 @@ class API {
      *
      * @return array{official:?string,beta:?string,reported:?string,channel:string,modelLabel:?string}
      */
-    public static function resolveGwnFirmwareChannel(string $model, string $cloudVersion, array $catalog): array {
+    public static function resolveGwnFirmwareChannel(string $model, string $cloudVersion, array $catalog): array
+    {
         $entry = self::findFirmwareCatalogEntry($catalog, $model);
-        $official = is_array($entry) ? trim((string)($entry['official'] ?? '')) : '';
-        $beta = is_array($entry) ? trim((string)($entry['beta'] ?? '')) : '';
+        $official = is_array($entry) ? trim((string) ($entry['official'] ?? '')) : '';
+        $beta = is_array($entry) ? trim((string) ($entry['beta'] ?? '')) : '';
         $reported = trim($cloudVersion);
         $isValidVersion = static fn(string $version): bool => preg_match('/^\d+(?:\.\d+){2,3}$/', $version) === 1;
 
@@ -1707,7 +1795,7 @@ class API {
             'beta' => $beta !== '' ? $beta : null,
             'reported' => $reported !== '' ? $reported : null,
             'channel' => $channel,
-            'modelLabel' => is_array($entry) ? (string)($entry['modelLabel'] ?? '') : null,
+            'modelLabel' => is_array($entry) ? (string) ($entry['modelLabel'] ?? '') : null,
         ];
     }
 
@@ -1716,13 +1804,14 @@ class API {
      * from a positively identified stable version. A plain numeric version is
      * not automatically stable; the official catalog performs the channel check.
      */
-    private static function gwnAnnotateFirmwareRows(array $rows): array {
+    private static function gwnAnnotateFirmwareRows(array $rows): array
+    {
         $byMac = [];
         foreach ($rows as $row) {
             if (!is_array($row)) {
                 continue;
             }
-            $mac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string)($row['mac'] ?? ''))) ?? '');
+            $mac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string) ($row['mac'] ?? ''))) ?? '');
             if (strlen($mac) !== 12) {
                 continue;
             }
@@ -1752,7 +1841,7 @@ class API {
         }
 
         foreach ($rows as &$row) {
-            $mac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string)($row['mac'] ?? ''))) ?? '');
+            $mac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string) ($row['mac'] ?? ''))) ?? '');
             $row['reportedVersion'] = strlen($mac) === 12 ? ($byMac[$mac]['reported'] ?? '') : '';
             $row['stableVersion'] = strlen($mac) === 12 ? ($byMac[$mac]['stable'] ?? '') : '';
             $row['betaVersion'] = strlen($mac) === 12 ? ($byMac[$mac]['beta'] ?? '') : '';
@@ -1773,7 +1862,8 @@ class API {
      * token refresh. This preserves the previous recovery behavior without
      * serially waiting on every failed network.
      */
-    public static function gwnGetFirmwareVersionsBatch(array $config, array $networkIds): array {
+    public static function gwnGetFirmwareVersionsBatch(array $config, array $networkIds): array
+    {
         self::$lastFirmwareErrors = [];
         $networkIds = array_values(array_unique(array_filter(array_map('intval', $networkIds), static fn(int $id): bool => $id > 0)));
         if ($networkIds === []) {
@@ -1812,8 +1902,8 @@ class API {
         foreach ($failed as $networkId => $message) {
             self::$lastFirmwareErrors[(int) $networkId] = (string) $message;
             $results[(int) $networkId] = [];
-            \GlpiPlugin\Gdmsintegration\Utils::log(
-                'GWN upgrade/version error network ' . (int) $networkId . ': ' . (string) $message
+            Utils::log(
+                'GWN upgrade/version error network ' . (int) $networkId . ': ' . (string) $message,
             );
         }
 
@@ -1829,7 +1919,8 @@ class API {
      * @param array<int, int> $networkIds
      * @return array{0:array<int,array>,1:array<int,string>}
      */
-    private static function gwnFirmwareVersionsBatchRound(array $config, array $networkIds): array {
+    private static function gwnFirmwareVersionsBatchRound(array $config, array $networkIds): array
+    {
         $results = [];
         $failed = [];
         foreach (array_chunk($networkIds, 20) as $chunk) {
@@ -1896,7 +1987,8 @@ class API {
         return [$results, $failed];
     }
 
-    public static function gwnGetLastFirmwareErrors(): array {
+    public static function gwnGetLastFirmwareErrors(): array
+    {
         return self::$lastFirmwareErrors;
     }
 
@@ -1906,9 +1998,12 @@ class API {
      * time=0 means "apply as soon as possible" (Grandstream immediate mode).
      * Returns: {success_upgrade_macs: [...]}
      */
-    public static function gwnScheduleUpgrade(array $config, array $macs, int $scheduleTimeMs = 0): array {
+    public static function gwnScheduleUpgrade(array $config, array $macs, int $scheduleTimeMs = 0): array
+    {
         $token  = self::gwnGetToken($config);
-        if (!$token) return ['error' => 'Cannot obtain token'];
+        if (!$token) {
+            return ['error' => 'Cannot obtain token'];
+        }
         $appId  = $config['gwn_client_id']     ?? '';
         $secret = $config['gwn_client_secret'] ?? '';
 
@@ -1919,22 +2014,22 @@ class API {
         // scheduleTimeMs === 0 → omit field, API defaults to ASAP
 
         $body   = json_encode($payload);
-        $ts  = (int)(microtime(true) * 1000);
+        $ts  = (int) (microtime(true) * 1000);
         $sig = self::gwnBuildSignature($token, $appId, $secret, $ts, $body);
         $url = self::GWN_BASE . '/oapi/' . self::VERSION . '/upgrade/add'
                . '?access_token=' . urlencode($token)
-               . '&appID='        . urlencode($appId)
+               . '&appID=' . urlencode($appId)
                . "&timestamp={$ts}&signature={$sig}";
 
         $data = self::curl($url, ['Content-Type: application/json'], $body);
-        if (!is_array($data) || (int)($data['retCode'] ?? -1) !== 0) {
+        if (!is_array($data) || (int) ($data['retCode'] ?? -1) !== 0) {
             $err = $data['msg'] ?? json_encode($data);
-            \GlpiPlugin\Gdmsintegration\Utils::log("GWN upgrade/add error: {$err}");
+            Utils::log("GWN upgrade/add error: {$err}");
             return ['error' => $err];
         }
         $ok = $data['data']['success_upgrade_macs'] ?? [];
         $mode = $scheduleTimeMs > 0 ? "scheduled @{$scheduleTimeMs}" : "ASAP";
-        \GlpiPlugin\Gdmsintegration\Utils::log("GWN upgrade ({$mode}) for MACs: " . implode(', ', (array)$ok));
+        Utils::log("GWN upgrade ({$mode}) for MACs: " . implode(', ', (array) $ok));
         return ['success' => $ok];
     }
 
@@ -1947,13 +2042,13 @@ class API {
         string $clientId,
         string $clientSecret,
         int    $timestamp,
-        string $body
+        string $body,
     ): string {
         $bodyHash = hash('sha256', $body);
-        $toSign   = '&access_token='  . $accessToken
-                  . '&client_id='     . $clientId
+        $toSign   = '&access_token=' . $accessToken
+                  . '&client_id=' . $clientId
                   . '&client_secret=' . $clientSecret
-                  . '&timestamp='     . $timestamp
+                  . '&timestamp=' . $timestamp
                   . '&' . $bodyHash . '&';
         $sig = hash('sha256', $toSign);
         return $sig;
@@ -1971,17 +2066,19 @@ class API {
         string $mac,
         string $version,
         int    $scheduleMs = 0,
-        string $downloadUrl = ''
+        string $downloadUrl = '',
     ): array {
         $tokenData = self::gdmsGetToken($config);
-        if (!$tokenData) return ['error' => 'Cannot obtain GDMS token'];
+        if (!$tokenData) {
+            return ['error' => 'Cannot obtain GDMS token'];
+        }
 
         $token    = $tokenData['access_token'] ?? '';
         $clientId = $tokenData['client_id']    ?? ($config['client_id'] ?? '');
         $secret   = $config['client_secret'] ?? '';
 
         $glpiVer = 'GLPI' . ((int) explode('.', GLPI_VERSION)[0]);
-        $ts0     = (int)(microtime(true) * 1000);
+        $ts0     = (int) (microtime(true) * 1000);
         $payload = [
             'taskName'  => $glpiVer . '_UPG_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts0,
             'taskType'  => 3,
@@ -2003,33 +2100,36 @@ class API {
 
         $url = self::gdmsBase($config) . '/v1.0.0/task/add'
              . '?access_token=' . urlencode($token)
-             . '&signature='    . $sig
+             . '&signature=' . $sig
              . "&timestamp={$ts}";
 
         $data = self::curl($url, ['Content-Type: application/json'], $body);
         if (!is_array($data) || ($data['retCode'] ?? -1) != 0) {
             $err = $data['msg'] ?? json_encode($data);
-            \GlpiPlugin\Gdmsintegration\Utils::log("GDMS task/add UPGRADE error for {$mac}: {$err}");
+            Utils::log("GDMS task/add UPGRADE error for {$mac}: {$err}");
             return ['error' => $err];
         }
         $mode = $scheduleMs > 0 ? "scheduled @{$scheduleMs}" : "ASAP";
-        \GlpiPlugin\Gdmsintegration\Utils::log("GDMS upgrade task created ({$mode}) for {$mac} v{$version}");
+        Utils::log("GDMS upgrade task created ({$mode}) for {$mac} v{$version}");
         return ['success' => true, 'mac' => $mac, 'version' => $version];
     }
 
     // GDMS — Reboot task for UC devices
     // POST /oapi/v1.0.0/task/add  taskType=1
     // -----------------------------------------------------------------------
-    public static function gdmsCreateRebootTask(array $config, string $mac): array {
+    public static function gdmsCreateRebootTask(array $config, string $mac): array
+    {
         $tokenData = self::gdmsGetToken($config);
-        if (!$tokenData) return ['error' => 'Cannot obtain GDMS token'];
+        if (!$tokenData) {
+            return ['error' => 'Cannot obtain GDMS token'];
+        }
 
         $token    = $tokenData['access_token'] ?? '';
         $clientId = $tokenData['client_id']    ?? ($config['client_id'] ?? '');
         $secret   = $config['client_secret'] ?? '';
 
         $glpiVer = 'GLPI' . ((int) explode('.', GLPI_VERSION)[0]);
-        $ts_r    = (int)(microtime(true) * 1000);
+        $ts_r    = (int) (microtime(true) * 1000);
         $payload = [
             'taskName' => $glpiVer . '_RBT_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts_r,
             'taskType' => 1,
@@ -2043,32 +2143,35 @@ class API {
 
         $url = self::gdmsBase($config) . '/v1.0.0/task/add'
              . '?access_token=' . urlencode($token)
-             . '&signature='    . $sig
+             . '&signature=' . $sig
              . "&timestamp={$ts}";
 
         $data = self::curl($url, ['Content-Type: application/json'], $body);
         if (!is_array($data) || ($data['retCode'] ?? -1) != 0) {
             $err = $data['msg'] ?? json_encode($data);
-            \GlpiPlugin\Gdmsintegration\Utils::log("GDMS task/add REBOOT error for {$mac}: {$err}");
+            Utils::log("GDMS task/add REBOOT error for {$mac}: {$err}");
             return ['error' => $err];
         }
-        \GlpiPlugin\Gdmsintegration\Utils::log("GDMS reboot task created for {$mac}");
+        Utils::log("GDMS reboot task created for {$mac}");
         return ['success' => true, 'mac' => $mac];
     }
 
     // GDMS — Factory reset task for UC devices
     // POST /oapi/v1.0.0/task/add  taskType=2
     // -----------------------------------------------------------------------
-    public static function gdmsCreateFactoryResetTask(array $config, string $mac): array {
+    public static function gdmsCreateFactoryResetTask(array $config, string $mac): array
+    {
         $tokenData = self::gdmsGetToken($config);
-        if (!$tokenData) return ['error' => 'Cannot obtain GDMS token'];
+        if (!$tokenData) {
+            return ['error' => 'Cannot obtain GDMS token'];
+        }
 
         $token    = $tokenData['access_token'] ?? '';
         $clientId = $tokenData['client_id']    ?? ($config['client_id'] ?? '');
         $secret   = $config['client_secret'] ?? '';
 
         $glpiVer = 'GLPI' . ((int) explode('.', GLPI_VERSION)[0]);
-        $ts_r    = (int)(microtime(true) * 1000);
+        $ts_r    = (int) (microtime(true) * 1000);
         $payload = [
             'taskName' => $glpiVer . '_RST_' . strtoupper(str_replace(':', '', $mac)) . '_' . $ts_r,
             'taskType' => 2,
@@ -2082,16 +2185,16 @@ class API {
 
         $url = self::gdmsBase($config) . '/v1.0.0/task/add'
              . '?access_token=' . urlencode($token)
-             . '&signature='    . $sig
+             . '&signature=' . $sig
              . "&timestamp={$ts}";
 
         $data = self::curl($url, ['Content-Type: application/json'], $body);
         if (!is_array($data) || ($data['retCode'] ?? -1) != 0) {
             $err = $data['msg'] ?? json_encode($data);
-            \GlpiPlugin\Gdmsintegration\Utils::log("GDMS task/add FACTORY RESET error for {$mac}: {$err}");
+            Utils::log("GDMS task/add FACTORY RESET error for {$mac}: {$err}");
             return ['error' => $err];
         }
-        \GlpiPlugin\Gdmsintegration\Utils::log("GDMS factory reset task created for {$mac}");
+        Utils::log("GDMS factory reset task created for {$mac}");
         return ['success' => true, 'mac' => $mac];
     }
 
@@ -2102,7 +2205,8 @@ class API {
      * file path with conservative path characters. Validation runs after HTML
      * entity decoding so encoded quotes and path metacharacters are rejected.
      */
-    private static function isValidScrapedFirmwareUrl(string $url): bool {
+    private static function isValidScrapedFirmwareUrl(string $url): bool
+    {
         if ($url === '' || preg_match('~[\x00-\x20\x7F<>\"\'\\\\]~', $url) === 1) {
             return false;
         }
@@ -2112,13 +2216,13 @@ class API {
             return false;
         }
 
-        $scheme = strtolower((string)($parts['scheme'] ?? ''));
-        $host = strtolower((string)($parts['host'] ?? ''));
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower((string) ($parts['host'] ?? ''));
         if ($scheme !== 'https'
             || !in_array($host, ['firmware.grandstream.com', 'fw.gdms.cloud'], true)
             || isset($parts['user'])
             || isset($parts['pass'])
-            || (isset($parts['port']) && (int)$parts['port'] !== 443)
+            || (isset($parts['port']) && (int) $parts['port'] !== 443)
             || array_key_exists('fragment', $parts)) {
             return false;
         }
@@ -2126,7 +2230,7 @@ class API {
         // Only plain path segments and a .bin filename are accepted. Percent-
         // encoded paths, quotes, dot-segments, backslashes and other URL syntax
         // cannot be introduced into the firmware path by the source page.
-        $path = (string)($parts['path'] ?? '');
+        $path = (string) ($parts['path'] ?? '');
         if (preg_match('~\A/(?:[A-Za-z0-9_-][A-Za-z0-9._-]*/)*[A-Za-z0-9_-][A-Za-z0-9._-]*\.bin\z~D', $path) !== 1) {
             return false;
         }
@@ -2134,7 +2238,7 @@ class API {
         // Preserve ordinary vendor query parameters, but reject malformed or
         // encoded control/markup characters after URL decoding.
         if (array_key_exists('query', $parts)) {
-            $query = (string)$parts['query'];
+            $query = (string) $parts['query'];
             if (preg_match('#\A[A-Za-z0-9._~!$&()*+,;=:@/?%-]*\z#D', $query) !== 1
                 || preg_match('/%(?![A-Fa-f0-9]{2})/', $query)
                 || preg_match('~[\x00-\x20\x7F<>\"\'\\\\]~', rawurldecode($query)) === 1) {
@@ -2148,7 +2252,8 @@ class API {
     // -----------------------------------------------------------------------
     // Grandstream product-page firmware scraper. Official and beta channels are
     // fetched separately so an installed beta is never mistaken for a downgrade.
-    public static function scrapeFirmwareVersions(string $slug): array {
+    public static function scrapeFirmwareVersions(string $slug): array
+    {
         $base = 'https://www.grandstream.com/support/firmware/';
         $result = [
             'official' => null,
@@ -2197,7 +2302,8 @@ class API {
      *
      * @return array{ok:bool,models:array<string,array{official:?string,beta:?string,modelLabel:string}>,error:?string}
      */
-    public static function scrapeFirmwareCatalog(): array {
+    public static function scrapeFirmwareCatalog(): array
+    {
         $html = self::curlGet('https://www.grandstream.com/support/firmware');
         if ($html === false) {
             return ['ok' => false, 'models' => [], 'error' => __('Grandstream firmware catalog could not be retrieved', 'gdmsintegration')];
@@ -2206,7 +2312,8 @@ class API {
     }
 
     /** Parse a saved catalog response; separated for deterministic regression tests. */
-    public static function parseFirmwareCatalogHtml(string $html): array {
+    public static function parseFirmwareCatalogHtml(string $html): array
+    {
         $models = [];
         if (!preg_match_all('/<table\b[^>]*>(.*?)<\/table>/is', $html, $tables)) {
             return ['ok' => false, 'models' => [], 'error' => __('Grandstream firmware catalog has no readable tables', 'gdmsintegration')];
@@ -2230,9 +2337,15 @@ class API {
                 $header = [];
                 foreach ($cellText as $idx => $value) {
                     $label = strtolower(trim(preg_replace('/\s+/', ' ', $value) ?? $value));
-                    if ($label === 'model') $header['model'] = $idx;
-                    if (str_contains($label, 'general firmware')) $header['official'] = $idx;
-                    if (str_contains($label, 'beta firmware')) $header['beta'] = $idx;
+                    if ($label === 'model') {
+                        $header['model'] = $idx;
+                    }
+                    if (str_contains($label, 'general firmware')) {
+                        $header['official'] = $idx;
+                    }
+                    if (str_contains($label, 'beta firmware')) {
+                        $header['beta'] = $idx;
+                    }
                 }
                 if (isset($header['model'], $header['official'])) {
                     $columns = $header;
@@ -2272,7 +2385,8 @@ class API {
     }
 
     /** Find the most specific catalog row for a device model. */
-    public static function findFirmwareCatalogEntry(array $catalog, string $model): ?array {
+    public static function findFirmwareCatalogEntry(array $catalog, string $model): ?array
+    {
         if (empty($catalog['ok']) || !is_array($catalog['models'] ?? null)) {
             return null;
         }
@@ -2299,7 +2413,8 @@ class API {
         return $bestKey !== '' ? $catalog['models'][$bestKey] : null;
     }
 
-    private static function firmwareCatalogModelAliases(string $modelLabel): array {
+    private static function firmwareCatalogModelAliases(string $modelLabel): array
+    {
         $aliases = [];
         $prefixes = '(?:GWN|GSS|GRP|HT|GAC|GSC|UCM|GCC|GXP|GXV|GXW|WP|DP|GHP|GDS|GBX)';
         $parts = preg_split('/(?=' . $prefixes . '[A-Z]*[0-9])/i', $modelLabel) ?: [];
@@ -2312,7 +2427,9 @@ class API {
                 $baseText .= $hardwareRevision[1];
             }
             $base = strtoupper(preg_replace('/[^A-Z0-9]/', '', $baseText) ?? '');
-            if ($base !== '') $aliases[$base] = true;
+            if ($base !== '') {
+                $aliases[$base] = true;
+            }
 
             // Compact forms such as GWN7001/7002/7003 omit the family prefix from
             // subsequent models. Expand numeric slash-siblings, never P/G/W variants.
@@ -2320,33 +2437,39 @@ class API {
             if (preg_match('/^([A-Z]+)[0-9]/i', $match[1], $family) && preg_match_all('/\/\s*([0-9]+[A-Z0-9]*)/', $tail, $siblings)) {
                 foreach ($siblings[1] as $sibling) {
                     $key = strtoupper($family[1] . $sibling);
-                    if ($key !== '') $aliases[$key] = true;
+                    if ($key !== '') {
+                        $aliases[$key] = true;
+                    }
                 }
             }
         }
         return array_keys($aliases);
     }
 
-    private static function firmwareHtmlText(string $html): string {
+    private static function firmwareHtmlText(string $html): string
+    {
         $html = preg_replace('/<(script|style|noscript)\b[^>]*>.*?<\/\1>/is', ' ', $html) ?? $html;
         $html = preg_replace('/<\s*br\s*\/?\s*>/i', ' ', $html) ?? $html;
         $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         return trim(preg_replace('/[\s\x{00A0}]+/u', ' ', $text) ?? $text);
     }
 
-    private static function firstFirmwareVersion(string $text): ?string {
+    private static function firstFirmwareVersion(string $text): ?string
+    {
         return preg_match('/(?<![0-9])([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)(?![0-9])/', $text, $match)
             ? $match[1]
             : null;
     }
 
-    private static function extractFirmwareVersionFromHtml(string $html): ?string {
+    private static function extractFirmwareVersionFromHtml(string $html): ?string
+    {
         $text = self::firmwareHtmlText($html);
         return self::firstFirmwareVersion($text);
     }
 
     // Simple GET-only curl helper for public pages (no auth required)
-    private static function curlGet(string $url, int $timeout = 8): string|false {
+    private static function curlGet(string $url, int $timeout = 8): string|false
+    {
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -2363,7 +2486,8 @@ class API {
     }
 
 
-        public static function testConnections(array $config): array {
+    public static function testConnections(array $config): array
+    {
         $result = ['gwn' => null, 'gdms' => null];
 
         // Test GWN

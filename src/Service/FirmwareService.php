@@ -2,47 +2,82 @@
 
 namespace GlpiPlugin\Gdmsintegration\Service;
 
+use GlpiPlugin\Gdmsintegration\API;
+use GlpiPlugin\Gdmsintegration\Config;
+use GlpiPlugin\Gdmsintegration\Device;
+use GlpiPlugin\Gdmsintegration\Utils;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 final class FirmwareService
 {
-    private static function gdmsCdnUrl(string $model): string {
+    private static function gdmsCdnUrl(string $model): string
+    {
         $m = strtoupper(preg_replace('/[\s\-_]+/', '', trim($model)));
-        if (preg_match('/^GWN|^GSS/', $m)) return '';
+        if (preg_match('/^GWN|^GSS/', $m)) {
+            return '';
+        }
         $isV2 = str_contains($m, 'V2');
-        if     (str_starts_with($m, 'GRP260'))           $b = 'grp2600';
-        elseif (str_starts_with($m, 'GRP26'))            $b = 'grp2610';
-        elseif ($m === 'HT841' || $m === 'HT881')        $b = 'ht8x1';
-        elseif ($isV2 && preg_match('/^HT80[12]/', $m))  $b = 'ht80xv2';
-        elseif ($isV2 && preg_match('/^HT81[248]/', $m)) $b = 'ht81xv2';
-        elseif ($m === 'HT801')                          $b = 'ht801';
-        elseif ($m === 'HT802')                          $b = 'ht802';
-        elseif (preg_match('/^HT81[24]/', $m))           $b = 'ht81x';
-        elseif ($m === 'HT818')                          $b = 'ht818';
-        elseif ($m === 'HT813')                          $b = 'ht813';
-        elseif ($m === 'GAC2570')                        $b = 'gac2570';
-        elseif ($m === 'GAC2500')                        $b = 'gac2500';
-        elseif ($m === 'GBX20')                          $b = 'gbx20';
-        elseif ($m === 'GSC3574' || $m === 'GSC3575')    $b = 'gsc3575';
-        elseif ($m === 'GSC3570')                        $b = 'gsc3570';
-        elseif (str_starts_with($m, 'GSC3518'))          $b = 'gsc3518';
-        elseif ($m === 'GSC3505')                        $b = 'gsc3505';
-        elseif ($m === 'GSC3510')                        $b = 'gsc3510';
-        elseif ($m === 'GSC3506' || $m === 'GSC3516')    $b = 'gsc35x6';
-        elseif ($m === 'GDS3702')                        $b = 'gds3702';
-        elseif ($m === 'GDS3705')                        $b = 'gds3705';
-        elseif ($m === 'GDS3710' || $m === 'GDS3712')    $b = 'gds37xx_';
-        elseif (preg_match('/^GDS372[567]/', $m))        $b = 'gds372x';
-        else                                             return ''; // Do not invent CDN paths for unknown models.
+        if (str_starts_with($m, 'GRP260')) {
+            $b = 'grp2600';
+        } elseif (str_starts_with($m, 'GRP26')) {
+            $b = 'grp2610';
+        } elseif ($m === 'HT841' || $m === 'HT881') {
+            $b = 'ht8x1';
+        } elseif ($isV2 && preg_match('/^HT80[12]/', $m)) {
+            $b = 'ht80xv2';
+        } elseif ($isV2 && preg_match('/^HT81[248]/', $m)) {
+            $b = 'ht81xv2';
+        } elseif ($m === 'HT801') {
+            $b = 'ht801';
+        } elseif ($m === 'HT802') {
+            $b = 'ht802';
+        } elseif (preg_match('/^HT81[24]/', $m)) {
+            $b = 'ht81x';
+        } elseif ($m === 'HT818') {
+            $b = 'ht818';
+        } elseif ($m === 'HT813') {
+            $b = 'ht813';
+        } elseif ($m === 'GAC2570') {
+            $b = 'gac2570';
+        } elseif ($m === 'GAC2500') {
+            $b = 'gac2500';
+        } elseif ($m === 'GBX20') {
+            $b = 'gbx20';
+        } elseif ($m === 'GSC3574' || $m === 'GSC3575') {
+            $b = 'gsc3575';
+        } elseif ($m === 'GSC3570') {
+            $b = 'gsc3570';
+        } elseif (str_starts_with($m, 'GSC3518')) {
+            $b = 'gsc3518';
+        } elseif ($m === 'GSC3505') {
+            $b = 'gsc3505';
+        } elseif ($m === 'GSC3510') {
+            $b = 'gsc3510';
+        } elseif ($m === 'GSC3506' || $m === 'GSC3516') {
+            $b = 'gsc35x6';
+        } elseif ($m === 'GDS3702') {
+            $b = 'gds3702';
+        } elseif ($m === 'GDS3705') {
+            $b = 'gds3705';
+        } elseif ($m === 'GDS3710' || $m === 'GDS3712') {
+            $b = 'gds37xx_';
+        } elseif (preg_match('/^GDS372[567]/', $m)) {
+            $b = 'gds372x';
+        } else {
+            return '';
+        } // Do not invent CDN paths for unknown models.
         return 'https://firmware.grandstream.com/' . $b . 'fw.bin';
     }
 
-    private static function gdmsFirmwareSlug(string $model): ?array {
+    private static function gdmsFirmwareSlug(string $model): ?array
+    {
         $m = strtoupper($model);
-    
-        if (preg_match('/^GWN|^GSS/', $m)) return null;
-    
+
+        if (preg_match('/^GWN|^GSS/', $m)) {
+            return null;
+        }
+
         // Only models with a working grandstream.com firmware page (version scraping).
         // Phones use CDN URL only — no firmware page exists to scrape.
         $map = [
@@ -57,7 +92,7 @@ final class FirmwareService
             'UCM6308'  => ['slug' => 'ucm6300',  'official' => true],
             'UCM6510'  => ['slug' => 'ucm6510',  'official' => true],
         ];
-    
+
         // Longest-prefix match
         $best = null;
         $bestLen = 0;
@@ -70,30 +105,34 @@ final class FirmwareService
         return $best;
     }
 
-    private static function normalizeMacAddress(string $mac): string {
+    private static function normalizeMacAddress(string $mac): string
+    {
         $hex = strtoupper(preg_replace('/[^0-9A-F]/i', '', trim($mac)) ?? '');
         return strlen($hex) === 12 ? implode(':', str_split($hex, 2)) : '';
     }
 
-    private static function isFirmwareVersion(string $version): bool {
+    private static function isFirmwareVersion(string $version): bool
+    {
         return preg_match('/^\d+(?:\.\d+){2,3}$/', trim($version)) === 1;
     }
 
-    private static function isTrustedFirmwareDownloadUrl(string $url): bool {
-        $scheme = strtolower((string)(parse_url($url, PHP_URL_SCHEME) ?? ''));
-        $host = strtolower((string)(parse_url($url, PHP_URL_HOST) ?? ''));
+    private static function isTrustedFirmwareDownloadUrl(string $url): bool
+    {
+        $scheme = strtolower((string) (parse_url($url, PHP_URL_SCHEME) ?? ''));
+        $host = strtolower((string) (parse_url($url, PHP_URL_HOST) ?? ''));
         return in_array($scheme, ['http', 'https'], true)
             && in_array($host, ['firmware.grandstream.com', 'fw.gdms.cloud'], true);
     }
 
     /** Resolve stable firmware and its canonical download path from the vendor source. */
-    private static function getOfficialStableFirmwareDetails(string $model): array {
+    private static function getOfficialStableFirmwareDetails(string $model): array
+    {
         $slugInfo = self::gdmsFirmwareSlug($model);
         if ($slugInfo !== null && !empty($slugInfo['slug'])) {
-            $versions = \GlpiPlugin\Gdmsintegration\API::scrapeFirmwareVersions($slugInfo['slug']);
-            $official = trim((string)($versions['official'] ?? ''));
+            $versions = API::scrapeFirmwareVersions($slugInfo['slug']);
+            $official = trim((string) ($versions['official'] ?? ''));
             $checked = !empty($versions['sourceChecked']) && self::isFirmwareVersion($official);
-            $downloadUrl = trim((string)($versions['officialUrl'] ?? ''));
+            $downloadUrl = trim((string) ($versions['officialUrl'] ?? ''));
             if (!$checked) {
                 $official = '';
             }
@@ -107,9 +146,9 @@ final class FirmwareService
             ];
         }
 
-        $catalog = \GlpiPlugin\Gdmsintegration\API::scrapeFirmwareCatalog();
-        $entry = \GlpiPlugin\Gdmsintegration\API::findFirmwareCatalogEntry($catalog, $model);
-        $official = trim((string)($entry['official'] ?? ''));
+        $catalog = API::scrapeFirmwareCatalog();
+        $entry = API::findFirmwareCatalogEntry($catalog, $model);
+        $official = trim((string) ($entry['official'] ?? ''));
         $checked = !empty($catalog['ok']) && self::isFirmwareVersion($official);
         $downloadUrl = self::gdmsCdnUrl($model);
         return [
@@ -121,10 +160,11 @@ final class FirmwareService
 
 
     /** Only permit an exact official-stable target that is newer than the installed version. */
-    private static function canScheduleStableFirmware(string $current, string $requested, ?string $official): bool {
+    private static function canScheduleStableFirmware(string $current, string $requested, ?string $official): bool
+    {
         $current = trim($current);
         $requested = trim($requested);
-        $official = trim((string)$official);
+        $official = trim((string) $official);
         if (!self::isFirmwareVersion($current)
             || !self::isFirmwareVersion($requested)
             || !self::isFirmwareVersion($official)) {
@@ -134,7 +174,8 @@ final class FirmwareService
             && version_compare($current, $official) < 0;
     }
 
-    private static function firmwareStatusLabel(string $status): string {
+    private static function firmwareStatusLabel(string $status): string
+    {
         return match ($status) {
             'update_available' => __('Stable firmware update available', 'gdmsintegration'),
             'up_to_date' => __('Installed firmware matches the official stable version', 'gdmsintegration'),
@@ -150,7 +191,7 @@ final class FirmwareService
         ?string $official,
         ?string $beta,
         bool $sourceError,
-        bool $modelFound
+        bool $modelFound,
     ): string {
         // Missing or malformed installed versions are not proof that the device
         // needs an update; surface them for review and never authorize scheduling.
@@ -181,14 +222,15 @@ final class FirmwareService
         return $modelFound ? 'unverified' : 'unsupported';
     }
 
-    private static function gdmsAcquireRateLimit(string $action, string $mac, int $entities_id, int $ttl = 60): bool {
+    private static function gdmsAcquireRateLimit(string $action, string $mac, int $entities_id, int $ttl = 60): bool
+    {
         global $DB;
         $col = $action === 'reboot' ? 'last_reboot_at' : 'last_factory_reset_at';
         $macl = strtolower($mac);
         $now = date('Y-m-d H:i:s');
         $cutoff = date('Y-m-d H:i:s', time() - $ttl);
         $table = 'glpi_plugin_gdmsintegration_devices';
-    
+
         try {
             $rows = $DB->request([
                 'SELECT' => ['id'],
@@ -196,7 +238,7 @@ final class FirmwareService
                 'WHERE' => ['mac' => $macl, 'entities_id' => $entities_id],
                 'LIMIT' => 1,
             ]);
-    
+
             if (count($rows) === 0) {
                 try {
                     $DB->insert($table, ['mac' => $macl, 'entities_id' => $entities_id, $col => $now]);
@@ -206,7 +248,7 @@ final class FirmwareService
                     // through to the atomic UPDATE below.
                 }
             }
-    
+
             $DB->update(
                 $table,
                 [$col => $now],
@@ -219,16 +261,17 @@ final class FirmwareService
                             [$col => ['<=', $cutoff]],
                         ],
                     ],
-                ]
+                ],
             );
             return $DB->affectedRows() > 0;
         } catch (\Throwable $e) {
-            \GlpiPlugin\Gdmsintegration\Utils::warning('Rate-limit check failed for ' . $action . ': ' . $e->getMessage());
+            Utils::warning('Rate-limit check failed for ' . $action . ': ' . $e->getMessage());
             return false;
         }
     }
 
-    private static function gdmsClearRateLimit(string $action, string $mac, int $entities_id): void {
+    private static function gdmsClearRateLimit(string $action, string $mac, int $entities_id): void
+    {
         global $DB;
         $col  = $action === 'reboot' ? 'last_reboot_at' : 'last_factory_reset_at';
         $macl = strtolower($mac);
@@ -239,8 +282,9 @@ final class FirmwareService
         }
     }
 
-    private static function deviceForEntity(string $mac, int $entities_id): ?array {
-        $device_obj = new \GlpiPlugin\Gdmsintegration\Device();
+    private static function deviceForEntity(string $mac, int $entities_id): ?array
+    {
+        $device_obj = new Device();
         $rows = $device_obj->find(['mac' => strtolower(trim($mac))] + AccessService::entityCriteria($device_obj->getTable(), $entities_id), [], 1);
         return empty($rows) ? null : reset($rows);
     }
@@ -248,7 +292,7 @@ final class FirmwareService
     public static function handle(Request $request): JsonResponse
     {
         $query = $request->query;
-                $form = $request->request;
+        $form = $request->request;
         $requestMethod = $request->getMethod();
         $actionEarly = $query->get('action', 'check');
         if ($actionEarly === 'factory_reset_gdms') {
@@ -259,11 +303,13 @@ final class FirmwareService
             \Session::checkRight('config', READ);
         }
 
-        $entities_id = (int)$query->get('entities_id', \Session::getActiveEntity());
-        if (!\Session::haveAccessToEntity($entities_id)) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'Access denied'], 403); }
+        $entities_id = (int) $query->get('entities_id', \Session::getActiveEntity());
+        if (!\Session::haveAccessToEntity($entities_id)) {
+            return new JsonResponse(['error' => 'Access denied'], 403);
+        }
         $action      = $query->get('action', 'check');
 
-        $config_obj = new \GlpiPlugin\Gdmsintegration\Config();
+        $config_obj = new Config();
         $config     = $config_obj->getConfigByEntity($entities_id);
 
         // ── CDN URL HELPER ───────────────────────────────────────────────────────────
@@ -280,36 +326,42 @@ final class FirmwareService
 
         // ── CHECK (legacy GWN endpoint; only verified stable versions are actionable) ──
         if ($action === 'check') {
-            $state_obj = new \GlpiPlugin\Gdmsintegration\Device();
+            $state_obj = new Device();
             $all       = $state_obj->find(AccessService::entityCriteria($state_obj->getTable(), $entities_id));
-            if (empty($all)) { return new \Symfony\Component\HttpFoundation\JsonResponse([]); }
+            if (empty($all)) {
+                return new JsonResponse([]);
+            }
 
             $mac_data = [];
             foreach ($all as $row) {
-                $mac = strtolower(trim((string)($row['mac'] ?? '')));
+                $mac = strtolower(trim((string) ($row['mac'] ?? '')));
                 $macKey = strtolower(preg_replace('/[^0-9a-f]/i', '', $mac) ?? '');
-                $fw = trim((string)($row['firmware'] ?? ''));
-                if (strlen($macKey) !== 12 || !self::isFirmwareVersion($fw)) continue;
+                $fw = trim((string) ($row['firmware'] ?? ''));
+                if (strlen($macKey) !== 12 || !self::isFirmwareVersion($fw)) {
+                    continue;
+                }
                 $mac_data[$macKey] = $row;
             }
 
             // Use Grandstream's General Firmware column as the release-channel
             // authority. The GWN API can return a beta version without a beta flag.
-            $catalog = \GlpiPlugin\Gdmsintegration\API::scrapeFirmwareCatalog();
+            $catalog = API::scrapeFirmwareCatalog();
             $cloud_versions = [];
             $firmware_errors = [];
             if (!empty($config['gwn_client_id']) && !empty($config['gwn_client_secret'])) {
                 $networkIds = [];
                 foreach ($mac_data as $row) {
-                    $networkId = (int)($row['network_id'] ?? 0);
-                    if ($networkId > 0) $networkIds[$networkId] = $networkId;
+                    $networkId = (int) ($row['network_id'] ?? 0);
+                    if ($networkId > 0) {
+                        $networkIds[$networkId] = $networkId;
+                    }
                 }
-                $versionsByNetwork = \GlpiPlugin\Gdmsintegration\API::gwnGetFirmwareVersionsBatch($config, array_values($networkIds));
-                $firmware_errors = \GlpiPlugin\Gdmsintegration\API::gwnGetLastFirmwareErrors();
+                $versionsByNetwork = API::gwnGetFirmwareVersionsBatch($config, array_values($networkIds));
+                $firmware_errors = API::gwnGetLastFirmwareErrors();
                 foreach ($versionsByNetwork as $versions) {
                     foreach ($versions as $versionRow) {
-                        $apiMac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string)($versionRow['mac'] ?? ''))) ?? '');
-                        $reported = trim((string)($versionRow['reportedVersion'] ?? $versionRow['stableVersion'] ?? ''));
+                        $apiMac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string) ($versionRow['mac'] ?? ''))) ?? '');
+                        $reported = trim((string) ($versionRow['reportedVersion'] ?? $versionRow['stableVersion'] ?? ''));
                         if (strlen($apiMac) === 12 && self::isFirmwareVersion($reported)) {
                             $cloud_versions[$apiMac] = $reported;
                         }
@@ -319,14 +371,14 @@ final class FirmwareService
 
             $result = [];
             foreach ($mac_data as $macKey => $row) {
-                $current = trim((string)($row['firmware'] ?? ''));
-                $networkId = (int)($row['network_id'] ?? 0);
-                $channels = \GlpiPlugin\Gdmsintegration\API::resolveGwnFirmwareChannel(
-                    (string)($row['model'] ?? ''),
-                    (string)($cloud_versions[$macKey] ?? ''),
-                    $catalog
+                $current = trim((string) ($row['firmware'] ?? ''));
+                $networkId = (int) ($row['network_id'] ?? 0);
+                $channels = API::resolveGwnFirmwareChannel(
+                    (string) ($row['model'] ?? ''),
+                    (string) ($cloud_versions[$macKey] ?? ''),
+                    $catalog,
                 );
-                $official = (string)($channels['official'] ?? '');
+                $official = (string) ($channels['official'] ?? '');
                 $checkError = $firmware_errors[$networkId] ?? null;
                 // The legacy endpoint has no separate scheduling flag, so only
                 // report an update when the cloud's candidate exactly matches
@@ -336,13 +388,13 @@ final class FirmwareService
                     && self::isFirmwareVersion($current)
                     && self::isFirmwareVersion($official)
                     && version_compare($official, $current, '>');
-                \GlpiPlugin\Gdmsintegration\Utils::debug(
-                    'FW ' . (string)($row['mac'] ?? $macKey) . ': current=' . $current
+                Utils::debug(
+                    'FW ' . (string) ($row['mac'] ?? $macKey) . ': current=' . $current
                     . ' official=' . ($official !== '' ? $official : 'n/a')
-                    . ' status=' . ($hasUpdate ? 'update_available' : ($checkError ? 'check_error' : 'no_verified_update'))
+                    . ' status=' . ($hasUpdate ? 'update_available' : ($checkError ? 'check_error' : 'no_verified_update')),
                 );
                 $result[] = [
-                    'mac' => strtolower(trim((string)($row['mac'] ?? $macKey))),
+                    'mac' => strtolower(trim((string) ($row['mac'] ?? $macKey))),
                     'currentVersion' => $current,
                     'latestVersion' => $official,
                     'hasUpdate' => $hasUpdate,
@@ -352,24 +404,26 @@ final class FirmwareService
             }
             $updates = count(array_filter($result, static fn(array $r): bool => !empty($r['hasUpdate'])));
             $unverified = count(array_filter($result, static fn(array $r): bool => empty($r['latestVersion']) || !empty($r['firmwareCheckError'])));
-            \GlpiPlugin\Gdmsintegration\Utils::log(
+            Utils::log(
                 'Legacy GWN firmware check complete: ' . count($result) . ' device(s), '
-                . $updates . ' stable update(s) available, ' . $unverified . ' device(s) unverified'
+                . $updates . ' stable update(s) available, ' . $unverified . ' device(s) unverified',
             );
-            return new \Symfony\Component\HttpFoundation\JsonResponse($result);
+            return new JsonResponse($result);
         }
 
         // ── CHECK_ALL — stable, beta and unverified states for all tracked models ────
         if ($action === 'check_all') {
-            $state_obj = new \GlpiPlugin\Gdmsintegration\Device();
+            $state_obj = new Device();
             $all       = $state_obj->find(AccessService::entityCriteria($state_obj->getTable(), $entities_id));
-            if (empty($all)) { return new \Symfony\Component\HttpFoundation\JsonResponse([]); }
+            if (empty($all)) {
+                return new JsonResponse([]);
+            }
 
             // One public catalog request provides the authoritative General/Beta
             // channel split for GWN devices and catalog-listed UC products.
-            $catalog = \GlpiPlugin\Gdmsintegration\API::scrapeFirmwareCatalog();
+            $catalog = API::scrapeFirmwareCatalog();
             if (empty($catalog['ok'])) {
-                \GlpiPlugin\Gdmsintegration\Utils::debug('Firmware catalog unavailable: ' . (string)($catalog['error'] ?? 'unknown error'));
+                Utils::debug('Firmware catalog unavailable: ' . (string) ($catalog['error'] ?? 'unknown error'));
             }
 
             // Product pages provide more reliable channel detail for UCM families.
@@ -380,19 +434,19 @@ final class FirmwareService
             if (!empty($config['gwn_client_id'])) {
                 $networkIds = [];
                 foreach ($all as $row) {
-                    $nid = (int)($row['network_id'] ?? 0);
-                    if ($nid > 0 && preg_match('/^GWN|^GSS/i', (string)($row['model'] ?? ''))) {
+                    $nid = (int) ($row['network_id'] ?? 0);
+                    if ($nid > 0 && preg_match('/^GWN|^GSS/i', (string) ($row['model'] ?? ''))) {
                         $networkIds[$nid] = $nid;
                     }
                 }
                 if ($networkIds !== []) {
-                    $allVersions = \GlpiPlugin\Gdmsintegration\API::gwnGetFirmwareVersionsBatch($config, array_values($networkIds));
-                    $firmware_errors = \GlpiPlugin\Gdmsintegration\API::gwnGetLastFirmwareErrors();
+                    $allVersions = API::gwnGetFirmwareVersionsBatch($config, array_values($networkIds));
+                    $firmware_errors = API::gwnGetLastFirmwareErrors();
                     foreach ($allVersions as $versions) {
                         foreach ($versions as $v) {
-                            $apiMac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string)($v['mac'] ?? ''))) ?? '');
-                            $reported = trim((string)($v['reportedVersion'] ?? $v['stableVersion'] ?? ''));
-                            $explicitStable = trim((string)($v['stableVersion'] ?? ''));
+                            $apiMac = strtolower(preg_replace('/[^0-9a-f]/i', '', trim((string) ($v['mac'] ?? ''))) ?? '');
+                            $reported = trim((string) ($v['reportedVersion'] ?? $v['stableVersion'] ?? ''));
+                            $explicitStable = trim((string) ($v['stableVersion'] ?? ''));
                             if (strlen($apiMac) === 12 && $reported !== '') {
                                 $gwn_cloud_versions[$apiMac] = $reported;
                             }
@@ -406,15 +460,15 @@ final class FirmwareService
 
             $result = [];
             foreach ($all as $row) {
-                $mac     = strtolower(trim((string)($row['mac'] ?? '')));
+                $mac     = strtolower(trim((string) ($row['mac'] ?? '')));
                 $macKey  = strtolower(preg_replace('/[^0-9a-f]/i', '', $mac) ?? '');
-                $current = trim((string)($row['firmware'] ?? ''));
-                $model   = trim((string)($row['model'] ?? ''));
+                $current = trim((string) ($row['firmware'] ?? ''));
+                $model   = trim((string) ($row['model'] ?? ''));
                 if (strlen($macKey) !== 12 || $model === '') {
                     continue;
                 }
 
-                $isGwn = (bool)preg_match('/^GWN|^GSS/i', $model);
+                $isGwn = (bool) preg_match('/^GWN|^GSS/i', $model);
                 $slugInfo = null;
                 $official = null;
                 $beta = null;
@@ -424,15 +478,15 @@ final class FirmwareService
                 $source = 'none';
 
                 if ($isGwn) {
-                    $networkId = (int)($row['network_id'] ?? 0);
-                    $channels = \GlpiPlugin\Gdmsintegration\API::resolveGwnFirmwareChannel(
+                    $networkId = (int) ($row['network_id'] ?? 0);
+                    $channels = API::resolveGwnFirmwareChannel(
                         $model,
-                        (string)($gwn_cloud_versions[$macKey] ?? ''),
-                        $catalog
+                        (string) ($gwn_cloud_versions[$macKey] ?? ''),
+                        $catalog,
                     );
                     $official = $channels['official'];
                     $beta = $channels['beta'];
-                    $cloudChannel = (string)($channels['channel'] ?? 'unknown');
+                    $cloudChannel = (string) ($channels['channel'] ?? 'unknown');
                     $sourceError = isset($firmware_errors[$networkId])
                         || (empty($config['gwn_client_id']) && empty($catalog['ok']));
 
@@ -441,9 +495,9 @@ final class FirmwareService
                     if ($official === null && !empty($gwn_explicit_stable[$macKey])) {
                         $official = $gwn_explicit_stable[$macKey];
                         $cloudChannel = version_compare(
-                            (string)($gwn_cloud_versions[$macKey] ?? ''),
-                            (string)$official,
-                            '='
+                            (string) ($gwn_cloud_versions[$macKey] ?? ''),
+                            (string) $official,
+                            '=',
                         ) ? 'stable' : 'unverified';
                     }
 
@@ -458,8 +512,8 @@ final class FirmwareService
                     if ($slugInfo && !empty($slugInfo['official'])) {
                         $slug = $slugInfo['slug'];
                         if (!isset($slug_cache[$slug])) {
-                            $slug_cache[$slug] = \GlpiPlugin\Gdmsintegration\API::scrapeFirmwareVersions($slug);
-                            \GlpiPlugin\Gdmsintegration\Utils::debug("Scraped official/beta firmware for slug '{$slug}': " . json_encode($slug_cache[$slug]));
+                            $slug_cache[$slug] = API::scrapeFirmwareVersions($slug);
+                            Utils::debug("Scraped official/beta firmware for slug '{$slug}': " . json_encode($slug_cache[$slug]));
                         }
                         $versions = $slug_cache[$slug];
                         $official = $versions['official'] ?? null;
@@ -475,7 +529,7 @@ final class FirmwareService
                     // Fallback for phones, ATAs and other devices listed on the
                     // official catalog rather than a dedicated product page.
                     if ($official === null && $beta === null) {
-                        $entry = \GlpiPlugin\Gdmsintegration\API::findFirmwareCatalogEntry($catalog, $model);
+                        $entry = API::findFirmwareCatalogEntry($catalog, $model);
                         if ($entry !== null) {
                             $official = $entry['official'] ?? null;
                             $beta = $entry['beta'] ?? null;
@@ -507,7 +561,7 @@ final class FirmwareService
                     $status = 'unverified';
                 }
                 $hasUpdate = $status === 'update_available';
-                $networkId = (int)($row['network_id'] ?? 0);
+                $networkId = (int) ($row['network_id'] ?? 0);
                 $firmwareCheckError = $firmware_errors[$networkId] ?? null;
                 if ($officialUrl === null || $officialUrl === '') {
                     $scrapedUrl = is_array($slugInfo) ? ($slug_cache[$slugInfo['slug']]['officialUrl'] ?? null) : null;
@@ -521,13 +575,13 @@ final class FirmwareService
                 if ($isGwn && $hasUpdate && (empty($config['gwn_client_id']) || empty($config['gwn_client_secret']))) {
                     $statusLabel = __('GWN credentials are missing; firmware scheduling is disabled', 'gdmsintegration');
                 }
-                if ($hasUpdate && !$isGwn && !self::isTrustedFirmwareDownloadUrl((string)$officialUrl)) {
+                if ($hasUpdate && !$isGwn && !self::isTrustedFirmwareDownloadUrl((string) $officialUrl)) {
                     $statusLabel = __('No verified firmware download path is available; scheduling is disabled', 'gdmsintegration');
                 }
 
-                \GlpiPlugin\Gdmsintegration\Utils::debug(
+                Utils::debug(
                     "FW_ALL {$mac} ({$model}): current={$current} official=" . ($official ?? 'n/a')
-                    . ' beta=' . ($beta ?? 'n/a') . ' source=' . $source . ' status=' . $status
+                    . ' beta=' . ($beta ?? 'n/a') . ' source=' . $source . ' status=' . $status,
                 );
 
                 $result[] = [
@@ -547,95 +601,115 @@ final class FirmwareService
                     'isGwn' => $isGwn,
                     'canScheduleUpdate' => $hasUpdate && ($isGwn
                         ? ($source === 'gwn_cloud' && !empty($config['gwn_client_id']) && !empty($config['gwn_client_secret']) && empty($firmwareCheckError))
-                        : self::isTrustedFirmwareDownloadUrl((string)$officialUrl)),
+                        : self::isTrustedFirmwareDownloadUrl((string) $officialUrl)),
                 ];
             }
 
             $updates = count(array_filter($result, static fn(array $r): bool => !empty($r['hasUpdate'])));
             $unverified = count(array_filter($result, static fn(array $r): bool => in_array($r['firmwareStatus'], ['unverified', 'unsupported', 'check_error', 'ahead_of_stable', 'beta_installed'], true)));
-            \GlpiPlugin\Gdmsintegration\Utils::log(
+            Utils::log(
                 'Firmware check_all complete: ' . count($result) . ' device(s), ' . $updates
-                . ' stable update(s) available, ' . $unverified . ' device(s) requiring review'
+                . ' stable update(s) available, ' . $unverified . ' device(s) requiring review',
             );
-            return new \Symfony\Component\HttpFoundation\JsonResponse($result);
+            return new JsonResponse($result);
         }
 
         // ── UPGRADE (existing — GWN only) ─────────────────────────────────────────────
         if ($action === 'upgrade') {
-            if ($requestMethod !== 'POST') { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'POST required']); }
-            if (empty($config['gwn_client_id']) || empty($config['gwn_client_secret'])) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'GWN not configured']); }
+            if ($requestMethod !== 'POST') {
+                return new JsonResponse(['error' => 'POST required']);
+            }
+            if (empty($config['gwn_client_id']) || empty($config['gwn_client_secret'])) {
+                return new JsonResponse(['error' => 'GWN not configured']);
+            }
 
             $rawMacs = $form->get('macs', null);
             if ($rawMacs !== null) {
                 $requestedMacs = json_decode($rawMacs, true) ?? [];
             } else {
                 $body = json_decode($request->getContent() ?: '{}', true) ?? [];
-                $requestedMacs = (array)($body['macs'] ?? []);
+                $requestedMacs = (array) ($body['macs'] ?? []);
             }
             $macs = [];
             foreach ($requestedMacs as $requestedMac) {
-                if (!is_scalar($requestedMac)) continue;
-                $canonical = self::normalizeMacAddress((string)$requestedMac);
-                if ($canonical === '') continue;
+                if (!is_scalar($requestedMac)) {
+                    continue;
+                }
+                $canonical = self::normalizeMacAddress((string) $requestedMac);
+                if ($canonical === '') {
+                    continue;
+                }
                 $macs[$canonical] = $canonical;
             }
             $macs = array_values($macs);
-            if ($macs === []) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'No valid MAC addresses provided'], 400); }
+            if ($macs === []) {
+                return new JsonResponse(['error' => 'No valid MAC addresses provided'], 400);
+            }
 
-            $device_obj = new \GlpiPlugin\Gdmsintegration\Device();
+            $device_obj = new Device();
             $lookupMacs = array_map('strtolower', $macs);
             $allowedRows = $device_obj->find(['mac' => $lookupMacs] + AccessService::entityCriteria($device_obj->getTable(), $entities_id));
             $allowedRowsByMac = [];
             foreach ($allowedRows as $drow) {
-                $rawDbMac = self::normalizeMacAddress((string)($drow['mac'] ?? ''));
+                $rawDbMac = self::normalizeMacAddress((string) ($drow['mac'] ?? ''));
                 if ($rawDbMac !== '') {
                     $allowedRowsByMac[$rawDbMac] = $drow;
                 }
             }
             $macs = array_values(array_filter($macs, static fn(string $m): bool => isset($allowedRowsByMac[$m])));
-            if ($macs === []) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'Access denied'], 403); }
+            if ($macs === []) {
+                return new JsonResponse(['error' => 'Access denied'], 403);
+            }
 
             // GWN upgrade/add does not accept an explicit version: verify each
             // device against the current official stable version before scheduling.
             $networkIds = [];
             foreach ($macs as $mac) {
-                $networkId = (int)($allowedRowsByMac[$mac]['network_id'] ?? 0);
-                if ($networkId > 0) $networkIds[$networkId] = $networkId;
+                $networkId = (int) ($allowedRowsByMac[$mac]['network_id'] ?? 0);
+                if ($networkId > 0) {
+                    $networkIds[$networkId] = $networkId;
+                }
             }
             $reportedByMac = [];
             $explicitStableByMac = [];
             $firmwareErrors = [];
             if ($networkIds !== []) {
-                $versionRowsByNetwork = \GlpiPlugin\Gdmsintegration\API::gwnGetFirmwareVersionsBatch($config, array_values($networkIds));
-                $firmwareErrors = \GlpiPlugin\Gdmsintegration\API::gwnGetLastFirmwareErrors();
+                $versionRowsByNetwork = API::gwnGetFirmwareVersionsBatch($config, array_values($networkIds));
+                $firmwareErrors = API::gwnGetLastFirmwareErrors();
                 foreach ($versionRowsByNetwork as $versionRows) {
                     foreach ($versionRows as $versionRow) {
-                        $firmwareMac = self::normalizeMacAddress((string)($versionRow['mac'] ?? ''));
-                        if ($firmwareMac === '') continue;
-                        $reported = trim((string)($versionRow['reportedVersion'] ?? $versionRow['stableVersion'] ?? ''));
-                        $explicitStable = trim((string)($versionRow['stableVersion'] ?? ''));
-                        if ($reported !== '') $reportedByMac[$firmwareMac] = $reported;
-                        if ($explicitStable !== '') $explicitStableByMac[$firmwareMac] = $explicitStable;
+                        $firmwareMac = self::normalizeMacAddress((string) ($versionRow['mac'] ?? ''));
+                        if ($firmwareMac === '') {
+                            continue;
+                        }
+                        $reported = trim((string) ($versionRow['reportedVersion'] ?? $versionRow['stableVersion'] ?? ''));
+                        $explicitStable = trim((string) ($versionRow['stableVersion'] ?? ''));
+                        if ($reported !== '') {
+                            $reportedByMac[$firmwareMac] = $reported;
+                        }
+                        if ($explicitStable !== '') {
+                            $explicitStableByMac[$firmwareMac] = $explicitStable;
+                        }
                     }
                 }
             }
-            $catalog = \GlpiPlugin\Gdmsintegration\API::scrapeFirmwareCatalog();
+            $catalog = API::scrapeFirmwareCatalog();
             $unsafeTargets = [];
             foreach ($macs as $mac) {
                 $row = $allowedRowsByMac[$mac];
-                $networkId = (int)($row['network_id'] ?? 0);
-                $current = trim((string)($row['firmware'] ?? ''));
-                $model = trim((string)($row['model'] ?? ''));
-                $channels = \GlpiPlugin\Gdmsintegration\API::resolveGwnFirmwareChannel(
+                $networkId = (int) ($row['network_id'] ?? 0);
+                $current = trim((string) ($row['firmware'] ?? ''));
+                $model = trim((string) ($row['model'] ?? ''));
+                $channels = API::resolveGwnFirmwareChannel(
                     $model,
-                    (string)($reportedByMac[$mac] ?? ''),
-                    $catalog
+                    (string) ($reportedByMac[$mac] ?? ''),
+                    $catalog,
                 );
                 $stable = $channels['official'];
-                $cloudChannel = (string)($channels['channel'] ?? 'unknown');
+                $cloudChannel = (string) ($channels['channel'] ?? 'unknown');
                 if ($stable === null && !empty($explicitStableByMac[$mac])) {
                     $stable = $explicitStableByMac[$mac];
-                    $cloudChannel = version_compare((string)($reportedByMac[$mac] ?? ''), (string)$stable, '=')
+                    $cloudChannel = version_compare((string) ($reportedByMac[$mac] ?? ''), (string) $stable, '=')
                         ? 'stable'
                         : 'unverified';
                 }
@@ -660,36 +734,42 @@ final class FirmwareService
                 }
             }
             if ($unsafeTargets !== []) {
-                \GlpiPlugin\Gdmsintegration\Utils::warning('GWN firmware upgrade rejected; target stability could not be verified for: ' . json_encode($unsafeTargets));
-                return new \Symfony\Component\HttpFoundation\JsonResponse([
+                Utils::warning('GWN firmware upgrade rejected; target stability could not be verified for: ' . json_encode($unsafeTargets));
+                return new JsonResponse([
                     'error' => __('GWN firmware upgrade blocked for one or more devices because the installed version is not older than a verified official stable version, or firmware verification failed.', 'gdmsintegration'),
                     'devices' => $unsafeTargets,
                 ], 409);
             }
 
-            \GlpiPlugin\Gdmsintegration\Utils::log("Firmware upgrade (GWN) requested — MACs: " . implode(', ', $macs));
+            Utils::log("Firmware upgrade (GWN) requested — MACs: " . implode(', ', $macs));
 
             $scheduleTimeMs = 0;
             $rawTime = $form->get('scheduleTimeMs', null);
-            if ($rawTime !== null) $scheduleTimeMs = max(0, (int)$rawTime);
+            if ($rawTime !== null) {
+                $scheduleTimeMs = max(0, (int) $rawTime);
+            }
 
             // Keep the compact uppercase MAC format used by the existing GWN API request,
             // while using canonical colon-separated MACs for local authorization and matching.
             $apiMacs = array_map(static fn(string $mac): string => str_replace(':', '', $mac), array_values($macs));
-            $result = \GlpiPlugin\Gdmsintegration\API::gwnScheduleUpgrade($config, $apiMacs, $scheduleTimeMs);
+            $result = API::gwnScheduleUpgrade($config, $apiMacs, $scheduleTimeMs);
             if (!empty($result['error'])) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("Firmware upgrade (GWN) FAILED — " . $result['error']);
+                Utils::log("Firmware upgrade (GWN) FAILED — " . $result['error']);
             } else {
-                $ok = implode(', ', (array)($result['success'] ?? []));
-                \GlpiPlugin\Gdmsintegration\Utils::log("Firmware upgrade (GWN) scheduled OK — MACs: " . ($ok ?: 'none'));
+                $ok = implode(', ', (array) ($result['success'] ?? []));
+                Utils::log("Firmware upgrade (GWN) scheduled OK — MACs: " . ($ok ?: 'none'));
             }
-            return new \Symfony\Component\HttpFoundation\JsonResponse($result);
+            return new JsonResponse($result);
         }
 
         // ── UPGRADE_GDMS (new — UC devices via task/add) ──────────────────────────────
         if ($action === 'upgrade_gdms') {
-            if ($requestMethod !== 'POST') { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'POST required']); }
-            if (empty($config['client_id']) || empty($config['client_secret'])) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'GDMS UC not configured']); }
+            if ($requestMethod !== 'POST') {
+                return new JsonResponse(['error' => 'POST required']);
+            }
+            if (empty($config['client_id']) || empty($config['client_secret'])) {
+                return new JsonResponse(['error' => 'GDMS UC not configured']);
+            }
 
             $rawBody = $request->getContent() ?: '{}';
             $body    = json_decode($rawBody, true) ?? [];
@@ -698,22 +778,22 @@ final class FirmwareService
             $mac         = $form->get('mac', $body['mac']         ?? '');
             $version     = $form->get('version', $body['version']     ?? '');
             $downloadUrl = trim($form->get('downloadUrl', $body['downloadUrl'] ?? ''));
-            $scheduleMs  = (int)($form->get('scheduleMs', $body['scheduleMs'] ?? 0));
+            $scheduleMs  = (int) ($form->get('scheduleMs', $body['scheduleMs'] ?? 0));
 
-            $mac = self::normalizeMacAddress((string)$mac);
-            $version = trim((string)$version);
+            $mac = self::normalizeMacAddress((string) $mac);
+            $version = trim((string) $version);
 
             if ($mac === '' || $version === '') {
-                return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => __('MAC address and verified stable firmware version are required', 'gdmsintegration')], 400);
+                return new JsonResponse(['error' => __('MAC address and verified stable firmware version are required', 'gdmsintegration')], 400);
             }
             $device = self::deviceForEntity($mac, $entities_id);
             if ($device === null) {
-                return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => __('Device not found', 'gdmsintegration')], 404);
+                return new JsonResponse(['error' => __('Device not found', 'gdmsintegration')], 404);
             }
-            $deviceModel = trim((string)($device['model'] ?? ''));
-            $currentFirmware = trim((string)($device['firmware'] ?? ''));
+            $deviceModel = trim((string) ($device['model'] ?? ''));
+            $currentFirmware = trim((string) ($device['firmware'] ?? ''));
             if (preg_match('/^GWN|^GSS/i', $deviceModel)) {
-                return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'GWN devices must use the GWN firmware upgrade action'], 400);
+                return new JsonResponse(['error' => 'GWN devices must use the GWN firmware upgrade action'], 400);
             }
 
             // Never trust the browser's version badge as authorization to flash a
@@ -722,12 +802,12 @@ final class FirmwareService
             $firmwareDetails = self::getOfficialStableFirmwareDetails($deviceModel);
             $verifiedStable = $firmwareDetails['version'];
             if (!self::canScheduleStableFirmware($currentFirmware, $version, $verifiedStable)) {
-                \GlpiPlugin\Gdmsintegration\Utils::warning(
+                Utils::warning(
                     'GDMS firmware upgrade rejected for ' . $mac . ' (' . $deviceModel . '): current='
                     . ($currentFirmware ?: 'unknown') . ' requested=' . ($version ?: 'unknown')
-                    . ' verified_stable=' . ($verifiedStable ?? 'unverified')
+                    . ' verified_stable=' . ($verifiedStable ?? 'unverified'),
                 );
-                return new \Symfony\Component\HttpFoundation\JsonResponse([
+                return new JsonResponse([
                     'error' => __('Firmware upgrade blocked: the requested version is not the currently verified official stable version, or it is not newer than the installed firmware. Refresh the firmware check and review the device before retrying.', 'gdmsintegration'),
                     'currentVersion' => $currentFirmware ?: null,
                     'requestedVersion' => $version,
@@ -735,27 +815,27 @@ final class FirmwareService
                 ], 409);
             }
             if ($downloadUrl !== '' && !self::isTrustedFirmwareDownloadUrl($downloadUrl)) {
-                return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'downloadUrl host not allowed'], 400);
+                return new JsonResponse(['error' => 'downloadUrl host not allowed'], 400);
             }
 
             // The browser-supplied URL is not authoritative, even when its host is trusted.
             // Only use the URL freshly obtained from the official product page or a known,
             // explicitly mapped vendor CDN path. This prevents cross-model firmware URLs.
-            $downloadUrl = trim((string)($firmwareDetails['downloadUrl'] ?? ''));
+            $downloadUrl = trim((string) ($firmwareDetails['downloadUrl'] ?? ''));
             if ($downloadUrl === '' || !self::isTrustedFirmwareDownloadUrl($downloadUrl)) {
-                return new \Symfony\Component\HttpFoundation\JsonResponse([
+                return new JsonResponse([
                     'error' => __('No verified official firmware download path is available for this model; automatic scheduling is disabled.', 'gdmsintegration'),
                     'officialStableVersion' => $verifiedStable,
                 ], 409);
             }
 
-            \GlpiPlugin\Gdmsintegration\Utils::log("Firmware upgrade (GDMS task) requested — MAC: {$mac} version: {$version} url: " . $downloadUrl);
+            Utils::log("Firmware upgrade (GDMS task) requested — MAC: {$mac} version: {$version} url: " . $downloadUrl);
 
-            $result = \GlpiPlugin\Gdmsintegration\API::gdmsCreateUpgradeTask($config, $mac, $version, $scheduleMs, $downloadUrl);
+            $result = API::gdmsCreateUpgradeTask($config, $mac, $version, $scheduleMs, $downloadUrl);
             if (!empty($result['error'])) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("Firmware upgrade (GDMS task) FAILED — " . $result['error']);
+                Utils::log("Firmware upgrade (GDMS task) FAILED — " . $result['error']);
             }
-            return new \Symfony\Component\HttpFoundation\JsonResponse($result);
+            return new JsonResponse($result);
         }
 
         // ── DESTRUCTIVE ACTION RATE LIMIT — DB-backed, query-builder only ────────────
@@ -769,52 +849,68 @@ final class FirmwareService
 
         // ── REBOOT_GDMS — UC devices via task/add taskType=1 ──────────────────────────
         if ($action === 'reboot_gdms') {
-            if ($requestMethod !== 'POST') { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'POST required']); }
-            if (empty($config['client_id']) || empty($config['client_secret'])) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'GDMS UC not configured']); }
+            if ($requestMethod !== 'POST') {
+                return new JsonResponse(['error' => 'POST required']);
+            }
+            if (empty($config['client_id']) || empty($config['client_secret'])) {
+                return new JsonResponse(['error' => 'GDMS UC not configured']);
+            }
 
             $mac = strtoupper(trim($form->get('mac', '')));
-            if (!$mac) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'mac is required']); }
+            if (!$mac) {
+                return new JsonResponse(['error' => 'mac is required']);
+            }
             if (!str_contains($mac, ':')) {
                 $mac = implode(':', str_split($mac, 2));
             }
             if (self::deviceForEntity($mac, $entities_id) === null) {
-                return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => __('Device not found', 'gdmsintegration')], 404);
+                return new JsonResponse(['error' => __('Device not found', 'gdmsintegration')], 404);
             }
-            if (!self::gdmsAcquireRateLimit('reboot', $mac, $entities_id, 60)) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'Rate limit — wait 60 s between reboots for the same device']); }
+            if (!self::gdmsAcquireRateLimit('reboot', $mac, $entities_id, 60)) {
+                return new JsonResponse(['error' => 'Rate limit — wait 60 s between reboots for the same device']);
+            }
 
-            \GlpiPlugin\Gdmsintegration\Utils::log("Reboot (GDMS task) requested — MAC: {$mac}");
-            $result = \GlpiPlugin\Gdmsintegration\API::gdmsCreateRebootTask($config, $mac);
+            Utils::log("Reboot (GDMS task) requested — MAC: {$mac}");
+            $result = API::gdmsCreateRebootTask($config, $mac);
             if (!empty($result['error'])) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("Reboot (GDMS task) FAILED — " . $result['error']);
+                Utils::log("Reboot (GDMS task) FAILED — " . $result['error']);
                 self::gdmsClearRateLimit('reboot', $mac, $entities_id);
             }
-            return new \Symfony\Component\HttpFoundation\JsonResponse($result);
+            return new JsonResponse($result);
         }
 
         // ── FACTORY_RESET_GDMS — UC devices via task/add taskType=2 ───────────────────
         if ($action === 'factory_reset_gdms') {
-            if ($requestMethod !== 'POST') { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'POST required']); }
-            if (empty($config['client_id']) || empty($config['client_secret'])) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'GDMS UC not configured']); }
+            if ($requestMethod !== 'POST') {
+                return new JsonResponse(['error' => 'POST required']);
+            }
+            if (empty($config['client_id']) || empty($config['client_secret'])) {
+                return new JsonResponse(['error' => 'GDMS UC not configured']);
+            }
 
             $mac = strtoupper(trim($form->get('mac', '')));
-            if (!$mac) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'mac is required']); }
+            if (!$mac) {
+                return new JsonResponse(['error' => 'mac is required']);
+            }
             if (!str_contains($mac, ':')) {
                 $mac = implode(':', str_split($mac, 2));
             }
             if (self::deviceForEntity($mac, $entities_id) === null) {
-                return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => __('Device not found', 'gdmsintegration')], 404);
+                return new JsonResponse(['error' => __('Device not found', 'gdmsintegration')], 404);
             }
-            if (!self::gdmsAcquireRateLimit('factory_reset', $mac, $entities_id, 300)) { return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'Rate limit — wait 5 min between factory resets for the same device']); }
+            if (!self::gdmsAcquireRateLimit('factory_reset', $mac, $entities_id, 300)) {
+                return new JsonResponse(['error' => 'Rate limit — wait 5 min between factory resets for the same device']);
+            }
 
-            \GlpiPlugin\Gdmsintegration\Utils::log("Factory reset (GDMS task) requested — MAC: {$mac}");
-            $result = \GlpiPlugin\Gdmsintegration\API::gdmsCreateFactoryResetTask($config, $mac);
+            Utils::log("Factory reset (GDMS task) requested — MAC: {$mac}");
+            $result = API::gdmsCreateFactoryResetTask($config, $mac);
             if (!empty($result['error'])) {
-                \GlpiPlugin\Gdmsintegration\Utils::log("Factory reset (GDMS task) FAILED — " . $result['error']);
+                Utils::log("Factory reset (GDMS task) FAILED — " . $result['error']);
                 self::gdmsClearRateLimit('factory_reset', $mac, $entities_id);
             }
-            return new \Symfony\Component\HttpFoundation\JsonResponse($result);
+            return new JsonResponse($result);
         }
 
-        return new \Symfony\Component\HttpFoundation\JsonResponse(['error' => 'Unknown action']);
+        return new JsonResponse(['error' => 'Unknown action']);
     }
 }
