@@ -1,6 +1,10 @@
 <?php
 
 use Glpi\Plugin\Hooks;
+use GlpiPlugin\Gdmsintegration\Config;
+use GlpiPlugin\Gdmsintegration\Device;
+use GlpiPlugin\Gdmsintegration\History;
+use GlpiPlugin\Gdmsintegration\Link;
 
 // GLPI's plugin lifecycle manager may inspect the installation hooks while
 // loading setup.php. Keep the lifecycle implementation in hook.php, but make
@@ -15,13 +19,14 @@ require_once __DIR__ . '/hook.php';
  */
 
 define('PLUGIN_GDMSINTEGRATION_VERSION', '1.6.8');
-define('PLUGIN_GDMSINTEGRATION_MIN_GLPI',  '11.0');
-define('PLUGIN_GDMSINTEGRATION_MAX_GLPI',  '12.99');
+define('PLUGIN_GDMSINTEGRATION_MIN_GLPI', '11.0');
+define('PLUGIN_GDMSINTEGRATION_MAX_GLPI', '12.99');
 
 // ---------------------------------------------------------------------------
 // Metadata
 // ---------------------------------------------------------------------------
-function plugin_version_gdmsintegration(): array {
+function plugin_version_gdmsintegration(): array
+{
     return [
         'name'         => 'GDMS Integration',
         'version'      => PLUGIN_GDMSINTEGRATION_VERSION,
@@ -41,7 +46,8 @@ function plugin_version_gdmsintegration(): array {
 // ---------------------------------------------------------------------------
 // Prerequisites
 // ---------------------------------------------------------------------------
-function plugin_gdmsintegration_check_prerequisites(): bool {
+function plugin_gdmsintegration_check_prerequisites(): bool
+{
     if (version_compare(GLPI_VERSION, PLUGIN_GDMSINTEGRATION_MIN_GLPI, '<')) {
         echo __('This plugin requires GLPI 11.0 or later.', 'gdmsintegration');
         return false;
@@ -53,7 +59,8 @@ function plugin_gdmsintegration_check_prerequisites(): bool {
     return true;
 }
 
-function plugin_gdmsintegration_check_config(bool $verbose = false): bool {
+function plugin_gdmsintegration_check_config(bool $verbose = false): bool
+{
     return true;
 }
 
@@ -61,7 +68,8 @@ function plugin_gdmsintegration_check_config(bool $verbose = false): bool {
 // ---------------------------------------------------------------------------
 // Init — hooks & class registration
 // ---------------------------------------------------------------------------
-function plugin_init_gdmsintegration(): void {
+function plugin_init_gdmsintegration(): void
+{
     global $PLUGIN_HOOKS;
 
     // Self-heal a missing/malformed cron row from prior candidate builds. The
@@ -84,8 +92,8 @@ function plugin_init_gdmsintegration(): void {
         'tools' => '\GlpiPlugin\Gdmsintegration\Menu',
     ];
 
-    Plugin::registerClass(\GlpiPlugin\Gdmsintegration\Config::class);
-    Plugin::registerClass(\GlpiPlugin\Gdmsintegration\Device::class, ['addtabon' => ['NetworkEquipment', 'Phone']]);
-    Plugin::registerClass(\GlpiPlugin\Gdmsintegration\History::class);
-    Plugin::registerClass(\GlpiPlugin\Gdmsintegration\Link::class);
+    Plugin::registerClass(Config::class);
+    Plugin::registerClass(Device::class, ['addtabon' => ['NetworkEquipment', 'Phone']]);
+    Plugin::registerClass(History::class);
+    Plugin::registerClass(Link::class);
 }

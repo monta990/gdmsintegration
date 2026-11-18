@@ -1,17 +1,20 @@
 <?php
 
 namespace GlpiPlugin\Gdmsintegration;
+
 /**
  * GDMS Integration — \GlpiPlugin\Gdmsintegration\Config
  */
-class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
-
-    public static function getTable($classname = null): string {
+class Config extends BaseTM
+{
+    public static function getTable($classname = null): string
+    {
         return 'glpi_plugin_gdmsintegration_configs';
     }
 
 
-    public static function getTypeName($nb = 0): string {
+    public static function getTypeName($nb = 0): string
+    {
         return __('GDMS Configuration', 'gdmsintegration');
     }
 
@@ -20,14 +23,15 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
      * Request sources are global GLPI dropdown values, so the same GDMS entry is
      * reused by every configured entity.
      */
-    public static function ensureGdmsRequestType(): int {
+    public static function ensureGdmsRequestType(): int
+    {
         if (!class_exists('RequestType')) {
             return 0;
         }
 
         $requestType = new \RequestType();
         if ($requestType->getFromDBByCrit(['name' => 'GDMS'])) {
-            $id = (int)($requestType->fields['id'] ?? 0);
+            $id = (int) ($requestType->fields['id'] ?? 0);
             if ($id > 0) {
                 // Do not overwrite an administrator's state on an existing
                 // native request source. If it is inactive/non-ticket-visible,
@@ -36,7 +40,7 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
             }
         }
 
-        return (int)$requestType->add([
+        return (int) $requestType->add([
             'name'                  => 'GDMS',
             'is_active'             => 1,
             'is_ticketheader'      => 1,
@@ -50,7 +54,8 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
     }
 
     /** Return active GLPI request sources usable on ticket headers. */
-    public static function getRequestTypeOptions(int $entities_id = 0): array {
+    public static function getRequestTypeOptions(int $entities_id = 0): array
+    {
         if (!class_exists('RequestType')) {
             return [];
         }
@@ -69,8 +74,8 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
 
         $options = [];
         foreach ($rows as $row) {
-            $id = (int)($row['id'] ?? 0);
-            $name = trim((string)($row['name'] ?? ''));
+            $id = (int) ($row['id'] ?? 0);
+            $name = trim((string) ($row['name'] ?? ''));
             if ($id > 0 && $name !== '') {
                 $options[] = ['id' => $id, 'label' => $name];
             }
@@ -80,7 +85,8 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
     }
 
     /** Validate a request source against GLPI's native ticket-header sources. */
-    public static function validateRequestTypeId(int $request_type_id, int $entities_id = 0): int {
+    public static function validateRequestTypeId(int $request_type_id, int $entities_id = 0): int
+    {
         if ($request_type_id <= 0 || !class_exists('RequestType')) {
             return 0;
         }
@@ -93,14 +99,15 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
             'LIMIT'  => 1,
         ])->current();
 
-        return !empty($row['id']) ? (int)$row['id'] : 0;
+        return !empty($row['id']) ? (int) $row['id'] : 0;
     }
 
     /**
      * Create/reuse GDMS and initialize new request-source settings without
      * overwriting a value that an administrator has already changed.
      */
-    public static function ensureRequestTypeConfiguration(): void {
+    public static function ensureRequestTypeConfiguration(): void
+    {
         $gdms_id = self::ensureGdmsRequestType();
         if ($gdms_id <= 0) {
             return;
@@ -108,13 +115,13 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
 
         $self = new self();
         foreach ($self->find() as $row) {
-            $id = (int)($row['id'] ?? 0);
+            $id = (int) ($row['id'] ?? 0);
             if ($id <= 0) {
                 continue;
             }
 
-            $current = (int)($row['ticket_requesttype_id'] ?? 0);
-            $default = (int)($row['ticket_requesttype_default_id'] ?? 0);
+            $current = (int) ($row['ticket_requesttype_id'] ?? 0);
+            $default = (int) ($row['ticket_requesttype_default_id'] ?? 0);
 
             // First install/upgrade: initialize the new setting to GDMS.
             // Later upgrades only refresh it while it still matches the
@@ -130,15 +137,16 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
     }
 
     /** Determine whether an ITIL category is visible for the configured entity. */
-    private static function isTicketCategoryVisibleForEntity(array $row, int $entities_id): bool {
-        $category_entity = (int)($row['entities_id'] ?? 0);
+    private static function isTicketCategoryVisibleForEntity(array $row, int $entities_id): bool
+    {
+        $category_entity = (int) ($row['entities_id'] ?? 0);
         if ($category_entity === $entities_id) {
             return true;
         }
 
         // Recursive categories assigned to an ancestor (including GLPI's global
         // entity 0) are inherited by the configured entity.
-        if ((int)($row['is_recursive'] ?? 0) === 1 && function_exists('getAncestorsOf')) {
+        if ((int) ($row['is_recursive'] ?? 0) === 1 && function_exists('getAncestorsOf')) {
             $ancestors = getAncestorsOf('glpi_entities', $entities_id);
             return in_array($category_entity, array_map('intval', $ancestors), true);
         }
@@ -147,7 +155,8 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
     }
 
     /** Return incident-visible ITIL categories available to an entity. */
-    public static function getTicketCategoryOptions(int $entities_id): array {
+    public static function getTicketCategoryOptions(int $entities_id): array
+    {
         global $DB;
 
         if (!class_exists('ITILCategory') || !isset($DB)) {
@@ -166,14 +175,14 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
 
         $options = [];
         foreach ($rows as $row) {
-            $id = (int)($row['id'] ?? 0);
+            $id = (int) ($row['id'] ?? 0);
             if ($id <= 0 || !self::isTicketCategoryVisibleForEntity($row, $entities_id)) {
                 continue;
             }
 
-            $label = trim((string)($row['completename'] ?? ''));
+            $label = trim((string) ($row['completename'] ?? ''));
             if ($label === '') {
-                $label = trim((string)($row['name'] ?? ''));
+                $label = trim((string) ($row['name'] ?? ''));
             }
             if ($label !== '') {
                 $options[] = ['id' => $id, 'label' => $label];
@@ -184,7 +193,8 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
     }
 
     /** Validate an optional category against GLPI's real incident categories. */
-    public static function validateTicketCategoryId(int $category_id, int $entities_id): int {
+    public static function validateTicketCategoryId(int $category_id, int $entities_id): int
+    {
         if ($category_id <= 0 || !class_exists('ITILCategory')) {
             return 0;
         }
@@ -198,7 +208,7 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
         ])->current();
 
         return !empty($row['id']) && self::isTicketCategoryVisibleForEntity($row, $entities_id)
-            ? (int)$row['id']
+            ? (int) $row['id']
             : 0;
     }
 
@@ -209,7 +219,8 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
      * the current GLPI session for 6 hours so the configuration page does not
      * contact GitHub on every request.
      */
-    public static function getPluginUpdateInfo(): array {
+    public static function getPluginUpdateInfo(): array
+    {
         $current = defined('PLUGIN_GDMSINTEGRATION_VERSION')
             ? PLUGIN_GDMSINTEGRATION_VERSION
             : '0.0.0';
@@ -219,7 +230,7 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
             'latest_version'  => null,
             'release_url'     => null,
             'checked_at'      => null,
-            'update_available'=> false,
+            'update_available' => false,
             'error'            => null,
         ];
 
@@ -233,11 +244,11 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
 
         if (is_array($cached)
             && isset($cached['checked_at'])
-            && (time() - (int)$cached['checked_at']) < $ttl
+            && (time() - (int) $cached['checked_at']) < $ttl
         ) {
             $cached['current_version'] = $current;
             $cached['update_available'] = !empty($cached['latest_version'])
-                && version_compare((string)$current, (string)$cached['latest_version'], '<');
+                && version_compare((string) $current, (string) $cached['latest_version'], '<');
             return array_merge($empty, $cached);
         }
 
@@ -260,7 +271,7 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
         ]);
 
         $body = curl_exec($ch);
-        $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
         curl_close($ch);
 
@@ -273,14 +284,14 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
             return $result;
         }
 
-        $data = json_decode((string)$body, true);
+        $data = json_decode((string) $body, true);
         if (!is_array($data) || !empty($data['draft']) || !empty($data['prerelease'])) {
             $result['error'] = 'invalid_release_response';
             $_SESSION[$cache_key] = $result;
             return $result;
         }
 
-        $tag = trim((string)($data['tag_name'] ?? ''));
+        $tag = trim((string) ($data['tag_name'] ?? ''));
         $latest = preg_replace('/^v/i', '', $tag);
         if ($latest === '' || !preg_match('/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/', $latest)) {
             $result['error'] = 'invalid_version';
@@ -289,8 +300,8 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
         }
 
         $result['latest_version'] = $latest;
-        $result['release_url'] = filter_var((string)($data['html_url'] ?? ''), FILTER_VALIDATE_URL)
-            ? (string)$data['html_url']
+        $result['release_url'] = filter_var((string) ($data['html_url'] ?? ''), FILTER_VALIDATE_URL)
+            ? (string) $data['html_url']
             : null;
         $result['update_available'] = version_compare($current, $latest, '<');
 
@@ -301,7 +312,8 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
     /**
      * Returns decrypted config array for the given entity, or [].
      */
-    public static function getConfigByEntity(int $entities_id): array {
+    public static function getConfigByEntity(int $entities_id): array
+    {
         $self  = new self();
         $found = $self->find(['entities_id' => $entities_id]);
         if (empty($found)) {
@@ -309,22 +321,22 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
         }
         $c = reset($found);
         if (!empty($c['client_secret'])) {
-            $c['client_secret'] = \GlpiPlugin\Gdmsintegration\Utils::decrypt($c['client_secret']);
+            $c['client_secret'] = Utils::decrypt($c['client_secret']);
         }
         if (!empty($c['password'])) {
-            $c['password'] = \GlpiPlugin\Gdmsintegration\Utils::decrypt($c['password']);
+            $c['password'] = Utils::decrypt($c['password']);
         }
         if (!empty($c['gdms_access_token'])) {
-            $c['gdms_access_token'] = \GlpiPlugin\Gdmsintegration\Utils::decrypt($c['gdms_access_token']);
+            $c['gdms_access_token'] = Utils::decrypt($c['gdms_access_token']);
         }
         if (!empty($c['gdms_refresh_token'])) {
-            $c['gdms_refresh_token'] = \GlpiPlugin\Gdmsintegration\Utils::decrypt($c['gdms_refresh_token']);
+            $c['gdms_refresh_token'] = Utils::decrypt($c['gdms_refresh_token']);
         }
         if (!empty($c['gwn_client_secret'])) {
-            $c['gwn_client_secret'] = \GlpiPlugin\Gdmsintegration\Utils::decrypt($c['gwn_client_secret']);
+            $c['gwn_client_secret'] = Utils::decrypt($c['gwn_client_secret']);
         }
         if (!empty($c['gwn_access_token'])) {
-            $c['gwn_access_token'] = \GlpiPlugin\Gdmsintegration\Utils::decrypt($c['gwn_access_token']);
+            $c['gwn_access_token'] = Utils::decrypt($c['gwn_access_token']);
         }
         return $c;
     }
@@ -333,7 +345,8 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
      * Upsert config for an entity.
      * If client_secret is empty the existing stored secret is preserved.
      */
-    public function saveConfig(array $input): bool {
+    public function saveConfig(array $input): bool
+    {
         $existing = $this->find(['entities_id' => (int) $input['entities_id']]);
         $existing_row = !empty($existing) ? reset($existing) : [];
 
@@ -349,60 +362,60 @@ class Config extends \GlpiPlugin\Gdmsintegration\BaseTM {
         if (empty($input['client_secret'])) {
             unset($input['client_secret']);
         } else {
-            $input['client_secret'] = \GlpiPlugin\Gdmsintegration\Utils::encrypt($input['client_secret']);
+            $input['client_secret'] = Utils::encrypt($input['client_secret']);
         }
         if (empty($input['password'])) {
             unset($input['password']);
         } else {
-            $input['password'] = \GlpiPlugin\Gdmsintegration\Utils::encrypt($input['password']);
+            $input['password'] = Utils::encrypt($input['password']);
         }
         if (empty($input['gwn_client_secret'])) {
             unset($input['gwn_client_secret']);
         } else {
-            $input['gwn_client_secret'] = \GlpiPlugin\Gdmsintegration\Utils::encrypt($input['gwn_client_secret']);
+            $input['gwn_client_secret'] = Utils::encrypt($input['gwn_client_secret']);
         }
 
         // Set defaults for new fields if not provided
-        if (!isset($input['chart_days']) || (int)$input['chart_days'] < 1) {
+        if (!isset($input['chart_days']) || (int) $input['chart_days'] < 1) {
             $input['chart_days'] = 60;
         }
-        $input['chart_days']     = min((int)$input['chart_days'], 365);
-        $input['show_topology']  = isset($input['show_topology']) ? (int)(bool)$input['show_topology'] : 1;
-        $input['ticket_requester_id'] = (int)($input['ticket_requester_id'] ?? 0);
-        $input['wan_debounce_seconds'] = max(0, min(3600, (int)($input['wan_debounce_seconds'] ?? 300)));
-        $input['wan_tickets_enabled']  = isset($input['wan_tickets_enabled']) ? (int)(bool)$input['wan_tickets_enabled'] : 1;
+        $input['chart_days']     = min((int) $input['chart_days'], 365);
+        $input['show_topology']  = isset($input['show_topology']) ? (int) (bool) $input['show_topology'] : 1;
+        $input['ticket_requester_id'] = (int) ($input['ticket_requester_id'] ?? 0);
+        $input['wan_debounce_seconds'] = max(0, min(3600, (int) ($input['wan_debounce_seconds'] ?? 300)));
+        $input['wan_tickets_enabled']  = isset($input['wan_tickets_enabled']) ? (int) (bool) $input['wan_tickets_enabled'] : 1;
         $input['gwn_alert_tickets_enabled'] = array_key_exists('gwn_alert_tickets_enabled', $input)
-            ? (int)(bool)$input['gwn_alert_tickets_enabled']
-            : (int)($existing_row['gwn_alert_tickets_enabled'] ?? 1);
-        $input['tickets_phone']  = isset($input['tickets_phone'])  ? (int)(bool)$input['tickets_phone']  : 1;
-        $input['tickets_router'] = isset($input['tickets_router']) ? (int)(bool)$input['tickets_router'] : 1;
-        $input['tickets_switch'] = isset($input['tickets_switch']) ? (int)(bool)$input['tickets_switch'] : 1;
-        $input['tickets_ap']     = isset($input['tickets_ap'])     ? (int)(bool)$input['tickets_ap']     : 1;
-        $input['tickets_pbx']    = isset($input['tickets_pbx'])    ? (int)(bool)$input['tickets_pbx']    : 1;
+            ? (int) (bool) $input['gwn_alert_tickets_enabled']
+            : (int) ($existing_row['gwn_alert_tickets_enabled'] ?? 1);
+        $input['tickets_phone']  = isset($input['tickets_phone']) ? (int) (bool) $input['tickets_phone'] : 1;
+        $input['tickets_router'] = isset($input['tickets_router']) ? (int) (bool) $input['tickets_router'] : 1;
+        $input['tickets_switch'] = isset($input['tickets_switch']) ? (int) (bool) $input['tickets_switch'] : 1;
+        $input['tickets_ap']     = isset($input['tickets_ap']) ? (int) (bool) $input['tickets_ap'] : 1;
+        $input['tickets_pbx']    = isset($input['tickets_pbx']) ? (int) (bool) $input['tickets_pbx'] : 1;
 
         // Optional ticket categories: preserve existing values when importing older configs.
         $network_category = array_key_exists('ticket_category_network_id', $input)
-            ? (int)$input['ticket_category_network_id']
-            : (int)($existing_row['ticket_category_network_id'] ?? 0);
+            ? (int) $input['ticket_category_network_id']
+            : (int) ($existing_row['ticket_category_network_id'] ?? 0);
         $telephony_category = array_key_exists('ticket_category_telephony_id', $input)
-            ? (int)$input['ticket_category_telephony_id']
-            : (int)($existing_row['ticket_category_telephony_id'] ?? 0);
-        $input['ticket_category_network_id'] = self::validateTicketCategoryId($network_category, (int)$input['entities_id']);
-        $input['ticket_category_telephony_id'] = self::validateTicketCategoryId($telephony_category, (int)$input['entities_id']);
+            ? (int) $input['ticket_category_telephony_id']
+            : (int) ($existing_row['ticket_category_telephony_id'] ?? 0);
+        $input['ticket_category_network_id'] = self::validateTicketCategoryId($network_category, (int) $input['entities_id']);
+        $input['ticket_category_telephony_id'] = self::validateTicketCategoryId($telephony_category, (int) $input['entities_id']);
 
         $request_type_id = array_key_exists('ticket_requesttype_id', $input)
-            ? (int)$input['ticket_requesttype_id']
-            : (int)($existing_row['ticket_requesttype_id'] ?? 0);
-        $request_type_id = self::validateRequestTypeId($request_type_id, (int)$input['entities_id']);
+            ? (int) $input['ticket_requesttype_id']
+            : (int) ($existing_row['ticket_requesttype_id'] ?? 0);
+        $request_type_id = self::validateRequestTypeId($request_type_id, (int) $input['entities_id']);
         if ($request_type_id <= 0) {
             $request_type_id = self::ensureGdmsRequestType();
         }
-        $previous_default = (int)($existing_row['ticket_requesttype_default_id'] ?? 0);
+        $previous_default = (int) ($existing_row['ticket_requesttype_default_id'] ?? 0);
         $input['ticket_requesttype_id'] = $request_type_id;
         $input['ticket_requesttype_default_id'] = $previous_default > 0 ? $previous_default : $request_type_id;
 
-        $input['gdms_region']    = in_array(strtolower((string)($input['gdms_region'] ?? 'us')), ['us', 'eu'], true) ? strtolower((string)$input['gdms_region']) : 'us';
-        $input['history_retention_days'] = max(7, min(3650, (int)($input['history_retention_days'] ?? 90)));
+        $input['gdms_region']    = in_array(strtolower((string) ($input['gdms_region'] ?? 'us')), ['us', 'eu'], true) ? strtolower((string) $input['gdms_region']) : 'us';
+        $input['history_retention_days'] = max(7, min(3650, (int) ($input['history_retention_days'] ?? 90)));
         $input['ip_version']     = in_array($input['ip_version'] ?? '', ['ipv4', 'ipv6'], true) ? $input['ip_version'] : 'ipv4';
 
         $input['date_mod'] = date('Y-m-d H:i:s');
