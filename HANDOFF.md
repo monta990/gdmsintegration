@@ -110,4 +110,6 @@ The installed GLPI UI and a live firmware task still require customer-environmen
 - Beta-installed and ahead-of-stable states now share one concise status message.
 - GWN catalog-only values use a short unconfirmed-channel message; they are not presented as actionable stable updates.
 - The “Select version” row appears only when a verified, newer stable version can actually be scheduled. The status diagnostic is no longer duplicated in that row.
+- A device already running the exact General Firmware version is now correctly shown as stable/up to date even when GWN Cloud does not confirm a separate upgrade candidate. The cloud-confirmation guard remains in place for upgrades and continues to block an unverified newer version.
+- Regression coverage explicitly verifies General `1.0.11.61` as up to date, Beta `1.0.11.63` as beta-installed, and keeps unconfirmed upgrades blocked.
 - Plugin version remains 1.6.8.
