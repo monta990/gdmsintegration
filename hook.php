@@ -86,7 +86,7 @@ function plugin_gdmsintegration_ensure_cron_task(bool $force = false): bool
             if (!$force && $existingTask->getFromDBbyName($itemtype, 'SyncDevices')) {
                 return true;
             }
-            \GlpiPlugin\Gdmsintegration\Utils::warning(
+            Utils::warning(
                 'Could not register the SyncDevices automatic action. Check GLPI CronTask configuration and logs.',
             );
             return false;
@@ -330,7 +330,7 @@ function plugin_gdmsintegration_install(): bool
             $migration->addKey(
                 'glpi_plugin_gdmsintegration_history',
                 ['entities_id', 'date'],
-                'entity_date'
+                'entity_date',
             );
         }
     }
@@ -385,7 +385,7 @@ function plugin_gdmsintegration_install(): bool
                 'glpi_plugin_gdmsintegration_devices',
                 ['entities_id', 'mac'],
                 'entity_mac',
-                'UNIQUE'
+                'UNIQUE',
             );
         }
     }
