@@ -69,6 +69,9 @@ jobs:
       - name: Run CLI business-logic tests
         run: php tests/run.php
 
+      - name: Run firmware-channel regression tests
+        run: php tests/firmware_channel_regression.php
+
       - name: Validate release metadata and source layout
         run: php tests/validate-release.php
 
@@ -76,7 +79,12 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/gdms-dist"
           bash scripts/package.sh "$RUNNER_TEMP/gdms-dist"
-          archive="$RUNNER_TEMP/gdms-dist/gdmsintegration-$(sed -nE "s/.*PLUGIN_GDMSINTEGRATION_VERSION', '([^']+)'.*/\\1/p" setup.php).zip"
+          mapfile -t archives < <(find "$RUNNER_TEMP/gdms-dist" -maxdepth 1 -type f -name 'gdmsintegration-*.zip' -print)
+          if [[ ${#archives[@]} -ne 1 ]]; then
+            echo "Expected exactly one generated plugin archive; found ${#archives[@]}." >&2
+            exit 1
+          fi
+          archive="${archives[0]}"
           test -f "$archive"
           unzip -t "$archive"
           if unzip -Z1 "$archive" | grep -Evq '^gdmsintegration(/|$)'; then
