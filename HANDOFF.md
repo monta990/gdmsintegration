@@ -72,6 +72,29 @@ For an existing 1.6.7 installation:
 - Compact firmware status consistency: beta and ahead-of-stable labels share one message; duplicate selection-row diagnostics are removed, and no selectable version is rendered unless scheduling is verified.
 - Package checks: `setup.php` and `plugin.xml` both declare `1.6.8`; final ZIP integrity is checked as part of packaging.
 
+## CLI and cross-version test strategy (2026-11-18)
+
+The release test workflow is intentionally independent of a pinned plugin release number:
+
+- `tests/run.php` runs the plugin's deterministic business-logic and security regression checks.
+- `tests/firmware_channel_regression.php` runs as a separate CLI step in every PHP matrix job. It verifies firmware-channel behavior and compact status behavior without locking the test to one English sentence.
+- `tests/validate-release.php` loads the plugin's own `setup.php` metadata and compares the runtime version with `plugin.xml` and `CHANGELOG.md`. It validates PHP/GLPI requirement syntax and ordering instead of requiring a specific minimum PHP version or fixed GLPI compatibility versions.
+- `scripts/package.sh` reads the version from the plugin bootstrap at runtime. The CI workflow locates the generated archive by its package filename pattern rather than parsing a version literal from source.
+- A local release-validator check with a simulated version `9.4.2` passed, confirming that the validator is not tied to `1.6.8`.
+
+### GitHub Actions validation
+
+Validated on commit `e21451259fc06f2b869aa1f92c7ead110a1036c3`:
+
+- CLI and package matrix: PHP 8.2, 8.3, 8.4, 8.5 and 8.6 experimental — all passed.
+- Business logic: `tests/run.php` — 8/8 tests passed.
+- Firmware channels: `tests/firmware_channel_regression.php` — 18 assertions passed in the CLI matrix.
+- Release metadata/layout validation and installation ZIP build/integrity — passed in the CLI matrix.
+- GLPI 11 and GLPI 12: PHP-CS-Fixer baseline, changed-runtime PHP style, PHP lint, Twig lint, PHPStan, Psalm and dashboard TwigCS — passed.
+- Gitleaks, CodeQL Actions and zizmor — passed.
+
+The installed GLPI UI and a live firmware task still require customer-environment validation; CI uses deterministic tests and GLPI source checkouts.
+
 ## Known limitations and follow-up
 
 - Firmware catalogue values can change after this package is built. The plugin fetches the vendor catalog at runtime; if Grandstream's catalog and GWN Cloud disagree, scheduling remains blocked rather than guessing a channel.
