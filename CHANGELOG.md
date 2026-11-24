@@ -11,13 +11,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Cache the parsed Grandstream firmware catalogue through GLPI's shared cache for 10 minutes; failed catalogue responses are not cached.
 - Move SyncDevices CronTask repair out of per-request plugin initialization and keep it in install/update and activation lifecycle hooks.
 - Make GWN alert ticket deduplication exact by comparing the literal alert marker after a constant-prefix candidate lookup; alert IDs containing underscores can no longer collide as SQL LIKE wildcards.
+- Create each GWN alert ticket with a fresh GLPI Ticket instance while retaining the single shared history lookup and same-batch marker cache, preventing mutable SLA/business-rule fields from leaking between alerts.
 - Pin vis-network to 10.1.5, refresh the standalone UMD asset during CI packaging, record its SHA-256/source/version and include the upstream Apache-2.0 and MIT license texts.
 - Preserve the existing GLPI 11/12 compatibility layer, firmware General/Beta protections, alert-ticket preference, and DOM-XSS fixes.
 - Make valid WAN gateway IPv4/IPv6 addresses clickable in the port-status modal. They open the gateway's HTTP address in a separate tab; unrecognized values remain escaped text.
 
 ### Quality
 
-- Added regression coverage for CSP rendering paths, shared catalogue caching, exact GWN alert-marker matching, WAN gateway link safety, and the vis-network asset manifest.
+- Added regression coverage for CSP rendering paths, shared catalogue caching, exact GWN alert-marker matching and per-ticket instance isolation, WAN gateway link safety, and the vis-network asset manifest.
 
 ## [1.6.8] — 2026-11-18
 ### Fixed

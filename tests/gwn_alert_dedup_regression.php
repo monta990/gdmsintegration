@@ -40,9 +40,22 @@ namespace {
 
             public static int $findCalls = 0;
             public static int $findArgumentCount = 0;
+            public static int $instancesCreated = 0;
+            public static ?int $findInstanceId = null;
+
+            /** @var array<int, int> */
+            public static array $addInstanceIds = [];
+
+            private int $instanceId;
+
+            public function __construct()
+            {
+                $this->instanceId = ++self::$instancesCreated;
+            }
 
             public function find(array $criteria, array $order = [], int $limit = 0): array
             {
+                self::$findInstanceId = $this->instanceId;
                 self::$findCalls++;
                 self::$findCriteria = $criteria;
                 self::$findArgumentCount = func_num_args();
@@ -53,6 +66,7 @@ namespace {
             /** @param array<string, mixed> $input */
             public function add(array $input): int
             {
+                self::$addInstanceIds[] = $this->instanceId;
                 self::$addAttempts[] = $input;
                 $result = (int) (array_shift(self::$addResults) ?? 0);
                 if ($result > 0) {
@@ -74,6 +88,9 @@ namespace {
                 self::$findCriteria = null;
                 self::$findCalls = 0;
                 self::$findArgumentCount = 0;
+                self::$instancesCreated = 0;
+                self::$findInstanceId = null;
+                self::$addInstanceIds = [];
             }
         }
     }
@@ -215,6 +232,9 @@ namespace {
     );
     $assertSame(1, count(Ticket::$addAttempts), 'A repeated successfully created alert must create only one ticket.');
     $assertSame(1, count(Ticket::$successfulAdds), 'Exactly one ticket should be created for a repeated successful alert ID.');
+    $assertSame(2, Ticket::$instancesCreated, 'The history lookup and successful ticket creation must use separate Ticket objects.');
+    $assertSame(1, count(array_unique(Ticket::$addInstanceIds)), 'The successful ticket add must use its own Ticket instance.');
+    $assertSame(false, in_array(Ticket::$findInstanceId, Ticket::$addInstanceIds, true), 'The history lookup Ticket instance must not be reused for ticket creation.');
     $assertSame(
         true,
         str_contains((string) Ticket::$successfulAdds[0]['name'], '[GWN-ALERT:duplicate-success]'),
@@ -228,6 +248,9 @@ namespace {
     $assertSame(1, Ticket::$findCalls, 'The retry batch must still perform only one ticket history lookup.');
     $assertSame(2, count(Ticket::$addAttempts), 'A failed alert creation must be retried when the ID repeats.');
     $assertSame(1, count(Ticket::$successfulAdds), 'The retry should result in one successfully created ticket.');
+    $assertSame(3, Ticket::$instancesCreated, 'The failed and retried creations must each receive a fresh Ticket object in addition to the history lookup object.');
+    $assertSame(2, count(array_unique(Ticket::$addInstanceIds)), 'Each failed/successful add attempt must use a distinct Ticket instance.');
+    $assertSame(false, in_array(Ticket::$findInstanceId, Ticket::$addInstanceIds, true), 'The history lookup Ticket instance must remain separate from all add attempts.');
 
     // A SQL LIKE wildcard lookalike must not suppress a different alert ID.
     Ticket::reset([['name' => '[GDMS] previous [GWN-ALERT:siteA1]']], [303]);

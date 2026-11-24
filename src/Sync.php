@@ -1887,8 +1887,8 @@ class Sync extends \CommonGLPI
 
         // Fetch the entity's alert-ticket history once per synchronization.
         // Retain only names because exact marker comparison needs no other fields.
-        $ticketObject = new \Ticket();
-        $existingGwnAlertTickets = $ticketObject->find([
+        $historyTicketObject = new \Ticket();
+        $existingGwnAlertTickets = $historyTicketObject->find([
             'entities_id' => $entities_id,
             'name' => ['LIKE', '%[GWN-ALERT:%]%'],
         ]);
@@ -1898,7 +1898,7 @@ class Sync extends \CommonGLPI
                 $existingGwnAlertNames[] = (string) ($existingTicket['name'] ?? '');
             }
         }
-        unset($existingGwnAlertTickets);
+        unset($existingGwnAlertTickets, $historyTicketObject);
 
         foreach ($networkIds as $networkId) {
             $alerts = $alertsByNetwork[(int) $networkId] ?? [];
@@ -1994,7 +1994,12 @@ class Sync extends \CommonGLPI
                     $ticketData['itilcategories_id'] = $ticketCategoryId;
                 }
 
-                $ticketId = (int) $ticketObject->add($ticketData);
+                // GLPI ticket preparation can retain mutable field state on the object.
+                // Use a new instance for every alert so SLA/business-rule calculations
+                // cannot inherit values from the previous ticket creation.
+                $newTicketObject = new \Ticket();
+                $ticketId = (int) $newTicketObject->add($ticketData);
+                unset($newTicketObject);
                 if ($ticketId > 0) {
                     // Keep same-batch deduplication without caching failed creations.
                     $existingGwnAlertNames[] = (string) $ticketData['name'];
