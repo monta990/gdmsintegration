@@ -26,11 +26,29 @@ $assert(!str_contains((string) $dashboardTemplate, 'sprintf('), 'Dashboard must 
 $assert(substr_count((string) $dashboardTemplate, '|format(chart_days)') === 2, 'Both dashboard chart labels must use Twig format filter.');
 
 if (class_exists(\Twig\Environment::class)) {
-    $twig = new \Twig\Environment(new \Twig\Loader\ArrayLoader([
-        'format' => '{{ message|format(days) }}',
-    ]));
-    $formatted = $twig->render('format', ['message' => 'last %d days', 'days' => 7]);
-    $assert($formatted === 'last 7 days', 'Twig native format filter must render the chart-day placeholder.');
+    $loader = new \Twig\Loader\ArrayLoader([
+        'dashboard' => (string) $dashboardTemplate,
+    ]);
+    $twig = new \Twig\Environment($loader, ['strict_variables' => false]);
+    $twig->addFunction(new \Twig\TwigFunction(
+        '__',
+        static fn(string $message, ?string $domain = null): string => $message,
+    ));
+
+    $renderedDashboard = $twig->render('dashboard', [
+        'chart_days' => 7,
+        'fp_lang' => 'en',
+        'fp_region' => 'US',
+        'js_json' => [],
+    ]);
+    $assert(
+        str_contains($renderedDashboard, 'Based on availability and synchronization — last 7 days.'),
+        'Dashboard must compile and render its availability label through Twig.',
+    );
+    $assert(
+        str_contains($renderedDashboard, 'Online % — last 7 days'),
+        'Dashboard must compile and render its online chart label through Twig.',
+    );
 }
 
 $dashboardScripts = preg_match_all('/<script\b/i', (string) $dashboardTemplate);
