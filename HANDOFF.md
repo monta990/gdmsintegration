@@ -36,7 +36,14 @@
 - Dynamic HTML escaping still encodes both quote types.
 - Scraped firmware download URLs still undergo HTML entity decoding, HTTPS/host validation and strict `.bin` path validation.
 
-### 4. WAN port gateway shortcuts
+### 4. GWN alert ticket creation isolation
+
+- The GWN alert batch loads candidate ticket names once and keeps the exact-marker cache shared for same-batch deduplication.
+- Each alert creation uses a fresh GLPI `Ticket` object; the history-query object is not reused for `add()` calls.
+- Failed creations are not added to the candidate cache, so repeated alerts remain eligible for retry.
+- This isolates mutable GLPI ticket fields used by business rules and SLA/deadline initialization.
+
+### 5. WAN port gateway shortcuts
 
 - Valid IPv4 and IPv6 gateway addresses shown on WAN port cards are clickable and open the corresponding `http://` address in a separate browser tab.
 - The link uses `target="_blank"` with `rel="noopener noreferrer"`.
@@ -51,6 +58,7 @@
 - `templates/dashboard.html.twig`: safe new-tab links for valid WAN gateway addresses.
 - `tests/wan_gateway_link_regression.php`: WAN-only rendering and link-safety regression coverage.
 - `src/Sync.php`: conditionally suppresses cloud-alert ticket creation and sources stable firmware from Grandstream's catalog.
+- `tests/gwn_alert_dedup_regression.php`: verifies one history lookup, same-batch deduplication/retry, and a fresh `Ticket` instance per add attempt.
 - `src/API.php`: GWN channel annotation and catalog resolution.
 - `src/Service/FirmwareService.php`: stable-only firmware display/scheduling/upgrade guards.
 - `locales/`: updated source translations and compiled catalogs.
@@ -81,6 +89,7 @@ The CLI workflow builds the installable ZIP with `scripts/package.sh`, validates
 - JavaScript syntax checks: all 4 inline JavaScript blocks in `templates/dashboard.html.twig` passed `node --check` after substituting inert stand-ins for Twig expressions.
 - Translation catalogs: all 4 `.po` files (es_MX, fr_FR, de_DE and pt_BR) parsed, compiled to `.mo`, and checked for the new settings/status messages.
 - Feature wiring: verified the configuration form, per-entity save/load/export/import paths, install migration and GWN ticket-creation guard are all connected.
+- GWN ticket creation: verified the history lookup object is separate and each successful or failed add attempt gets a fresh `Ticket` instance; same-batch deduplication and retry behavior remain covered.
 - WAN gateway links: verified strict IPv4/IPv6 literal validation, WAN-only rendering, escaping, new-tab behavior and opener isolation.
 - Installed GWN firmware regression: General `1.0.11.61` remains `up_to_date`, Beta `1.0.11.63` remains `beta_installed`, and catalog-only update candidates remain blocked unless GWN Cloud confirms them.
 - Compact firmware status consistency: beta and ahead-of-stable labels share one message; duplicate selection-row diagnostics are removed, and no selectable version is rendered unless scheduling is verified.
