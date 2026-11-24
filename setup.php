@@ -18,7 +18,7 @@ require_once __DIR__ . '/hook.php';
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.6.8');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.6.9');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI', '11.0');
 define('PLUGIN_GDMSINTEGRATION_MAX_GLPI', '12.99');
 
@@ -72,9 +72,8 @@ function plugin_init_gdmsintegration(): void
 {
     global $PLUGIN_HOOKS;
 
-    // Self-heal a missing/malformed cron row from prior candidate builds. The
-    // helper returns immediately when the canonical task is already present.
-    plugin_gdmsintegration_ensure_cron_task();
+    // CronTask repair is handled by install/update and activation hooks,
+    // never during ordinary page initialization.
 
     // GLPI 11 exposes the legacy CSRF-compliance hook; GLPI 12 removed it.
     // Keep the declaration only for GLPI 11 so the plugin can initialize on both targets.

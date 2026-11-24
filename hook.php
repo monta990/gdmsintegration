@@ -434,8 +434,8 @@ function plugin_gdmsintegration_install(): bool
     // historical tickets keep a valid source value.
     Config::ensureRequestTypeConfiguration();
 
-    // Install hook also repairs the native task; plugin_init can self-heal an
-    // existing installation when a candidate ZIP replaces files in place.
+    // Install/update hook repairs the native task. Ordinary plugin initialization
+    // deliberately performs no CronTask lookup on every web request.
     if (!plugin_gdmsintegration_ensure_cron_task(true)) {
         return false;
     }

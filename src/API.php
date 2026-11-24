@@ -2302,13 +2302,73 @@ class API
      *
      * @return array{ok:bool,models:array<string,array{official:?string,beta:?string,modelLabel:string}>,error:?string}
      */
+    private const FIRMWARE_CATALOG_CACHE_KEY = 'gdmsintegration.grandstream_firmware_catalog.v1';
+    private const FIRMWARE_CATALOG_CACHE_TTL = 600;
+
+    /**
+     * Retrieve the official firmware catalogue through GLPI's shared cache.
+     * The TTL prevents dashboard, cron and firmware actions from scraping the
+     * vendor site repeatedly. Failed/partial responses are never cached.
+     *
+     * @return array{ok:bool,models:array<string,array{official:?string,beta:?string,modelLabel:string}>,error:?string}
+     */
     public static function scrapeFirmwareCatalog(): array
     {
-        $html = self::curlGet('https://www.grandstream.com/support/firmware');
-        if ($html === false) {
-            return ['ok' => false, 'models' => [], 'error' => __('Grandstream firmware catalog could not be retrieved', 'gdmsintegration')];
+        static $requestResult = null;
+        if (is_array($requestResult)) {
+            return $requestResult;
         }
-        return self::parseFirmwareCatalogHtml($html);
+
+        global $GLPI_CACHE;
+        $cache = is_object($GLPI_CACHE ?? null) ? $GLPI_CACHE : null;
+        $requestResult = self::getFirmwareCatalogUsingCache(
+            static function (): array {
+                $html = self::curlGet('https://www.grandstream.com/support/firmware');
+                if ($html === false) {
+                    return ['ok' => false, 'models' => [], 'error' => __('Grandstream firmware catalog could not be retrieved', 'gdmsintegration')];
+                }
+
+                return self::parseFirmwareCatalogHtml($html);
+            },
+            $cache,
+            self::FIRMWARE_CATALOG_CACHE_TTL,
+        );
+
+        return $requestResult;
+    }
+
+    /** @param callable():array $fetcher */
+    private static function getFirmwareCatalogUsingCache(callable $fetcher, ?object $cache, int $ttl): array
+    {
+        if ($cache !== null && method_exists($cache, 'get')) {
+            try {
+                $cached = $cache->get(self::FIRMWARE_CATALOG_CACHE_KEY);
+                if (self::isValidFirmwareCatalogResult($cached)) {
+                    return $cached;
+                }
+            } catch (\Throwable $e) {
+                // Cache failures must not prevent a live catalogue request.
+            }
+        }
+
+        $catalog = $fetcher();
+        if (self::isValidFirmwareCatalogResult($catalog) && $cache !== null && method_exists($cache, 'set')) {
+            try {
+                $cache->set(self::FIRMWARE_CATALOG_CACHE_KEY, $catalog, max(60, $ttl));
+            } catch (\Throwable $e) {
+                // The source response remains usable when shared caching is unavailable.
+            }
+        }
+
+        return is_array($catalog) ? $catalog : ['ok' => false, 'models' => [], 'error' => __('Grandstream firmware catalog returned an invalid response', 'gdmsintegration')];
+    }
+
+    private static function isValidFirmwareCatalogResult($catalog): bool
+    {
+        return is_array($catalog)
+            && ($catalog['ok'] ?? false) === true
+            && isset($catalog['models'])
+            && is_array($catalog['models']);
     }
 
     /** Parse a saved catalog response; separated for deterministic regression tests. */
