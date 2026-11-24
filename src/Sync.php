@@ -1896,6 +1896,21 @@ class Sync extends \CommonGLPI
         $alertsByNetwork = API::gwnGetAlertsBatch($config, $networkIds, 50);
         $minimumTimestampMs = (time() - (self::GWN_ALERT_TICKET_MAX_AGE_DAYS * 86400)) * 1000;
 
+        // Fetch the entity's alert-ticket history once per synchronization.
+        // Retain only names because exact marker comparison needs no other fields.
+        $ticketObject = new \\Ticket();
+        $existingGwnAlertTickets = $ticketObject->find([
+            'entities_id' => $entities_id,
+            'name' => ['LIKE', '%[GWN-ALERT:%]%'],
+        ]);
+        $existingGwnAlertNames = [];
+        foreach ($existingGwnAlertTickets as $existingTicket) {
+            if (is_array($existingTicket)) {
+                $existingGwnAlertNames[] = (string) ($existingTicket['name'] ?? '');
+            }
+        }
+        unset($existingGwnAlertTickets);
+
         foreach ($networkIds as $networkId) {
             $alerts = $alertsByNetwork[(int) $networkId] ?? [];
             foreach ($alerts as $alert) {
@@ -1930,11 +1945,12 @@ class Sync extends \CommonGLPI
                 }
 
                 $marker = '[GWN-ALERT:' . $alertId . ']';
-                $ticketObject = new \Ticket();
-                // Search all statuses, not just open tickets. A previously solved alert
-                // must not recreate the same incident on every cron run. The SQL pattern
-                // is constant; marker IDs are compared literally in PHP.
-                if (self::hasExistingGwnAlertTicket($ticketObject, $entities_id, $marker)) {
+                // Search all statuses, not just open tickets. Reuse the once-loaded
+                // candidates across this provider batch and compare markers literally.
+                if (self::hasExactGwnAlertMarker(
+                    array_map(static fn (string $name): array => ['name' => $name], $existingGwnAlertNames),
+                    $marker,
+                )) {
                     continue;
                 }
 
@@ -1993,6 +2009,10 @@ class Sync extends \CommonGLPI
                 }
 
                 $ticketId = (int) $ticketObject->add($ticketData);
+                if ($ticketId > 0) {
+                    // Keep same-batch deduplication without caching failed creations.
+                    $existingGwnAlertNames[] = (string) $ticketData['name'];
+                }
                 if ($ticketId > 0 && $asset !== null) {
                     (new \Item_Ticket())->add([
                         'tickets_id' => $ticketId,
