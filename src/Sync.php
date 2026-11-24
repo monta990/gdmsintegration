@@ -1948,7 +1948,7 @@ class Sync extends \CommonGLPI
                 // Search all statuses, not just open tickets. Reuse the once-loaded
                 // candidates across this provider batch and compare markers literally.
                 if (self::hasExactGwnAlertMarker(
-                    array_map(static fn (string $name): array => ['name' => $name], $existingGwnAlertNames),
+                    array_map(static fn(string $name): array => ['name' => $name], $existingGwnAlertNames),
                     $marker,
                 )) {
                     continue;
