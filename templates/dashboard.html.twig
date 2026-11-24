@@ -968,7 +968,7 @@
         // Only create links for literal IP addresses; never trust a supplied URL or hostname.
         var ipv4Parts = gateway.split('.');
         if (ipv4Parts.length === 4 && ipv4Parts.every(function(part) {
-            return /^(0|[1-9]\\d{0,2})$/.test(part) && Number(part) <= 255;
+            return /^(0|[1-9]\d{0,2})$/.test(part) && Number(part) <= 255;
         })) {
             return 'http://' + gateway + '/';
         }

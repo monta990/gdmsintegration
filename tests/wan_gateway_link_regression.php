@@ -23,6 +23,7 @@ $assert(
 $helper = substr($template, $helperStart, $helperEnd - $helperStart);
 $assert(str_contains($helper, "gateway.split('.')"), 'IPv4 gateway validation must split the address into four octets.');
 $assert(str_contains($helper, 'Number(part) <= 255'), 'IPv4 gateway validation must enforce the octet range.');
+$assert(str_contains($helper, 'return /^(0|[1-9]\\d{0,2})$/.test(part)'), 'IPv4 validation must use a digit matcher with a single regex escape.');
 $assert(str_contains($helper, 'new URL('), 'IPv6 gateway validation must use the platform URL parser.');
 $assert(str_contains($helper, '/^[0-9a-f:.]+$/i'), 'IPv6 gateway validation must reject non-address characters.');
 $assert(str_contains($helper, "return 'http://' + gateway + '/';"), 'IPv4 gateway links must use the device HTTP interface.');
