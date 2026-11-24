@@ -13,10 +13,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Make GWN alert ticket deduplication exact by comparing the literal alert marker after a constant-prefix candidate lookup; alert IDs containing underscores can no longer collide as SQL LIKE wildcards.
 - Pin vis-network to 10.1.5, refresh the standalone UMD asset during CI packaging, record its SHA-256/source/version and include the upstream Apache-2.0 and MIT license texts.
 - Preserve the existing GLPI 11/12 compatibility layer, firmware General/Beta protections, alert-ticket preference, and DOM-XSS fixes.
+- Make valid WAN gateway IPv4/IPv6 addresses clickable in the port-status modal. They open the gateway's HTTP address in a separate tab; unrecognized values remain escaped text.
 
 ### Quality
 
-- Added regression coverage for CSP rendering paths, shared catalogue caching, exact GWN alert-marker matching, and the vis-network asset manifest.
+- Added regression coverage for CSP rendering paths, shared catalogue caching, exact GWN alert-marker matching, WAN gateway link safety, and the vis-network asset manifest.
 
 ## [1.6.8] — 2026-11-18
 ### Fixed

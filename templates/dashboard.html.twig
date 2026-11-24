@@ -961,6 +961,31 @@
     var wanTypeNames = {0:STR.wanDhcp, 1:STR.wanStatic, 2:STR.wanPppoe, 3:STR.wanPptp, 4:STR.wanL2tp};
     var connectNames = {0:STR.disconnected, 1:STR.online};
 
+    function gatewayUrl(value) {
+        var gateway = String(value == null ? '' : value).trim();
+        if (!gateway) return '';
+
+        // Only create links for literal IP addresses; never trust a supplied URL or hostname.
+        var ipv4Parts = gateway.split('.');
+        if (ipv4Parts.length === 4 && ipv4Parts.every(function(part) {
+            return /^(0|[1-9]\\d{0,2})$/.test(part) && Number(part) <= 255;
+        })) {
+            return 'http://' + gateway + '/';
+        }
+
+        var ipv6 = gateway;
+        if (ipv6.charAt(0) === '[' && ipv6.charAt(ipv6.length - 1) === ']') {
+            ipv6 = ipv6.slice(1, -1);
+        }
+        if (ipv6.indexOf(':') === -1 || !/^[0-9a-f:.]+$/i.test(ipv6)) return '';
+
+        try {
+            return new URL('http://[' + ipv6 + ']/').href;
+        } catch (e) {
+            return '';
+        }
+    }
+
     function fmtDuration(secs) {
         if (!secs) return '—';
         var d = Math.floor(secs / 86400), h = Math.floor((secs % 86400) / 3600), m = Math.floor((secs % 3600) / 60);
@@ -1118,7 +1143,17 @@
                     html += '<dt class="col-5 text-muted fw-normal">' + STR.connection + '</dt><dd class="col-7">' + statusText + '</dd>';
                     if (p.ip) html += '<dt class="col-5 text-muted fw-normal">' + STR.ipAddress + '</dt><dd class="col-7"><code>' + p.ip + '</code></dd>';
                     if (p.wanType !== undefined && p.wanType >= 0) html += '<dt class="col-5 text-muted fw-normal">' + STR.wanTypeLbl + '</dt><dd class="col-7">' + (wanTypeNames[p.wanType] || '—') + '</dd>';
-                    if (p.gateway) html += '<dt class="col-5 text-muted fw-normal">' + STR.gateway + '</dt><dd class="col-7"><code>' + p.gateway + '</code></dd>';
+                    if (p.gateway) {
+                        var gatewayValue = String(p.gateway);
+                        var gatewayHref = gatewayUrl(gatewayValue);
+                        var gatewayHtml = '<code>' + esc(gatewayValue) + '</code>';
+                        if (gatewayHref) {
+                            gatewayHtml = '<a href="' + esc(gatewayHref) + '" target="_blank" rel="noopener noreferrer" class="link-primary text-decoration-none" aria-label="' + esc(STR.gateway + ' ' + gatewayValue) + '">'
+                                + '<code>' + esc(gatewayValue) + '</code>'
+                                + '<i class="ti ti-external-link ms-1 small" aria-hidden="true"></i></a>';
+                        }
+                        html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.gateway) + '</dt><dd class="col-7">' + gatewayHtml + '</dd>';
+                    }
                     if (p.firstDns || p.secondDns) {
                         var dnsVal = [p.firstDns, p.secondDns].filter(Boolean).join(' / ');
                         html += '<dt class="col-5 text-muted fw-normal">' + STR.dns + '</dt><dd class="col-7"><code>' + dnsVal + '</code></dd>';
