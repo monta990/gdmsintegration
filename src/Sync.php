@@ -1846,30 +1846,19 @@ class Sync extends \CommonGLPI
     }
 
 
-    /** @param array<int, array<string, mixed>> $tickets */
+    /** @param array<int, array<string, mixed>|string> $tickets */
     private static function hasExactGwnAlertMarker(array $tickets, string $marker): bool
     {
         foreach ($tickets as $ticket) {
-            if (is_array($ticket) && str_contains((string) ($ticket['name'] ?? ''), $marker)) {
+            $name = is_array($ticket)
+                ? (string) ($ticket['name'] ?? '')
+                : (is_string($ticket) ? $ticket : '');
+            if ($name !== '' && str_contains($name, $marker)) {
                 return true;
             }
         }
 
         return false;
-    }
-
-    /**
-     * Query all tickets containing a GWN alert marker prefix, then compare the
-     * requested marker literally in PHP. Alert IDs may contain SQL LIKE wildcards.
-     */
-    private static function hasExistingGwnAlertTicket(\Ticket $ticketObject, int $entitiesId, string $marker): bool
-    {
-        $candidates = $ticketObject->find([
-            'entities_id' => $entitiesId,
-            'name' => ['LIKE', '%[GWN-ALERT:%]%'],
-        ]);
-
-        return self::hasExactGwnAlertMarker($candidates, $marker);
     }
 
     /** Create deduplicated tickets for actionable GWN cloud alerts. Offline/WAN
@@ -1947,10 +1936,7 @@ class Sync extends \CommonGLPI
                 $marker = '[GWN-ALERT:' . $alertId . ']';
                 // Search all statuses, not just open tickets. Reuse the once-loaded
                 // candidates across this provider batch and compare markers literally.
-                if (self::hasExactGwnAlertMarker(
-                    array_map(static fn(string $name): array => ['name' => $name], $existingGwnAlertNames),
-                    $marker,
-                )) {
+                if (self::hasExactGwnAlertMarker($existingGwnAlertNames, $marker)) {
                     continue;
                 }
 
