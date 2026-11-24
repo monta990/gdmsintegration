@@ -2,6 +2,7 @@
 
 namespace GlpiPlugin\Gdmsintegration\Service;
 
+use Glpi\Application\View\TemplateRenderer;
 use Glpi\Exception\Http\AccessDeniedHttpException;
 use GlpiPlugin\Gdmsintegration\API;
 use GlpiPlugin\Gdmsintegration\Config;
@@ -370,7 +371,7 @@ final class ConfigService
             $users_options[] = ['id' => $uid, 'label' => $label, 'selected' => $uid === $ticket_requester_id];
         }
 
-        echo \Glpi\Application\View\TemplateRenderer::getInstance()->render('@gdmsintegration/config_form.html.twig', [
+        echo TemplateRenderer::getInstance()->render('@gdmsintegration/config_form.html.twig', [
             'cur'                  => $cur,
             'entities_id'          => $entities_id,
             'entity_dropdown'      => $entity_dropdown,
