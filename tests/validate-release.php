@@ -95,6 +95,7 @@ $requiredFiles = [
     'README.md',
     'THIRD-PARTY-NOTICES.md',
     'package.json',
+    'package-lock.json',
     'scripts/update-vis-network.sh',
     'hook.php',
     'plugin.xml',

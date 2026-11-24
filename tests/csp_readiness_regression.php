@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
+if (isset($argv[1]) && is_file($argv[1])) {
+    require_once $argv[1];
+}
 $assert = static function (bool $condition, string $message): void {
     if (!$condition) {
         throw new RuntimeException($message);
@@ -19,6 +22,16 @@ $assert(is_string($dashboardService) && str_contains($dashboardService, "Templat
 $assert(is_string($configService) && str_contains($configService, "TemplateRenderer::getInstance()->render('@gdmsintegration/config_form.html.twig'"), 'Configuration must render through GLPI TemplateRenderer namespace.');
 $assert(!str_contains((string) $dashboardService, 'Twig::get()'), 'Dashboard must not use the standalone Twig environment.');
 $assert(!str_contains((string) $configService, 'Twig::get()'), 'Configuration must not use the standalone Twig environment.');
+$assert(!str_contains((string) $dashboardTemplate, 'sprintf('), 'Dashboard must not call the removed plugin-only sprintf Twig function.');
+$assert(substr_count((string) $dashboardTemplate, '|format(chart_days)') === 2, 'Both dashboard chart labels must use Twig format filter.');
+
+if (class_exists(\Twig\Environment::class)) {
+    $twig = new \Twig\Environment(new \Twig\Loader\ArrayLoader([
+        'format' => '{{ message|format(days) }}',
+    ]));
+    $formatted = $twig->render('format', ['message' => 'last %d days', 'days' => 7]);
+    $assert($formatted === 'last 7 days', 'Twig native format filter must render the chart-day placeholder.');
+}
 
 $dashboardScripts = preg_match_all('/<script\b/i', (string) $dashboardTemplate);
 $configScripts = preg_match_all('/<script\b/i', (string) $configTemplate);

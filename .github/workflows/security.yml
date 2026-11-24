@@ -94,6 +94,9 @@ jobs:
             'GlpiPlugin\Gdmsintegration' \
             "$GITHUB_WORKSPACE/glpi/vendor/autoload.php"
 
+      - name: Compile dashboard Twig format filter with GLPI vendor runtime
+        run: php "$GITHUB_WORKSPACE/tests/csp_readiness_regression.php" "$GITHUB_WORKSPACE/glpi/vendor/autoload.php"
+
       - name: PHP-CS-Fixer baseline — GLPI @PER-CS3x0
         env:
           PLUGIN_SOURCE_ROOT: ${{ github.workspace }}
