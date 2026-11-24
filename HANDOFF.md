@@ -51,16 +51,16 @@
 
 ## Database migration and deployment
 
-The new setting requires one additional column in the plugin-owned configuration table. Its install/update migration is idempotent and adds it with `DEFAULT 1`, preserving existing behavior.
+Version 1.6.9 does not introduce a database schema migration. The per-entity GWN alert-ticket setting and its idempotent migration were introduced in 1.6.8 and are retained.
 
-For an existing 1.6.7 installation:
+For an existing 1.6.8 installation:
 
 1. Back up the GLPI database and the existing plugin directory.
-2. Replace `plugins/gdmsintegration` with the contents of this 1.6.9 package (retain the folder name `gdmsintegration`).
-3. In GLPI, open **Setup → Plugins** and use the **Update** action for GDMS Integration. The version change from 1.6.8 to 1.6.9 allows GLPI to run the normal plugin update lifecycle; the idempotent migration adds the GWN alert-ticket setting with `DEFAULT 1` if it is not already present.
-4. Keep the plugin installed and enabled; do not uninstall it. Clear the GLPI cache if the configuration form remains stale.
-5. Open **Tools → GDMS Integration → Configuration**. In **Cloud alert ticket creation**, disable **Create tickets for GWN cloud alerts** to stop `[GWN-ALERT:...]` tickets while keeping alerts visible. Save the configuration.
-6. Run a GWN sync and confirm cloud alerts remain listed without generating new alert tickets. Verify WAN/offline ticket settings separately if those are in use.
+2. Replace `plugins/gdmsintegration` with the contents of this 1.6.9 package; keep the directory name `gdmsintegration`.
+3. In GLPI, open **Setup → Plugins** and use **Update** for GDMS Integration so GLPI runs the normal update lifecycle and repairs the native SyncDevices CronTask registration.
+4. Keep the plugin installed and enabled; do not uninstall it. Clear the GLPI cache if the dashboard or configuration page remains stale.
+5. Verify the dashboard topology, configuration page, firmware checks and GWN alert-ticket preference.
+6. Run a GWN sync and confirm existing alerts do not create duplicate tickets, including alerts whose IDs contain underscores or percent signs.
 
 ## Automated installation package artifact (2026-11-18)
 
@@ -75,7 +75,7 @@ The CLI workflow builds the installable ZIP with `scripts/package.sh`, validates
 - Feature wiring: verified the configuration form, per-entity save/load/export/import paths, install migration and GWN ticket-creation guard are all connected.
 - Installed GWN firmware regression: General `1.0.11.61` remains `up_to_date`, Beta `1.0.11.63` remains `beta_installed`, and catalog-only update candidates remain blocked unless GWN Cloud confirms them.
 - Compact firmware status consistency: beta and ahead-of-stable labels share one message; duplicate selection-row diagnostics are removed, and no selectable version is rendered unless scheduling is verified.
-- Package checks: `setup.php` and `plugin.xml` both declare `1.6.8`; final ZIP integrity is checked as part of packaging.
+- Package checks: `setup.php`, `plugin.xml`, `CHANGELOG.md` and the npm lockfile are synchronized for 1.6.9; the final ZIP is checked for required runtime files, a single plugin root and integrity.
 
 ## CLI and cross-version test strategy (2026-11-18)
 
@@ -85,7 +85,7 @@ The release test workflow is intentionally independent of a pinned plugin releas
 - `tests/firmware_channel_regression.php` runs as a separate CLI step in every PHP matrix job. It verifies firmware-channel behavior and compact status behavior without locking the test to one English sentence.
 - `tests/validate-release.php` loads the plugin's own `setup.php` metadata and compares the runtime version with `plugin.xml` and `CHANGELOG.md`. It validates PHP/GLPI requirement syntax and ordering instead of requiring a specific minimum PHP version or fixed GLPI compatibility versions.
 - `scripts/package.sh` reads the version from the plugin bootstrap at runtime. The CI workflow locates the generated archive by its package filename pattern rather than parsing a version literal from source.
-- A local release-validator check with a simulated version `9.4.2` passed, confirming that the validator is not tied to `1.6.8`.
+- A local release-validator check with a simulated version `9.4.2` passed, confirming that the validator is not tied to a specific release number.
 
 ### GitHub Actions validation
 
@@ -113,7 +113,7 @@ The installed GLPI UI and a live firmware task still require customer-environmen
 - The “Select version” row appears only when a verified, newer stable version can actually be scheduled. The status diagnostic is no longer duplicated in that row.
 - A device already running the exact General Firmware version is now correctly shown as stable/up to date even when GWN Cloud does not confirm a separate upgrade candidate. The cloud-confirmation guard remains in place for upgrades and continues to block an unverified newer version.
 - Regression coverage explicitly verifies General `1.0.11.61` as up to date, Beta `1.0.11.63` as beta-installed, and keeps unconfirmed upgrades blocked.
-- Plugin version remains 1.6.8.
+- This firmware-modal behavior was introduced in 1.6.8 and remains unchanged in 1.6.9.
 
 
 ## 1.6.9 Security-review remediation (2026-11-24)
