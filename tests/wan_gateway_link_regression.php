@@ -29,12 +29,18 @@ $assert(str_contains($helper, '/^[0-9a-f:.]+$/i'), 'IPv6 gateway validation must
 $assert(str_contains($helper, "return 'http://' + gateway + '/';"), 'IPv4 gateway links must use the device HTTP interface.');
 
 $detailsStart = strpos($template, 'var html = infoHtml + legend');
-$wanBlockStart = $detailsStart === false ? false : strpos($template, 'if (isWan) {', $detailsStart);
+$cardBodyStart = $detailsStart === false ? false : strpos(
+    $template,
+    "html += '</div><div class=\"card-body py-2 small\"><dl class=\"row mb-0\">';",
+    $detailsStart,
+);
+$wanBlockStart = $cardBodyStart === false ? false : strpos($template, 'if (isWan) {', $cardBodyStart);
 $lanBlockStart = $wanBlockStart === false ? false : strpos($template, '} else {', $wanBlockStart);
 $gatewayBlockStart = $wanBlockStart === false ? false : strpos($template, 'if (p.gateway) {', $wanBlockStart);
 $dnsBlockStart = $gatewayBlockStart === false ? false : strpos($template, 'if (p.firstDns || p.secondDns)', $gatewayBlockStart);
 $assert(
-    $wanBlockStart !== false
+    $cardBodyStart !== false
+        && $wanBlockStart !== false
         && $lanBlockStart !== false
         && $gatewayBlockStart !== false
         && $dnsBlockStart !== false
