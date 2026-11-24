@@ -49,7 +49,7 @@ if (class_exists(\Twig\Environment::class)) {
         'total_networks' => 0,
         'critical_devices' => [],
         'ops_summary' => [],
-        'chart_datasets' => [],
+        'chart_datasets' => [['label' => 'test', 'data' => []]],
         'chart_labels' => [],
         'nodes' => [],
         'edges' => [],
