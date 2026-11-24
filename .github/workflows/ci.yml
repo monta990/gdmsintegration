@@ -103,6 +103,17 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/gdms-dist"
+
+          # Exercise the packager's clean-checkout path in the artifact-producing
+          # PHP 8.3 leg: remove CI-staged dependencies/assets so package.sh must
+          # restore the pinned dependency from package-lock.json and regenerate
+          # the UMD bundle, manifest and license copies itself.
+          if [[ "${{ matrix.php }}" == "8.3" ]]; then
+            rm -rf node_modules
+            git checkout -- public/js/vis-network.min.js public/js/vis-network.manifest.json
+            rm -f public/js/vis-network.LICENSE-APACHE-2.0 public/js/vis-network.LICENSE-MIT
+          fi
+
           bash scripts/package.sh "$RUNNER_TEMP/gdms-dist"
           mapfile -t archives < <(find "$RUNNER_TEMP/gdms-dist" -maxdepth 1 -type f -name 'gdmsintegration-*.zip' -print)
           if [[ ${#archives[@]} -ne 1 ]]; then
