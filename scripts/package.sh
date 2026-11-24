@@ -13,6 +13,34 @@ if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
     exit 1
 fi
 
+# A clean checkout does not contain node_modules or generated third-party license
+# copies. Reproduce the pinned browser asset before assembling the installable ZIP.
+ASSET_VERSION="$(node -e 'const p=require(process.argv[1]); process.stdout.write(p.dependencies?.["vis-network"] || "")' "$ROOT/package.json" 2>/dev/null || true)"
+ASSET_READY=false
+if [[ -n "$ASSET_VERSION" && -f "$ROOT/public/js/vis-network.min.js"     && -f "$ROOT/public/js/vis-network.LICENSE-APACHE-2.0"     && -f "$ROOT/public/js/vis-network.LICENSE-MIT"     && -f "$ROOT/public/js/vis-network.manifest.json" ]]; then
+    ASSET_READY="$(node - "$ROOT/public/js/vis-network.manifest.json" "$ROOT/public/js/vis-network.min.js" "$ASSET_VERSION" <<'NODE'
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const [manifestPath, bundlePath, expectedVersion] = process.argv.slice(2);
+try {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const digest = crypto.createHash('sha256').update(fs.readFileSync(bundlePath)).digest('hex');
+  process.stdout.write(String(manifest.version === expectedVersion && manifest.sha256 === digest));
+} catch {
+  process.stdout.write('false');
+}
+NODE
+)"
+fi
+if [[ "$ASSET_READY" != "true" ]]; then
+    if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+        echo "Node.js and npm are required to stage the pinned vis-network asset from a clean checkout." >&2
+        exit 1
+    fi
+    (cd "$ROOT" && npm ci --ignore-scripts --no-audit && npm audit --audit-level=moderate)
+    bash "$ROOT/scripts/update-vis-network.sh"
+fi
+
 VERSION="$(php -r 'require $argv[1]; echo PLUGIN_GDMSINTEGRATION_VERSION;' "$ROOT/setup.php")"
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Could not read a valid semantic version from setup.php." >&2

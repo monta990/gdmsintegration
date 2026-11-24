@@ -1858,6 +1858,20 @@ class Sync extends \CommonGLPI
         return false;
     }
 
+    /**
+     * Query all tickets containing a GWN alert marker prefix, then compare the
+     * requested marker literally in PHP. Alert IDs may contain SQL LIKE wildcards.
+     */
+    private static function hasExistingGwnAlertTicket(\Ticket $ticketObject, int $entitiesId, string $marker): bool
+    {
+        $candidates = $ticketObject->find([
+            'entities_id' => $entitiesId,
+            'name' => ['LIKE', '%[GWN-ALERT:%]%'],
+        ]);
+
+        return self::hasExactGwnAlertMarker($candidates, $marker);
+    }
+
     /** Create deduplicated tickets for actionable GWN cloud alerts. Offline/WAN
      * transitions remain owned by the existing state/WAN ticket engine. Unknown
      * source severity codes are surfaced at normal priority instead of discarded.
@@ -1918,12 +1932,9 @@ class Sync extends \CommonGLPI
                 $marker = '[GWN-ALERT:' . $alertId . ']';
                 $ticketObject = new \Ticket();
                 // Search all statuses, not just open tickets. A previously solved alert
-                // must not recreate the same incident on every cron run.
-                $existing = $ticketObject->find([
-                    'entities_id' => $entities_id,
-                    'name' => ['LIKE', '%' . $marker . '%'],
-                ], [], 1);
-                if ($existing !== []) {
+                // must not recreate the same incident on every cron run. The SQL pattern
+                // is constant; marker IDs are compared literally in PHP.
+                if (self::hasExistingGwnAlertTicket($ticketObject, $entities_id, $marker)) {
                     continue;
                 }
 

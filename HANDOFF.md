@@ -3,8 +3,8 @@
 ## Package
 
 - Plugin: GDMS Integration
-- Version: **1.6.8**
-- Package purpose: versioned 1.6.8 release of the reviewed GWN cloud-alert ticket control and GWN stable/beta firmware maintenance package, retaining the Teclib DOM-XSS correction.
+- Version: **1.6.9**
+- Package purpose: versioned 1.6.9 release of the reviewed GWN cloud-alert ticket control and GWN stable/beta firmware maintenance package, retaining the Teclib DOM-XSS correction.
 - GLPI support declared by the existing plugin: GLPI 11/12.
 - PHP requirement declared by the existing plugin: PHP 8.2+.
 
@@ -56,8 +56,8 @@ The new setting requires one additional column in the plugin-owned configuration
 For an existing 1.6.7 installation:
 
 1. Back up the GLPI database and the existing plugin directory.
-2. Replace `plugins/gdmsintegration` with the contents of this 1.6.8 package (retain the folder name `gdmsintegration`).
-3. In GLPI, open **Setup → Plugins** and use the **Update** action for GDMS Integration. The version change from 1.6.7 to 1.6.8 allows GLPI to run the normal plugin update lifecycle; the idempotent migration adds the GWN alert-ticket setting with `DEFAULT 1` if it is not already present.
+2. Replace `plugins/gdmsintegration` with the contents of this 1.6.9 package (retain the folder name `gdmsintegration`).
+3. In GLPI, open **Setup → Plugins** and use the **Update** action for GDMS Integration. The version change from 1.6.8 to 1.6.9 allows GLPI to run the normal plugin update lifecycle; the idempotent migration adds the GWN alert-ticket setting with `DEFAULT 1` if it is not already present.
 4. Keep the plugin installed and enabled; do not uninstall it. Clear the GLPI cache if the configuration form remains stale.
 5. Open **Tools → GDMS Integration → Configuration**. In **Cloud alert ticket creation**, disable **Create tickets for GWN cloud alerts** to stop `[GWN-ALERT:...]` tickets while keeping alerts visible. Save the configuration.
 6. Run a GWN sync and confirm cloud alerts remain listed without generating new alert tickets. Verify WAN/offline ticket settings separately if those are in use.

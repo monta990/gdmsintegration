@@ -134,7 +134,7 @@
             <div class="mb-1"><i class="ti ti-chart-line text-primary" style="font-size:2rem;"></i></div>
             <div class="small fw-semibold text-muted mb-2" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;">{{ __('Infrastructure health','gdmsintegration') }}</div>
             <div class="fw-bold fs-2 lh-1 {{ ops_summary.health >= 90 ? 'text-success' : (ops_summary.health >= 70 ? 'text-warning' : 'text-danger') }}">{{ ops_summary.health }}%</div>
-            <div class="text-muted mt-1" style="font-size:.72rem;line-height:1.25;">{{ sprintf(__('Based on availability and synchronization — last %d days.','gdmsintegration'), chart_days) }}</div>
+            <div class="text-muted mt-1" style="font-size:.72rem;line-height:1.25;">{{ __('Based on availability and synchronization — last %d days.','gdmsintegration')|format(chart_days) }}</div>
          </div>
       </div>
       <div class="gdms-summary-card">
@@ -449,7 +449,7 @@
    <div class="card mb-4">
       <div class="card-header d-flex align-items-center gap-2">
          <i class="ti ti-chart-line"></i>
-         <h5 class="mb-0 me-auto">{{ sprintf(__('Online %% — last %d days', 'gdmsintegration'), chart_days) }}</h5>
+         <h5 class="mb-0 me-auto">{{ __('Online %% — last %d days', 'gdmsintegration')|format(chart_days) }}</h5>
          <a href="{{ urls.history_export }}"
             class="btn btn-sm btn-outline-secondary"
             title="{{ __('Export to XLSX', 'gdmsintegration') }}" data-bs-toggle="tooltip">

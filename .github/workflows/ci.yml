@@ -52,7 +52,6 @@ jobs:
 
       - name: Install, audit and stage pinned browser asset
         run: |
-          npm install --package-lock-only --ignore-scripts --no-audit
           npm ci --ignore-scripts --no-audit
           npm audit --audit-level=moderate
           bash scripts/update-vis-network.sh
