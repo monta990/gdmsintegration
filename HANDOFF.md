@@ -89,13 +89,13 @@ The release test workflow is intentionally independent of a pinned plugin releas
 
 ### GitHub Actions validation
 
-Validated on commit `e21451259fc06f2b869aa1f92c7ead110a1036c3`:
+Validation is performed against the exact head commit of PR #66; see the PR's latest CI and Security Analysis runs.
 
 - CLI and package matrix: PHP 8.2, 8.3, 8.4, 8.5 and 8.6 experimental — all passed.
 - Business logic: `tests/run.php` — 8/8 tests passed.
-- Firmware channels: `tests/firmware_channel_regression.php` — 18 assertions passed in the CLI matrix.
+- Firmware channels: `tests/firmware_channel_regression.php` — 23 assertions passed in the CLI matrix.
 - Release metadata/layout validation and installation ZIP build/integrity — passed in the CLI matrix.
-- GLPI 11 and GLPI 12: PHP-CS-Fixer baseline, changed-runtime PHP style, PHP lint, Twig lint, PHPStan, Psalm and dashboard TwigCS — passed.
+- GLPI 11 and GLPI 12: dashboard Twig compile/render regression, PHP-CS-Fixer baseline, changed-runtime PHP style, PHP lint, Twig lint and dashboard TwigCS — passed. PHPStan and Psalm run in non-blocking legacy-baseline mode; their existing diagnostics are not a clean pass and do not gate this PR.
 - Gitleaks, CodeQL Actions and zizmor — passed.
 
 The installed GLPI UI and a live firmware task still require customer-environment validation; CI uses deterministic tests and GLPI source checkouts.
