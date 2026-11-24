@@ -40,7 +40,7 @@ use GlpiPlugin\Gdmsintegration\Sync;
 
 $method = new ReflectionMethod(Sync::class, 'hasExactGwnAlertMarker');
 $method->setAccessible(true);
-$assertSame = static function (bool $expected, mixed $actual, string $message): void {
+$assertSame = static function (mixed $expected, mixed $actual, string $message): void {
     if ($expected !== $actual) {
         throw new RuntimeException($message . PHP_EOL . 'Expected: ' . var_export($expected, true) . PHP_EOL . 'Actual: ' . var_export($actual, true));
     }
