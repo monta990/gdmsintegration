@@ -1,0 +1,9 @@
+{
+  "name": "vis-network",
+  "version": "10.1.5",
+  "source": "https://www.npmjs.com/package/vis-network/v/10.1.5",
+  "repository": "https://github.com/visjs/vis-network",
+  "bundle": "standalone/umd/vis-network.min.js",
+  "license": "(Apache-2.0 OR MIT)",
+  "sha256": "generated-by-scripts/update-vis-network.sh"
+}

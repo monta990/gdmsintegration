@@ -1846,6 +1846,18 @@ class Sync extends \CommonGLPI
     }
 
 
+    /** @param array<int, array<string, mixed>> $tickets */
+    private static function hasExactGwnAlertMarker(array $tickets, string $marker): bool
+    {
+        foreach ($tickets as $ticket) {
+            if (is_array($ticket) && str_contains((string) ($ticket['name'] ?? ''), $marker)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** Create deduplicated tickets for actionable GWN cloud alerts. Offline/WAN
      * transitions remain owned by the existing state/WAN ticket engine. Unknown
      * source severity codes are surfaced at normal priority instead of discarded.

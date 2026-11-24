@@ -45,6 +45,18 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Install, audit and stage pinned browser asset
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit
+          npm ci --ignore-scripts --no-audit
+          npm audit --audit-level=moderate
+          bash scripts/update-vis-network.sh
+
       - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
@@ -71,6 +83,18 @@ jobs:
 
       - name: Run firmware-channel regression tests
         run: php tests/firmware_channel_regression.php
+
+      - name: Run firmware catalogue cache regression tests
+        run: php tests/firmware_catalog_cache_regression.php
+
+      - name: Run GWN alert deduplication regression tests
+        run: php tests/gwn_alert_dedup_regression.php
+
+      - name: Run CSP/template renderer regression tests
+        run: php tests/csp_readiness_regression.php
+
+      - name: Verify bundled vis-network manifest
+        run: php tests/vis_network_manifest_regression.php
 
       - name: Validate release metadata and source layout
         run: php tests/validate-release.php

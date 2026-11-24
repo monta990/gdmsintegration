@@ -1,0 +1,10 @@
+{
+  "name": "gdmsintegration-build-assets",
+  "version": "1.6.9",
+  "private": true,
+  "description": "Pinned build-time browser assets for GDMS Integration",
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "vis-network": "10.1.5"
+  }
+}

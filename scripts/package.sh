@@ -43,6 +43,7 @@ cp -a \
     "$ROOT/CHANGELOG.md" \
     "$ROOT/LICENSE" \
     "$ROOT/README.md" \
+    "$ROOT/THIRD-PARTY-NOTICES.md" \
     "$ROOT/config.png" \
     "$ROOT/hook.php" \
     "$ROOT/logo.png" \
@@ -90,7 +91,10 @@ for entry in \
     gdmsintegration/src/Utils.php \
     gdmsintegration/templates/dashboard.html.twig \
     gdmsintegration/locales/es_MX.mo \
-    gdmsintegration/public/js/vis-network.min.js
+    gdmsintegration/public/js/vis-network.min.js \
+    gdmsintegration/public/js/vis-network.manifest.json \
+    gdmsintegration/public/js/vis-network.LICENSE-APACHE-2.0 \
+    gdmsintegration/public/js/vis-network.LICENSE-MIT
 do
     if ! unzip -Z1 "$ARCHIVE" | grep -qx "$entry"; then
         echo "Required installation file missing from archive: $entry" >&2

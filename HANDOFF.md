@@ -114,3 +114,13 @@ The installed GLPI UI and a live firmware task still require customer-environmen
 - A device already running the exact General Firmware version is now correctly shown as stable/up to date even when GWN Cloud does not confirm a separate upgrade candidate. The cloud-confirmation guard remains in place for upgrades and continues to block an unverified newer version.
 - Regression coverage explicitly verifies General `1.0.11.61` as up to date, Beta `1.0.11.63` as beta-installed, and keeps unconfirmed upgrades blocked.
 - Plugin version remains 1.6.8.
+
+
+## 1.6.9 Security-review remediation (2026-11-24)
+
+- Dashboard and configuration Twig templates now render through GLPI's native `TemplateRenderer` and the `@gdmsintegration` namespace. The standalone plugin Twig environment was removed, so GLPI owns Twig extensions and CSP nonce handling.
+- Parsed Grandstream firmware catalogue is cached in GLPI's shared cache with a 600-second TTL; upstream errors are not cached.
+- CronTask self-repair no longer runs from `plugin_init_gdmsintegration()`; install/update and activation hooks perform the repair.
+- GWN alert ticket deduplication uses a constant-prefix candidate query plus exact PHP marker comparison, preventing SQL LIKE wildcard collisions for IDs containing underscores or percent signs.
+- `vis-network` is pinned to 10.1.5; CI performs npm audit, refreshes the standalone UMD bundle from the npm package, records its SHA-256 and ships both upstream license texts.
+- Existing GLPI 11/12 BaseTM compatibility, GWN General/Beta classification, exact firmware scheduling checks, alert ticket preference and DOM-XSS remediation are retained.

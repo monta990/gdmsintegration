@@ -6,7 +6,6 @@ use Glpi\Exception\Http\AccessDeniedHttpException;
 use GlpiPlugin\Gdmsintegration\API;
 use GlpiPlugin\Gdmsintegration\Config;
 use GlpiPlugin\Gdmsintegration\History;
-use GlpiPlugin\Gdmsintegration\Twig;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as XlDate;
@@ -371,7 +370,7 @@ final class ConfigService
             $users_options[] = ['id' => $uid, 'label' => $label, 'selected' => $uid === $ticket_requester_id];
         }
 
-        echo Twig::get()->render('config_form.html.twig', [
+        echo \Glpi\Application\View\TemplateRenderer::getInstance()->render('@gdmsintegration/config_form.html.twig', [
             'cur'                  => $cur,
             'entities_id'          => $entities_id,
             'entity_dropdown'      => $entity_dropdown,

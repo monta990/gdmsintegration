@@ -93,6 +93,9 @@ $requiredFiles = [
     'CHANGELOG.md',
     'LICENSE',
     'README.md',
+    'THIRD-PARTY-NOTICES.md',
+    'package.json',
+    'scripts/update-vis-network.sh',
     'hook.php',
     'plugin.xml',
     'setup.php',
@@ -102,6 +105,7 @@ $requiredFiles = [
     'src/Service/FirmwareService.php',
     'templates/config_form.html.twig',
     'templates/dashboard.html.twig',
+    'public/js/vis-network.manifest.json',
 ];
 
 foreach ($requiredFiles as $relative) {

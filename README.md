@@ -496,3 +496,7 @@ GPL v3+ — see [LICENSE](LICENSE).
 ## Issues
 
 Report bugs or request features on the [issue tracker](https://github.com/monta990/gdmsintegration/issues).
+
+## Third-party assets
+
+The NOC topology uses `vis-network` 10.1.5. Its exact source, dual license and generated SHA-256 are recorded in `public/js/vis-network.manifest.json`; CI runs `npm audit` against the pinned `package.json` dependency before packaging. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

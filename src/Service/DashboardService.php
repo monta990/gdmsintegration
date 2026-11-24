@@ -7,6 +7,20 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class DashboardService
 {
+    private static function getVisNetworkAssetVersion(): string
+    {
+        $manifestPath = dirname(__DIR__, 2) . '/public/js/vis-network.manifest.json';
+        if (is_file($manifestPath)) {
+            $manifest = json_decode((string) file_get_contents($manifestPath), true);
+            $version = is_array($manifest) ? (string) ($manifest['version'] ?? '') : '';
+            if (preg_match('/^\d+\.\d+\.\d+$/', $version) === 1) {
+                return $version;
+            }
+        }
+
+        return '10.1.5';
+    }
+
     public static function render(Request $request): Response
     {
         ob_start();
@@ -73,7 +87,7 @@ final class DashboardService
                 'urls'           => array_map(static fn(string $url): string => json_encode($url, $json_flags), $urls),
             ];
 
-            echo \GlpiPlugin\Gdmsintegration\Twig::get()->render('dashboard.html.twig', [
+            echo \Glpi\Application\View\TemplateRenderer::getInstance()->render('@gdmsintegration/dashboard.html.twig', [
                     'is_configured' => false,
                     'config_url'    => $_plugin_web . '/config',
                 ]);
@@ -795,7 +809,7 @@ final class DashboardService
                 'urls'           => array_map(static fn(string $url): string => json_encode($url, $json_flags), $urls),
             ];
 
-            echo \GlpiPlugin\Gdmsintegration\Twig::get()->render('dashboard.html.twig', [
+            echo \Glpi\Application\View\TemplateRenderer::getInstance()->render('@gdmsintegration/dashboard.html.twig', [
                 'is_configured'    => true,
                 'entities_id'      => $entities_id,
                 'rows'             => $rows,
@@ -824,7 +838,7 @@ final class DashboardService
                 'refresh_interval' => $refresh_interval,
                 'last_sync_label'  => $last_sync_label,
                 'last_sync_at'     => $last_sync_at ?? '',
-                'visnetwork_url'   => $_plugin_web . '/js/vis-network.min.js?v=10.1.2',
+                'visnetwork_url'   => $_plugin_web . '/js/vis-network.min.js?v=' . self::getVisNetworkAssetVersion(),
                 'config_url'       => $_plugin_web . '/config',
             ]);
 

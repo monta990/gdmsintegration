@@ -3,6 +3,21 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.6.9] — 2026-11-24
+
+### Fixed
+
+- Render plugin templates through GLPI's native TemplateRenderer so core Twig extensions and CSP nonce handling apply on supported GLPI versions. Removed the standalone Twig environment.
+- Cache the parsed Grandstream firmware catalogue through GLPI's shared cache for 10 minutes; failed catalogue responses are not cached.
+- Move SyncDevices CronTask repair out of per-request plugin initialization and keep it in install/update and activation lifecycle hooks.
+- Make GWN alert ticket deduplication exact by comparing the literal alert marker after a constant-prefix candidate lookup; alert IDs containing underscores can no longer collide as SQL LIKE wildcards.
+- Pin vis-network to 10.1.5, refresh the standalone UMD asset during CI packaging, record its SHA-256/source/version and include the upstream Apache-2.0 and MIT license texts.
+- Preserve the existing GLPI 11/12 compatibility layer, firmware General/Beta protections, alert-ticket preference, and DOM-XSS fixes.
+
+### Quality
+
+- Added regression coverage for CSP rendering paths, shared catalogue caching, exact GWN alert-marker matching, and the vis-network asset manifest.
+
 ## [1.6.8] — 2026-11-18
 ### Fixed
 
