@@ -168,7 +168,7 @@ namespace {
         }
     };
 
-    $markerMethod = new ReflectionMethod(Sync::class, 'hasExactGwnAlertMarker');
+    $markerMethod = new ReflectionMethod(\\GlpiPlugin\\Gdmsintegration\\Sync::class, 'hasExactGwnAlertMarker');
     $markerMethod->setAccessible(true);
     $alertUnderscore = '[GWN-ALERT:site_1]';
     $assertSame(true, $markerMethod->invoke(null, ['Device alert ' . $alertUnderscore], $alertUnderscore), 'Exact underscore-containing ID must match.');
@@ -177,10 +177,10 @@ namespace {
     $assertSame(true, $markerMethod->invoke(null, ['Device [GWN-ALERT:alert%1]'], '[GWN-ALERT:alert%1]'), 'Percent signs in IDs must be compared literally.');
     $assertSame(false, $markerMethod->invoke(null, ['No alert marker'], $alertUnderscore), 'Unrelated ticket names must not match.');
 
-    $syncMethod = new ReflectionMethod(Sync::class, 'syncGwnAlertTickets');
+    $syncMethod = new ReflectionMethod(\\GlpiPlugin\\Gdmsintegration\\Sync::class, 'syncGwnAlertTickets');
     $syncMethod->setAccessible(true);
     $runBatch = static function (array $alerts) use ($syncMethod): void {
-        API::$alertsByNetwork = [7 => $alerts];
+        \\GlpiPlugin\\Gdmsintegration\\API::$alertsByNetwork = [7 => $alerts];
         $syncMethod->invoke(
             null,
             [
