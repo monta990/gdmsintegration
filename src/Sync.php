@@ -1898,7 +1898,7 @@ class Sync extends \CommonGLPI
 
         // Fetch the entity's alert-ticket history once per synchronization.
         // Retain only names because exact marker comparison needs no other fields.
-        $ticketObject = new \\Ticket();
+        $ticketObject = new \Ticket();
         $existingGwnAlertTickets = $ticketObject->find([
             'entities_id' => $entities_id,
             'name' => ['LIKE', '%[GWN-ALERT:%]%'],
