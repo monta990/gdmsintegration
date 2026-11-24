@@ -24,8 +24,11 @@ if (!class_exists('Ticket')) {
 
         public int $argumentCount = 0;
 
+        public int $findCalls = 0;
+
         public function find(array $criteria, array $order = [], int $limit = 0): array
         {
+            $this->findCalls++;
             $this->criteria = $criteria;
             $this->argumentCount = func_num_args();
 
@@ -70,4 +73,25 @@ $ticket->rows = [
 ];
 $assertSame(true, $lookup->invoke(null, $ticket, 1, $alertUnderscore), 'Production lookup must scan all candidate rows for an exact marker.');
 
-fwrite(STDOUT, "PASS: 11 GWN alert deduplication regression assertions.\n");
+// The synchronization batch caches the candidate names once; successful inserts
+// are appended and failed inserts are not, so duplicate IDs in the provider batch
+// are skipped without another database lookup.
+$batchCandidates = ['[GDMS] prior [GWN-ALERT:existing]'];
+$initialFindCalls = $ticket->findCalls;
+$assertSame(false, $method->invoke(null, array_map(
+    static fn (string $name): array => ['name' => $name],
+    $batchCandidates,
+), '[GWN-ALERT:new-alert]'), 'A new alert must not match the initial candidate set.');
+$batchCandidates[] = '[GDMS] new [GWN-ALERT:new-alert]';
+$assertSame(true, $method->invoke(null, array_map(
+    static fn (string $name): array => ['name' => $name],
+    $batchCandidates,
+), '[GWN-ALERT:new-alert]'), 'A successfully created alert must be deduplicated later in the same batch.');
+$failedBatchCandidates = ['[GDMS] prior [GWN-ALERT:existing]'];
+$assertSame(false, $method->invoke(null, array_map(
+    static fn (string $name): array => ['name' => $name],
+    $failedBatchCandidates,
+), '[GWN-ALERT:failed-add]'), 'An alert whose creation failed must remain retryable.');
+$assertSame($initialFindCalls, $ticket->findCalls, 'Batch candidate comparisons must not perform additional ticket history queries.');
+
+fwrite(STDOUT, "PASS: 15 GWN alert deduplication regression assertions.\\n");
