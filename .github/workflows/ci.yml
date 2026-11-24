@@ -88,6 +88,9 @@ jobs:
       - name: Run CSP/template renderer regression tests
         run: php tests/csp_readiness_regression.php
 
+      - name: Run WAN gateway link regression tests
+        run: php tests/wan_gateway_link_regression.php
+
       - name: Verify bundled vis-network manifest
         run: php tests/vis_network_manifest_regression.php
 
