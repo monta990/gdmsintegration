@@ -70,4 +70,4 @@ $ticket->rows = [
 ];
 $assertSame(true, $lookup->invoke(null, $ticket, 1, $alertUnderscore), 'Production lookup must scan all candidate rows for an exact marker.');
 
-fwrite(STDOUT, "PASS: 6 GWN alert deduplication regression assertions.\n");
+fwrite(STDOUT, "PASS: 11 GWN alert deduplication regression assertions.\n");

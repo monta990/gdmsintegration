@@ -50,4 +50,4 @@ $initEnd = strpos((string) $setup, "\n}", $initStart === false ? 0 : $initStart)
 $initBody = $initStart !== false && $initEnd !== false ? substr((string) $setup, $initStart, $initEnd - $initStart) : '';
 $assert(!str_contains($initBody, 'plugin_gdmsintegration_ensure_cron_task'), 'Plugin initialization must not query/repair CronTask on each request.');
 
-fwrite(STDOUT, "PASS: 11 CSP and initialization regression assertions.\n");
+fwrite(STDOUT, "PASS: CSP/template renderer regression checks.\n");
