@@ -116,10 +116,10 @@ jobs:
           set -euo pipefail
           vendor/bin/phpstan analyse \
             --configuration=phpstan-gdms.neon \
-            --generate-baseline="$RUNNER_TEMP/phpstan-target-baseline.neon" \
+            --generate-baseline=phpstan-target-baseline.neon \
             --no-progress \
             --memory-limit=1G
-          test -s "$RUNNER_TEMP/phpstan-target-baseline.neon"
+          test -s "phpstan-target-baseline.neon"
 
           vendor/bin/psalm \
             --config="$GITHUB_WORKSPACE/.github/psalm-gdms.xml" \
@@ -225,16 +225,16 @@ jobs:
         working-directory: glpi
         run: |
           set -euo pipefail
-          cat > "$RUNNER_TEMP/phpstan-pr.neon" <<NEON
+          cat > phpstan-pr.neon <<NEON
           includes:
-              - "$GITHUB_WORKSPACE/glpi/phpstan-gdms.neon"
-              - "$RUNNER_TEMP/phpstan-target-baseline.neon"
+              - phpstan-gdms.neon
+              - phpstan-target-baseline.neon
           parameters:
               tmpDir: "$RUNNER_TEMP/phpstan-pr-cache"
               reportUnmatchedIgnoredErrors: false
           NEON
           vendor/bin/phpstan analyse \
-            --configuration="$RUNNER_TEMP/phpstan-pr.neon" \
+            --configuration=phpstan-pr.neon \
             --no-progress \
             --error-format=github \
             --memory-limit=1G
