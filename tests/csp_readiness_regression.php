@@ -71,8 +71,12 @@ if ($autoloadProvided) {
         // the normal application bootstrap provides before calling getInstance().
         $glpiRoot = dirname(dirname($argv[1]));
         $cacheRoot = sys_get_temp_dir() . '/gdms-glpi-template-renderer-test';
-        if (!is_dir($cacheRoot) && !mkdir($cacheRoot, 0777, true) && !is_dir($cacheRoot)) {
-            throw new RuntimeException('Could not create the temporary GLPI Twig cache directory.');
+        $cacheDirectory = $cacheRoot . '/gdms-template-test-production/templates';
+        $pictureDirectory = $cacheRoot . '/_pictures';
+        foreach ([$cacheDirectory, $pictureDirectory] as $directory) {
+            if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+                throw new RuntimeException('Could not create a temporary GLPI renderer directory: ' . $directory);
+            }
         }
 
         foreach ([
@@ -80,6 +84,7 @@ if ($autoloadProvided) {
             'GLPI_STRICT_ENV' => false,
             'GLPI_CACHE_DIR' => $cacheRoot,
             'GLPI_FILES_VERSION' => 'gdms-template-test',
+            'GLPI_PICTURE_DIR' => $pictureDirectory,
         ] as $constant => $value) {
             if (!defined($constant)) {
                 define($constant, $value);

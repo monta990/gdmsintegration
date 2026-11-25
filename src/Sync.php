@@ -1867,7 +1867,7 @@ class Sync extends \CommonGLPI
      * source severity codes are surfaced at normal priority instead of discarded.
      *
      * @param array<string, mixed> $config
-     * @param list<int> $networkIds
+     * @param non-empty-array<int, int> $networkIds
      */
     private static function syncGwnAlertTickets(array $config, int $entities_id, array $networkIds): void
     {
