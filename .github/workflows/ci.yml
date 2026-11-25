@@ -91,6 +91,9 @@ jobs:
       - name: Run WAN gateway link regression tests
         run: php tests/wan_gateway_link_regression.php
 
+      - name: Execute WAN gateway URL validation cases
+        run: node tests/wan_gateway_link_regression.js
+
       - name: Verify bundled vis-network manifest
         run: php tests/vis_network_manifest_regression.php
 
