@@ -5,6 +5,7 @@
 - Plugin: GDMS Integration
 - Version: **1.6.10**
 - Package purpose: versioned 1.6.10 package fixing the Teclib-reported DOM-XSS in the GWN WAN/LAN port-detail modal, on top of the reviewed 1.6.9 baseline.
+- Release branch: single 1.6.10 remediation commit based directly on the merged 1.6.9 mainline.
 - GLPI support declared by the existing plugin: GLPI 11/12.
 - PHP requirement declared by the existing plugin: PHP 8.2+.
 
