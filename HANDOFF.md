@@ -140,5 +140,5 @@ The installed GLPI UI and a live firmware task still require customer-environmen
 - Parsed Grandstream firmware catalogue is cached in GLPI's shared cache with a 600-second TTL; upstream errors are not cached.
 - CronTask self-repair no longer runs from `plugin_init_gdmsintegration()`; install/update and activation hooks perform the repair.
 - GWN alert ticket deduplication uses a constant-prefix candidate query plus exact PHP marker comparison, preventing SQL LIKE wildcard collisions for IDs containing underscores or percent signs.
-- `vis-network` is pinned to 10.1.5; CI performs npm audit, refreshes the standalone UMD bundle from the npm package, records its SHA-256 and ships both upstream license texts.
+- `vis-network` is pinned to 10.1.5; CI performs npm audit and verifies the standalone UMD bundle against the source-only SHA-256 manifest. The installation ZIP contains only `vis-network.min.js` under `public/js`; the complete Apache-2.0 and MIT license texts are consolidated in the root `THIRD-PARTY-NOTICES.md`.
 - Existing GLPI 11/12 BaseTM compatibility, GWN General/Beta classification, exact firmware scheduling checks, alert ticket preference and DOM-XSS remediation are retained.

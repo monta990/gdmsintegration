@@ -499,4 +499,4 @@ Report bugs or request features on the [issue tracker](https://github.com/monta9
 
 ## Third-party assets
 
-The NOC topology uses `vis-network` 10.1.5. Its exact source, dual license and generated SHA-256 are recorded in `public/js/vis-network.manifest.json`; CI runs `npm audit` against the pinned `package.json` dependency before packaging. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+The NOC topology uses `vis-network` 10.1.5. CI audits the pinned `package.json` dependency and verifies the bundle against the source repository's `public/js/vis-network.manifest.json`. The installation ZIP ships only the minified browser bundle under `public/js`; the full Apache-2.0 and MIT license texts are included together in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

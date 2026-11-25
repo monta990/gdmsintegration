@@ -106,11 +106,11 @@ jobs:
           # Exercise the packager's clean-checkout path in the artifact-producing
           # PHP 8.3 leg: remove CI-staged dependencies/assets so package.sh must
           # restore the pinned dependency from package-lock.json and regenerate
-          # the UMD bundle, manifest and license copies itself.
+          # the UMD bundle and source-only integrity manifest. License texts live
+          # in THIRD-PARTY-NOTICES.md, not beside the browser runtime asset.
           if [[ "${{ matrix.php }}" == "8.3" ]]; then
             rm -rf node_modules
             git checkout -- public/js/vis-network.min.js public/js/vis-network.manifest.json
-            rm -f public/js/vis-network.LICENSE-APACHE-2.0 public/js/vis-network.LICENSE-MIT
           fi
 
           bash scripts/package.sh "$RUNNER_TEMP/gdms-dist"
@@ -135,6 +135,30 @@ jobs:
           unzip -Z1 "$archive" | grep -qx 'gdmsintegration/src/Sync.php'
           unzip -Z1 "$archive" | grep -qx 'gdmsintegration/templates/dashboard.html.twig'
           unzip -Z1 "$archive" | grep -qx 'gdmsintegration/public/js/vis-network.min.js'
+          mapfile -t public_js_files < <(unzip -Z1 "$archive" | grep -E '^gdmsintegration/public/js/[^/]+, without
+          # duplicating the plugin version in the workflow definition.
+          checksum="${archive}.sha256"
+          sha256sum "$archive" > "$checksum"
+          printf 'archive_path=%s\n' "$archive" >> "$GITHUB_OUTPUT"
+          printf 'checksum_path=%s\n' "$checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Upload installable GDMS Integration ZIP
+        # This unprivileged PR/push workflow uploads the package artifact;
+        # no privileged workflow consumes artifacts built from PR code.
+        if: matrix.php == '8.3'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gdmsintegration-installable
+          path: |
+            ${{ steps.package.outputs.archive_path }}
+            ${{ steps.package.outputs.checksum_path }}
+          if-no-files-found: error
+          retention-days: 14
+ | sort)
+          if [[ ${#public_js_files[@]} -ne 1 || "${public_js_files[0]:-}" != "gdmsintegration/public/js/vis-network.min.js" ]]; then
+            printf 'Unexpected files in installable public/js directory:\\n%s\\n' "${public_js_files[*]:-<none>}" >&2
+            exit 1
+          fi
 
           # Upload the exact archive created by the packager, without
           # duplicating the plugin version in the workflow definition.
