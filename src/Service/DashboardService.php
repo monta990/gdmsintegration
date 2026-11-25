@@ -16,20 +16,12 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class DashboardService
 {
+    private const VIS_NETWORK_ASSET_VERSION = '10.1.5';
+
     private static function getVisNetworkAssetVersion(): string
     {
-        $manifestPath = dirname(__DIR__, 2) . '/public/js/vis-network.manifest.json';
-        if (is_file($manifestPath)) {
-            $manifest = json_decode((string) file_get_contents($manifestPath), true);
-            $version = is_array($manifest) ? (string) ($manifest['version'] ?? '') : '';
-            if (preg_match('/^\d+\.\d+\.\d+$/', $version) === 1) {
-                return $version;
-            }
-        }
-
-        return '10.1.5';
+        return self::VIS_NETWORK_ASSET_VERSION;
     }
-
     public static function render(Request $request): Response
     {
         ob_start();
