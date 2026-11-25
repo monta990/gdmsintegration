@@ -84,7 +84,7 @@ jobs:
       - name: Prepare target-branch source for static-analysis baseline
         id: baseline
         env:
-          PR_BASE_SHA: \${{ github.event.pull_request.base.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           base_sha="$PR_BASE_SHA"
