@@ -119,12 +119,9 @@ if unzip -Z1 "$ARCHIVE" | grep -Eq '\.(log|cache)$|(^|/)\.DS_Store$|(^|/)Thumbs\
 fi
 
 # The installable public/js directory contains only the browser runtime bundle.
-mapfile -t public_js_files < <(unzip -Z1 "$ARCHIVE" | grep -E '^gdmsintegration/public/js/[^/]+
-
-echo "Created and validated $ARCHIVE"
- | sort)
-if [[ ${#public_js_files[@]} -ne 1 || "${public_js_files[0]:-}" != "gdmsintegration/public/js/vis-network.min.js" ]]; then
-    printf 'Unexpected files in installable public/js directory:\n%s\n' "${public_js_files[*]:-<none>}" >&2
+public_js_entries="$(unzip -Z1 "$ARCHIVE" | grep -E '^gdmsintegration/public/js/[^/]+$' || true)"
+if [[ "$public_js_entries" != "gdmsintegration/public/js/vis-network.min.js" ]]; then
+    printf 'Unexpected files in installable public/js directory:\\n%s\\n' "${public_js_entries:-<none>}" >&2
     exit 1
 fi
 
