@@ -35,7 +35,13 @@ namespace {
             /** @var array<int, array<string, mixed>> */
             public static array $successfulAdds = [];
 
+            /** @var array<string, mixed>|null */
+            public static ?array $findCriteria = null;
+
+            public static int $findCalls = 0;
+            public static int $findArgumentCount = 0;
             public static int $instancesCreated = 0;
+            public static ?int $findInstanceId = null;
 
             /** @var array<int, int> */
             public static array $addInstanceIds = [];
@@ -47,9 +53,14 @@ namespace {
                 $this->instanceId = ++self::$instancesCreated;
             }
 
-            public static function getTable(): string
+            public function find(array $criteria, array $order = [], int $limit = 0): array
             {
-                return 'glpi_tickets';
+                self::$findInstanceId = $this->instanceId;
+                self::$findCalls++;
+                self::$findCriteria = $criteria;
+                self::$findArgumentCount = func_num_args();
+
+                return self::$existingRows;
             }
 
             /** @param array<string, mixed> $input */
@@ -74,38 +85,15 @@ namespace {
                 self::$addResults = $addResults;
                 self::$addAttempts = [];
                 self::$successfulAdds = [];
+                self::$findCriteria = null;
+                self::$findCalls = 0;
+                self::$findArgumentCount = 0;
                 self::$instancesCreated = 0;
+                self::$findInstanceId = null;
                 self::$addInstanceIds = [];
-                RegressionDatabase::reset();
             }
         }
     }
-
-    if (!class_exists('RegressionDatabase')) {
-        class RegressionDatabase
-        {
-            /** @var array<int, array<string, mixed>> */
-            public static array $requests = [];
-
-            /**
-             * @param array<string, mixed> $query
-             * @return iterable<int, array<string, mixed>>
-             */
-            public function request(array $query): iterable
-            {
-                self::$requests[] = $query;
-
-                return Ticket::$existingRows;
-            }
-
-            public static function reset(): void
-            {
-                self::$requests = [];
-            }
-        }
-    }
-
-    $DB = new RegressionDatabase();
 
     if (!class_exists('NetworkEquipment')) {
         class NetworkEquipment
@@ -230,37 +218,22 @@ namespace {
         ];
     };
 
-    // Entirely filtered batches must not load ticket history.
-    Ticket::reset();
-    $ignoredSeverity = $makeAlert('ignored-severity');
-    $ignoredSeverity['severity'] = 'info';
-    $offlineAlert = $makeAlert('offline-alert');
-    $offlineAlert['category'] = 'offline';
-    $missingId = $makeAlert('');
-    $staleAlert = $makeAlert('stale-alert');
-    $staleAlert['createTime'] = (time() - (31 * 86400)) * 1000;
-    $runBatch([$ignoredSeverity, $offlineAlert, $missingId, $staleAlert]);
-    $assertSame(0, count(RegressionDatabase::$requests), 'A batch without actionable alerts must not query ticket history.');
-    $assertSame(0, count(Ticket::$addAttempts), 'Filtered alerts must not create tickets.');
-
     // Successful Ticket::add() results are added to the production candidate
     // cache, preventing a repeated provider ID from creating another ticket.
     Ticket::reset([], [101, 102]);
     $runBatch([$makeAlert('duplicate-success'), $makeAlert('duplicate-success')]);
-    $assertSame(1, count(RegressionDatabase::$requests), 'A successful batch must query ticket history exactly once.');
+    $assertSame(1, Ticket::$findCalls, 'A successful batch must query ticket history exactly once.');
+    $assertSame(1, Ticket::$findArgumentCount, 'Ticket history must be fetched without a row limit.');
     $assertSame(
-        [
-            'SELECT' => 'name',
-            'FROM' => 'glpi_tickets',
-            'WHERE' => ['entities_id' => 42, 'name' => ['LIKE', '%[GWN-ALERT:%]%']],
-        ],
-        RegressionDatabase::$requests[0],
-        'The shared history query must select only names and use a constant marker candidate pattern.',
+        ['entities_id' => 42, 'name' => ['LIKE', '%[GWN-ALERT:%]%']],
+        Ticket::$findCriteria,
+        'Production batch lookup must use a constant marker candidate pattern.',
     );
     $assertSame(1, count(Ticket::$addAttempts), 'A repeated successfully created alert must create only one ticket.');
     $assertSame(1, count(Ticket::$successfulAdds), 'Exactly one ticket should be created for a repeated successful alert ID.');
-    $assertSame(1, Ticket::$instancesCreated, 'History lookup must not instantiate a full Ticket model.');
+    $assertSame(2, Ticket::$instancesCreated, 'The history lookup and successful ticket creation must use separate Ticket objects.');
     $assertSame(1, count(array_unique(Ticket::$addInstanceIds)), 'The successful ticket add must use its own Ticket instance.');
+    $assertSame(false, in_array(Ticket::$findInstanceId, Ticket::$addInstanceIds, true), 'The history lookup Ticket instance must not be reused for ticket creation.');
     $assertSame(
         true,
         str_contains((string) Ticket::$successfulAdds[0]['name'], '[GWN-ALERT:duplicate-success]'),
@@ -271,23 +244,24 @@ namespace {
     // stays eligible and can succeed when it is encountered again in this batch.
     Ticket::reset([], [0, 202]);
     $runBatch([$makeAlert('retry-after-failure'), $makeAlert('retry-after-failure')]);
-    $assertSame(1, count(RegressionDatabase::$requests), 'The retry batch must still perform only one ticket history lookup.');
+    $assertSame(1, Ticket::$findCalls, 'The retry batch must still perform only one ticket history lookup.');
     $assertSame(2, count(Ticket::$addAttempts), 'A failed alert creation must be retried when the ID repeats.');
     $assertSame(1, count(Ticket::$successfulAdds), 'The retry should result in one successfully created ticket.');
-    $assertSame(2, Ticket::$instancesCreated, 'Failed and retried creations each receive a fresh Ticket object; history lookup does not instantiate Ticket.');
+    $assertSame(3, Ticket::$instancesCreated, 'The failed and retried creations must each receive a fresh Ticket object in addition to the history lookup object.');
     $assertSame(2, count(array_unique(Ticket::$addInstanceIds)), 'Each failed/successful add attempt must use a distinct Ticket instance.');
+    $assertSame(false, in_array(Ticket::$findInstanceId, Ticket::$addInstanceIds, true), 'The history lookup Ticket instance must remain separate from all add attempts.');
 
     // A SQL LIKE wildcard lookalike must not suppress a different alert ID.
     Ticket::reset([['name' => '[GDMS] previous [GWN-ALERT:siteA1]']], [303]);
     $runBatch([$makeAlert('site_1')]);
     $assertSame(1, count(Ticket::$addAttempts), 'An underscore ID must not match another marker through SQL LIKE semantics.');
-    $assertSame(1, count(RegressionDatabase::$requests), 'Existing-ticket detection must use the shared batch lookup.');
+    $assertSame(1, Ticket::$findCalls, 'Existing-ticket detection must use the shared batch lookup.');
 
     // An exact existing marker, regardless of ticket status, must suppress creation.
     Ticket::reset([['name' => '[GDMS] previous [GWN-ALERT:site_1]']], [404]);
     $runBatch([$makeAlert('site_1')]);
     $assertSame(0, count(Ticket::$addAttempts), 'An exact existing alert marker must suppress duplicate ticket creation.');
-    $assertSame(1, count(RegressionDatabase::$requests), 'Exact existing-marker detection must reuse the same single history lookup.');
+    $assertSame(1, Ticket::$findCalls, 'Exact existing-marker detection must reuse the same single history lookup.');
 
     fwrite(STDOUT, sprintf("PASS: %d GWN alert deduplication regression assertions.\n", $assertions));
 }

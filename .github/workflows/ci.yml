@@ -85,6 +85,9 @@ jobs:
       - name: Run GWN alert deduplication regression tests
         run: php tests/gwn_alert_dedup_regression.php
 
+      - name: Run port-modal DOM-XSS regression tests
+        run: node tests/port_modal_xss_regression.js
+
       - name: Run CSP/template renderer regression tests
         run: php tests/csp_readiness_regression.php
 
