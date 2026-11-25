@@ -38,7 +38,7 @@
 
 ### 4. GWN alert ticket creation isolation
 
-- The GWN alert batch loads candidate ticket names once and keeps the exact-marker cache shared for same-batch deduplication.
+- The GWN alert batch loads candidate ticket names lazily, only when its first actionable alert reaches deduplication, and selects only the `name` column. The exact-marker cache is shared for same-batch deduplication.
 - Each alert creation uses a fresh GLPI `Ticket` object; the history-query object is not reused for `add()` calls.
 - Failed creations are not added to the candidate cache, so repeated alerts remain eligible for retry.
 - This isolates mutable GLPI ticket fields used by business rules and SLA/deadline initialization.
