@@ -3,12 +3,21 @@
 ## Package
 
 - Plugin: GDMS Integration
-- Version: **1.6.9**
-- Package purpose: versioned 1.6.9 release of the reviewed GWN cloud-alert ticket control and GWN stable/beta firmware maintenance package, retaining the Teclib DOM-XSS correction.
+- Version: **1.6.10**
+- Package purpose: versioned 1.6.10 package fixing the Teclib-reported DOM-XSS in the GWN WAN/LAN port-detail modal, on top of the reviewed 1.6.9 baseline.
 - GLPI support declared by the existing plugin: GLPI 11/12.
 - PHP requirement declared by the existing plugin: PHP 8.2+.
 
 ## Changes in this package
+
+### Teclib DOM-XSS remediation — GWN port-detail modal
+
+- Escape every dynamic value inserted into the port modal's `body.innerHTML`, including GWN-controlled silk label, port name, WAN name, IP, DNS, WAN MAC, IPv6, custom name, description and port type.
+- Also escape status text, translated labels, WAN type/speed labels, sync timestamps and formatted counters rendered by the same modal.
+- Keep `wan_ports_json` as raw structured JSON; perform HTML encoding only at the final rendering sink so the API and cache formats remain unchanged.
+- Preserve strict validation of gateway IP literals and escaping of both the gateway URL attribute and visible value.
+- Add `tests/port_modal_xss_regression.js` and run it in the CLI matrix.
+- The DOM-XSS regression is a required CI step in each PHP 8.2–8.6 CLI/package matrix leg; it is not an advisory-only check.
 
 ### 1. Independent GWN cloud-alert ticket setting
 

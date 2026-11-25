@@ -3,6 +3,19 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.6.10] — 2026-11-25
+
+### Security
+
+- Fixed the Teclib-reported medium-severity DOM-XSS in the dashboard WAN/LAN port-detail modal. All GWN-controlled port strings and other dynamic values rendered through the modal's `innerHTML` sink are now HTML-escaped at the output boundary, including port labels/names, WAN names, IP/DNS/MAC/IPv6 values, custom names, descriptions, port types, statuses, timestamps and counters.
+- Kept `wan_ports_json` as raw structured JSON. HTML encoding is applied only when values enter the modal markup, avoiding double-encoding and preserving API/cache consumers.
+- Preserved strict IP-literal validation and HTML-attribute escaping for WAN gateway links.
+
+### Tests
+
+- Added `tests/port_modal_xss_regression.js` to verify escaping of every reported dynamic port field and the shared encoder's handling of `<`, `>`, `&`, single quotes and double quotes.
+- Added the DOM-XSS regression to the PHP 8.2–8.6 CLI/package workflow matrix.
+
 ## [1.6.9] — 2026-11-24
 
 ### Fixed

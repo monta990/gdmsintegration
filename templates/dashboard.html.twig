@@ -1085,16 +1085,16 @@
             if (ulBytes > 0 || dlBytes > 0 || firstSeen || lastSeen) {
                 infoHtml = '<div class="border-bottom pb-2 mb-3 small">';
                 if (ulBytes > 0 || dlBytes > 0) {
-                    infoHtml += '<div class="fw-semibold text-muted mb-1"><i class="ti ti-chart-bar me-1"></i>' + STR.netUsage + '</div>';
+                    infoHtml += '<div class="fw-semibold text-muted mb-1"><i class="ti ti-chart-bar me-1"></i>' + esc(STR.netUsage) + '</div>';
                     infoHtml += '<div class="d-flex gap-4 mb-2">';
-                    infoHtml += '<span><span class="text-muted me-1">' + STR.upload + ':</span><span class="text-success fw-semibold"> ↑ ' + fmtBytes(ulBytes) + '</span></span>';
-                    infoHtml += '<span><span class="text-muted me-1">' + STR.download + ':</span><span class="text-info fw-semibold"> ↓ ' + fmtBytes(dlBytes) + '</span></span>';
+                    infoHtml += '<span><span class="text-muted me-1">' + esc(STR.upload) + ':</span><span class="text-success fw-semibold"> ↑ ' + esc(fmtBytes(ulBytes)) + '</span></span>';
+                    infoHtml += '<span><span class="text-muted me-1">' + esc(STR.download) + ':</span><span class="text-info fw-semibold"> ↓ ' + esc(fmtBytes(dlBytes)) + '</span></span>';
                     infoHtml += '</div>';
                 }
                 if (firstSeen || lastSeen) {
                     infoHtml += '<div class="d-flex flex-wrap gap-3 text-muted">';
-                    if (firstSeen) infoHtml += '<span><i class="ti ti-calendar-plus me-1"></i><span class="me-1">' + STR.firstSeen + ':</span>' + firstSeen.slice(0,16) + '</span>';
-                    if (lastSeen)  infoHtml += '<span><i class="ti ti-calendar-check me-1"></i><span class="me-1">' + STR.lastSeen + ':</span>' + lastSeen.slice(0,16) + '</span>';
+                    if (firstSeen) infoHtml += '<span><i class="ti ti-calendar-plus me-1"></i><span class="me-1">' + esc(STR.firstSeen) + ':</span>' + esc(firstSeen.slice(0,16)) + '</span>';
+                    if (lastSeen)  infoHtml += '<span><i class="ti ti-calendar-check me-1"></i><span class="me-1">' + esc(STR.lastSeen) + ':</span>' + esc(lastSeen.slice(0,16)) + '</span>';
                     infoHtml += '</div>';
                 }
                 infoHtml += '</div>';
@@ -1110,7 +1110,7 @@
             legendItems.forEach(function(li) {
                 legend += '<span style="display:inline-flex;align-items:center;gap:5px">'
                         + '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + li.color + ';outline:1px solid rgba(128,128,128,.35);flex-shrink:0"></span>'
-                        + '<span>' + li.label + '</span>'
+                        + '<span>' + esc(li.label) + '</span>'
                         + '</span>';
             });
             legend += '</div>';
@@ -1134,15 +1134,15 @@
                 var portName = (p.name && p.name !== p.silk) ? p.name : '';
                 html += '<div class="col-md-6"><div class="card border-' + statusColor + ' h-100">';
                 html += '<div class="card-header bg-transparent border-' + statusColor + ' d-flex justify-content-between align-items-center py-2">';
-                html += '<strong class="text-' + statusColor + '"><i class="ti ti-' + statusIcon + ' me-1"></i>' + label;
-                if (portName) html += ' <small class="fw-normal opacity-75">(' + portName + ')</small>';
+                html += '<strong class="text-' + statusColor + '"><i class="ti ti-' + statusIcon + ' me-1"></i>' + esc(label);
+                if (portName) html += ' <small class="fw-normal opacity-75">(' + esc(portName) + ')</small>';
                 html += '</strong>';
-                if (p.wanName) html += '<small class="text-muted ms-2">' + p.wanName + '</small>';
+                if (p.wanName) html += '<small class="text-muted ms-2">' + esc(p.wanName) + '</small>';
                 html += '</div><div class="card-body py-2 small"><dl class="row mb-0">';
                 if (isWan) {
-                    html += '<dt class="col-5 text-muted fw-normal">' + STR.connection + '</dt><dd class="col-7">' + statusText + '</dd>';
-                    if (p.ip) html += '<dt class="col-5 text-muted fw-normal">' + STR.ipAddress + '</dt><dd class="col-7"><code>' + p.ip + '</code></dd>';
-                    if (p.wanType !== undefined && p.wanType >= 0) html += '<dt class="col-5 text-muted fw-normal">' + STR.wanTypeLbl + '</dt><dd class="col-7">' + (wanTypeNames[p.wanType] || '—') + '</dd>';
+                    html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.connection) + '</dt><dd class="col-7">' + esc(statusText) + '</dd>';
+                    if (p.ip) html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.ipAddress) + '</dt><dd class="col-7"><code>' + esc(p.ip) + '</code></dd>';
+                    if (p.wanType !== undefined && p.wanType >= 0) html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.wanTypeLbl) + '</dt><dd class="col-7">' + esc(wanTypeNames[p.wanType] || '—') + '</dd>';
                     if (p.gateway) {
                         var gatewayValue = String(p.gateway);
                         var gatewayHref = gatewayUrl(gatewayValue);
@@ -1156,32 +1156,32 @@
                     }
                     if (p.firstDns || p.secondDns) {
                         var dnsVal = [p.firstDns, p.secondDns].filter(Boolean).join(' / ');
-                        html += '<dt class="col-5 text-muted fw-normal">' + STR.dns + '</dt><dd class="col-7"><code>' + dnsVal + '</code></dd>';
+                        html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.dns) + '</dt><dd class="col-7"><code>' + esc(dnsVal) + '</code></dd>';
                     }
-                    if (p.wamMac) html += '<dt class="col-5 text-muted fw-normal">' + STR.wanMac + '</dt><dd class="col-7"><code>' + p.wamMac + '</code></dd>';
-                    if (p.portIpv6) html += '<dt class="col-5 text-muted fw-normal">IPv6</dt><dd class="col-7"><code style="font-size:.8em;word-break:break-all;">' + p.portIpv6 + '</code></dd>';
-                    if (p.connectDuration) html += '<dt class="col-5 text-muted fw-normal">' + STR.connectedFor + '</dt><dd class="col-7">' + fmtDuration(p.connectDuration) + '</dd>';
+                    if (p.wamMac) html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.wanMac) + '</dt><dd class="col-7"><code>' + esc(p.wamMac) + '</code></dd>';
+                    if (p.portIpv6) html += '<dt class="col-5 text-muted fw-normal">IPv6</dt><dd class="col-7"><code style="font-size:.8em;word-break:break-all;">' + esc(p.portIpv6) + '</code></dd>';
+                    if (p.connectDuration) html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.connectedFor) + '</dt><dd class="col-7">' + esc(fmtDuration(p.connectDuration)) + '</dd>';
                     if (p.txBytes || p.rxBytes) {
-                        html += '<dt class="col-5 text-muted fw-normal">↑ ' + STR.upload + '</dt><dd class="col-7 text-success">' + fmtBytes(p.txBytes || 0) + '</dd>';
-                        html += '<dt class="col-5 text-muted fw-normal">↓ ' + STR.download + '</dt><dd class="col-7 text-info">' + fmtBytes(p.rxBytes || 0) + '</dd>';
+                        html += '<dt class="col-5 text-muted fw-normal">↑ ' + esc(STR.upload) + '</dt><dd class="col-7 text-success">' + esc(fmtBytes(p.txBytes || 0)) + '</dd>';
+                        html += '<dt class="col-5 text-muted fw-normal">↓ ' + esc(STR.download) + '</dt><dd class="col-7 text-info">' + esc(fmtBytes(p.rxBytes || 0)) + '</dd>';
                     }
                     if (p.txPackets || p.rxPackets) {
-                        html += '<dt class="col-5 text-muted fw-normal">' + STR.txrxPkts + '</dt>'
+                        html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.txrxPkts) + '</dt>'
                              + '<dd class="col-7 small text-nowrap">'
-                             + '<span class="text-success">↑' + (p.txPackets || 0).toLocaleString() + '</span>'
-                             + ' <span class="text-info">↓' + (p.rxPackets || 0).toLocaleString() + '</span>'
+                             + '<span class="text-success">↑' + esc((p.txPackets || 0).toLocaleString()) + '</span>'
+                             + ' <span class="text-info">↓' + esc((p.rxPackets || 0).toLocaleString()) + '</span>'
                              + '</dd>';
                     }
                 } else {
-                    html += '<dt class="col-5 text-muted fw-normal">' + STR.statusLbl + '</dt><dd class="col-7">' + statusText + '</dd>';
+                    html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.statusLbl) + '</dt><dd class="col-7">' + esc(statusText) + '</dd>';
                     if (linkUp) {
-                        html += '<dt class="col-5 text-muted fw-normal">' + STR.negotiatedSpeed + '</dt><dd class="col-7 fw-semibold text-success">' + (portSpeeds[p.speed] || '—') + '</dd>';
+                        html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.negotiatedSpeed) + '</dt><dd class="col-7 fw-semibold text-success">' + esc(portSpeeds[p.speed] || '—') + '</dd>';
                     }
-                    if (p.customName) html += '<dt class="col-5 text-muted fw-normal">' + STR.portLabel + '</dt><dd class="col-7">' + p.customName + '</dd>';
-                    if (p.desc)       html += '<dt class="col-5 text-muted fw-normal">' + STR.description + '</dt><dd class="col-7">' + p.desc + '</dd>';
+                    if (p.customName) html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.portLabel) + '</dt><dd class="col-7">' + esc(p.customName) + '</dd>';
+                    if (p.desc)       html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.description) + '</dt><dd class="col-7">' + esc(p.desc) + '</dd>';
                 }
-                html += '<dt class="col-5 text-muted fw-normal">' + STR.linkSpeed + '</dt><dd class="col-7">' + (portSpeeds[p.speed] || '—') + '</dd>';
-                if (p.type) html += '<dt class="col-5 text-muted fw-normal">' + STR.portType + '</dt><dd class="col-7">' + p.type + '</dd>';
+                html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.linkSpeed) + '</dt><dd class="col-7">' + esc(portSpeeds[p.speed] || '—') + '</dd>';
+                if (p.type) html += '<dt class="col-5 text-muted fw-normal">' + esc(STR.portType) + '</dt><dd class="col-7">' + esc(p.type) + '</dd>';
                 html += '</dl></div></div></div>';
             });
             html += '</div>';
