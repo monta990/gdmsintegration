@@ -5,6 +5,52 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 $autoloadProvided = isset($argv[1]) && is_file($argv[1]);
 if ($autoloadProvided) {
+    require_once $argv[1];
+} elseif (getenv('GDMS_REQUIRE_GLPI_RENDERER') === '1') {
+    throw new RuntimeException('GLPI Composer autoload is required for the TemplateRenderer integration test.');
+}
+
+$assert = static function (bool $condition, string $message): void {
+    if (!$condition) {
+        throw new RuntimeException($message);
+    }
+};
+
+$assert(!is_file($root . '/src/Twig.php'), 'The plugin-specific standalone Twig environment must be removed.');
+
+$dashboardService = file_get_contents($root . '/src/Service/DashboardService.php');
+$configService = file_get_contents($root . '/src/Service/ConfigService.php');
+$dashboardTemplate = file_get_contents($root . '/templates/dashboard.html.twig');
+$configTemplate = file_get_contents($root . '/templates/config_form.html.twig');
+$assert(is_string($dashboardService) && str_contains($dashboardService, "TemplateRenderer::getInstance()->render('@gdmsintegration/dashboard.html.twig'"), 'Dashboard must render through GLPI TemplateRenderer namespace.');
+$assert(is_string($configService) && str_contains($configService, "TemplateRenderer::getInstance()->render('@gdmsintegration/config_form.html.twig'"), 'Configuration must render through GLPI TemplateRenderer namespace.');
+$assert(!str_contains((string) $dashboardService, 'Twig::get()'), 'Dashboard must not use the standalone Twig environment.');
+$assert(!str_contains((string) $configService, 'Twig::get()'), 'Configuration must not use the standalone Twig environment.');
+
+$unconfiguredStart = strpos((string) $dashboardService, 'if (!$is_configured) {');
+$configuredLoadStart = strpos((string) $dashboardService, '// Load GDMS-managed devices', $unconfiguredStart === false ? 0 : $unconfiguredStart);
+$unconfiguredBranch = $unconfiguredStart !== false && $configuredLoadStart !== false
+    ? substr((string) $dashboardService, $unconfiguredStart, $configuredLoadStart - $unconfiguredStart)
+    : '';
+$assert($unconfiguredBranch !== '', 'Dashboard must retain an early return for an unconfigured GDMS account.');
+$assert(!str_contains($unconfiguredBranch, '$js_json'), 'Unconfigured dashboard rendering must not prepare unused JavaScript JSON.');
+$assert(!str_contains($unconfiguredBranch, '$nodes'), 'Unconfigured dashboard rendering must not access device nodes before they are loaded.');
+$assert(!str_contains($unconfiguredBranch, '$edges'), 'Unconfigured dashboard rendering must not access topology edges before they are loaded.');
+$assert(
+    str_contains($unconfiguredBranch, "'is_configured' => false")
+        && str_contains($unconfiguredBranch, "'config_url'"),
+    'Unconfigured dashboard rendering must preserve the setup-link context.',
+);
+$assert(
+    str_contains((string) $dashboardTemplate, '{% if not is_configured %}')
+        && str_contains((string) $dashboardTemplate, 'href="{{ config_url }}"')
+        && str_contains((string) $dashboardTemplate, 'Set up GDMS'),
+    'The unconfigured dashboard template must continue to display its setup link.',
+);
+$assert(!str_contains((string) $dashboardTemplate, 'sprintf('), 'Dashboard must not call the removed plugin-only sprintf Twig function.');
+$assert(substr_count((string) $dashboardTemplate, '|format(chart_days)') === 2, 'Both dashboard chart labels must use Twig format filter.');
+
+if ($autoloadProvided) {
     $rendererClass = \Glpi\Application\View\TemplateRenderer::class;
     $assert(
         class_exists($rendererClass)
@@ -49,8 +95,8 @@ if ($autoloadProvided) {
         $loader->addPath($root . '/templates', 'gdmsintegration');
     } else {
         // GLPI 12 resolves TemplateRenderer from the application container.
-        // Provide the same core TemplateRenderer class with a real Twig environment
-        // and the plugin namespace, then route getInstance() through that service.
+        // Provide the core TemplateRenderer class with a Twig environment and
+        // plugin namespace, then route getInstance() through that service.
         $loader = new \Twig\Loader\FilesystemLoader($root . '/templates');
         $loader->addPath($root . '/templates', 'gdmsintegration');
         $twig = new \Twig\Environment($loader, [
