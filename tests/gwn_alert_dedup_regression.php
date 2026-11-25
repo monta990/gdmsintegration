@@ -206,7 +206,6 @@ namespace {
             ],
             42,
             [7],
-            [],
         );
     };
     $makeAlert = static function (string $id): array {
