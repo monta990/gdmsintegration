@@ -13,11 +13,11 @@ if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
     exit 1
 fi
 
-# A clean checkout does not contain node_modules or generated third-party license
-# copies. Reproduce the pinned browser asset before assembling the installable ZIP.
+# A clean checkout does not contain node_modules. Reproduce the pinned browser
+# bundle and its source-only integrity manifest before assembling the installable ZIP.
 ASSET_VERSION="$(node -e 'const p=require(process.argv[1]); process.stdout.write(p.dependencies?.["vis-network"] || "")' "$ROOT/package.json" 2>/dev/null || true)"
 ASSET_READY=false
-if [[ -n "$ASSET_VERSION" && -f "$ROOT/public/js/vis-network.min.js"     && -f "$ROOT/public/js/vis-network.LICENSE-APACHE-2.0"     && -f "$ROOT/public/js/vis-network.LICENSE-MIT"     && -f "$ROOT/public/js/vis-network.manifest.json" ]]; then
+if [[ -n "$ASSET_VERSION" && -f "$ROOT/public/js/vis-network.min.js" && -f "$ROOT/public/js/vis-network.manifest.json" ]]; then
     ASSET_READY="$(node - "$ROOT/public/js/vis-network.manifest.json" "$ROOT/public/js/vis-network.min.js" "$ASSET_VERSION" <<'NODE'
 const fs = require('node:fs');
 const crypto = require('node:crypto');
@@ -87,6 +87,13 @@ cp -a \
     "$ROOT/templates" \
     "$PACKAGE_ROOT/"
 
+# The manifest is source-only build metadata, not a browser runtime asset.
+# Complete third-party license texts are consolidated in the root notice file.
+rm -f \
+    "$PACKAGE_ROOT/public/js/vis-network.manifest.json" \
+    "$PACKAGE_ROOT/public/js/vis-network.LICENSE-APACHE-2.0" \
+    "$PACKAGE_ROOT/public/js/vis-network.LICENSE-MIT"
+
 ARCHIVE="$DIST_DIR/gdmsintegration-$VERSION.zip"
 rm -f "$ARCHIVE"
 (
@@ -111,7 +118,18 @@ if unzip -Z1 "$ARCHIVE" | grep -Eq '\.(log|cache)$|(^|/)\.DS_Store$|(^|/)Thumbs\
     exit 1
 fi
 
+# The installable public/js directory contains only the browser runtime bundle.
+mapfile -t public_js_files < <(unzip -Z1 "$ARCHIVE" | grep -E '^gdmsintegration/public/js/[^/]+
+
+echo "Created and validated $ARCHIVE"
+ | sort)
+if [[ ${#public_js_files[@]} -ne 1 || "${public_js_files[0]:-}" != "gdmsintegration/public/js/vis-network.min.js" ]]; then
+    printf 'Unexpected files in installable public/js directory:\n%s\n' "${public_js_files[*]:-<none>}" >&2
+    exit 1
+fi
+
 for entry in \
+    gdmsintegration/THIRD-PARTY-NOTICES.md \
     gdmsintegration/setup.php \
     gdmsintegration/hook.php \
     gdmsintegration/plugin.xml \
@@ -119,10 +137,7 @@ for entry in \
     gdmsintegration/src/Utils.php \
     gdmsintegration/templates/dashboard.html.twig \
     gdmsintegration/locales/es_MX.mo \
-    gdmsintegration/public/js/vis-network.min.js \
-    gdmsintegration/public/js/vis-network.manifest.json \
-    gdmsintegration/public/js/vis-network.LICENSE-APACHE-2.0 \
-    gdmsintegration/public/js/vis-network.LICENSE-MIT
+    gdmsintegration/public/js/vis-network.min.js
 do
     if ! unzip -Z1 "$ARCHIVE" | grep -qx "$entry"; then
         echo "Required installation file missing from archive: $entry" >&2

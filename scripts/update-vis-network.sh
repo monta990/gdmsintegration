@@ -24,8 +24,8 @@ fi
 
 mkdir -p "$ROOT/public/js"
 cp "$BUNDLE" "$ROOT/public/js/vis-network.min.js"
-cp "$NODE_MODULES/LICENSE-APACHE-2.0" "$ROOT/public/js/vis-network.LICENSE-APACHE-2.0"
-cp "$NODE_MODULES/LICENSE-MIT" "$ROOT/public/js/vis-network.LICENSE-MIT"
+# Remove legacy generated copies; full license texts live in THIRD-PARTY-NOTICES.md.
+rm -f "$ROOT/public/js/vis-network.LICENSE-APACHE-2.0" "$ROOT/public/js/vis-network.LICENSE-MIT"
 SHA256="$(sha256sum "$ROOT/public/js/vis-network.min.js" | awk '{print $1}')"
 node - "$ROOT/public/js/vis-network.manifest.json" "$EXPECTED_VERSION" "$SHA256" <<'NODE'
 const fs = require('node:fs');
@@ -42,4 +42,4 @@ const manifest = {
 fs.writeFileSync(path, JSON.stringify(manifest, null, 2) + '\n');
 NODE
 
-echo "Updated vis-network $EXPECTED_VERSION (SHA-256: $SHA256)."
+echo "Updated vis-network $EXPECTED_VERSION (SHA-256: $SHA256); licenses are in THIRD-PARTY-NOTICES.md."

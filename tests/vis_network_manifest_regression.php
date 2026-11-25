@@ -22,11 +22,27 @@ if (!preg_match('/^[a-f0-9]{64}$/', $sha)) {
 if (!is_file($bundlePath) || !hash_equals($sha, hash_file('sha256', $bundlePath) ?: '')) {
     throw new RuntimeException('vis-network bundle does not match its manifest SHA-256 digest.');
 }
-if (!is_file($root . '/public/js/vis-network.LICENSE-APACHE-2.0') || !is_file($root . '/public/js/vis-network.LICENSE-MIT')) {
-    throw new RuntimeException('Upstream vis-network license texts are missing.');
+$noticesPath = $root . '/THIRD-PARTY-NOTICES.md';
+$notices = is_file($noticesPath) ? (string) file_get_contents($noticesPath) : '';
+foreach ([
+    'Apache License',
+    'Version 2.0, January 2004',
+    'END OF TERMS AND CONDITIONS',
+    'The MIT License (MIT)',
+    'Copyright (c) 2014-2017 Almende B.V.',
+    'all copies or substantial portions of the Software',
+] as $requiredNoticeText) {
+    if (!str_contains($notices, $requiredNoticeText)) {
+        throw new RuntimeException('Third-party notices are missing license text: ' . $requiredNoticeText);
+    }
 }
-if (!is_file($root . '/THIRD-PARTY-NOTICES.md')) {
-    throw new RuntimeException('Third-party notice file is missing.');
+foreach ([
+    $root . '/public/js/vis-network.LICENSE-APACHE-2.0',
+    $root . '/public/js/vis-network.LICENSE-MIT',
+] as $legacyLicenseCopy) {
+    if (is_file($legacyLicenseCopy)) {
+        throw new RuntimeException('Legacy generated license copy must not remain under public/js.');
+    }
 }
 
-fwrite(STDOUT, "PASS: vis-network 10.1.5 manifest, checksum and licenses verified.\n");
+fwrite(STDOUT, "PASS: vis-network 10.1.5 manifest, checksum and consolidated license notices verified.\\n");
