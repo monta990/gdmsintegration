@@ -22,8 +22,17 @@ if (!preg_match('/^[a-f0-9]{64}$/', $sha)) {
 if (!is_file($bundlePath) || !hash_equals($sha, hash_file('sha256', $bundlePath) ?: '')) {
     throw new RuntimeException('vis-network bundle does not match its manifest SHA-256 digest.');
 }
+
+$dashboardService = (string) file_get_contents($root . '/src/Service/DashboardService.php');
+if (
+    preg_match("/private const VIS_NETWORK_ASSET_VERSION = '([^']+)'/", $dashboardService, $assetVersionMatch) !== 1
+    || ($assetVersionMatch[1] ?? '') !== $manifest['version']
+) {
+    throw new RuntimeException('DashboardService asset cache version must match the pinned vis-network manifest.');
+}
 $noticesPath = $root . '/THIRD-PARTY-NOTICES.md';
 $notices = is_file($noticesPath) ? (string) file_get_contents($noticesPath) : '';
+$normalizedNotices = preg_replace('/\\s+/', ' ', $notices) ?? $notices;
 foreach ([
     'Apache License',
     'Version 2.0, January 2004',
@@ -32,7 +41,7 @@ foreach ([
     'Copyright (c) 2014-2017 Almende B.V.',
     'all copies or substantial portions of the Software',
 ] as $requiredNoticeText) {
-    if (!str_contains($notices, $requiredNoticeText)) {
+    if (!str_contains($normalizedNotices, $requiredNoticeText)) {
         throw new RuntimeException('Third-party notices are missing license text: ' . $requiredNoticeText);
     }
 }
