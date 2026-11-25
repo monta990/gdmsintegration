@@ -1871,6 +1871,8 @@ class Sync extends \CommonGLPI
      */
     private static function syncGwnAlertTickets(array $config, int $entities_id, array $networkIds): void
     {
+        global $DB;
+
         if ((int) ($config['gwn_alert_tickets_enabled'] ?? 1) !== 1 || !class_exists('Ticket')) {
             return;
         }
@@ -1889,20 +1891,10 @@ class Sync extends \CommonGLPI
         $alertsByNetwork = API::gwnGetAlertsBatch($config, $networkIds, 50);
         $minimumTimestampMs = (time() - (self::GWN_ALERT_TICKET_MAX_AGE_DAYS * 86400)) * 1000;
 
-        // Fetch the entity's alert-ticket history once per synchronization.
-        // Retain only names because exact marker comparison needs no other fields.
-        $historyTicketObject = new \Ticket();
-        $existingGwnAlertTickets = $historyTicketObject->find([
-            'entities_id' => $entities_id,
-            'name' => ['LIKE', '%[GWN-ALERT:%]%'],
-        ]);
-        $existingGwnAlertNames = [];
-        foreach ($existingGwnAlertTickets as $existingTicket) {
-            if (is_array($existingTicket)) {
-                $existingGwnAlertNames[] = (string) ($existingTicket['name'] ?? '');
-            }
-        }
-        unset($existingGwnAlertTickets, $historyTicketObject);
+        // Load only ticket names, and only if this batch contains an actionable alert.
+        // A null value distinguishes "not queried yet" from a completed empty result.
+        /** @var list<string>|null $existingGwnAlertNames */
+        $existingGwnAlertNames = null;
 
         foreach ($networkIds as $networkId) {
             $alerts = $alertsByNetwork[(int) $networkId] ?? [];
@@ -1938,8 +1930,30 @@ class Sync extends \CommonGLPI
                 }
 
                 $marker = '[GWN-ALERT:' . $alertId . ']';
-                // Search all statuses, not just open tickets. Reuse the once-loaded
-                // candidates across this provider batch and compare markers literally.
+
+                if ($existingGwnAlertNames === null) {
+                    // Select the single field needed for exact marker matching. The
+                    // constant LIKE pattern narrows candidates without interpreting
+                    // underscores or percent signs in provider alert IDs as wildcards.
+                    $historyTicketRows = $DB->request([
+                        'SELECT' => 'name',
+                        'FROM' => \Ticket::getTable(),
+                        'WHERE' => [
+                            'entities_id' => $entities_id,
+                            'name' => ['LIKE', '%[GWN-ALERT:%]%'],
+                        ],
+                    ]);
+                    $existingGwnAlertNames = [];
+                    foreach ($historyTicketRows as $existingTicket) {
+                        if (is_array($existingTicket) && isset($existingTicket['name'])) {
+                            $existingGwnAlertNames[] = (string) $existingTicket['name'];
+                        }
+                    }
+                    unset($historyTicketRows);
+                }
+
+                // Search all statuses and compare the constant-pattern candidates
+                // against the complete marker in PHP, not with SQL LIKE semantics.
                 if (self::hasExactGwnAlertMarker($existingGwnAlertNames, $marker)) {
                     continue;
                 }

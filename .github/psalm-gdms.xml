@@ -4,6 +4,7 @@
     runTaintAnalysis="true"
     resolveFromConfigFile="false"
     findUnusedCode="false"
+    findUnusedBaselineEntry="false"
 >
     <projectFiles>
         <directory name="plugins/gdmsintegration/src" />
