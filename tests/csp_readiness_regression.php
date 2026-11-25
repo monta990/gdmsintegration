@@ -71,9 +71,8 @@ if ($autoloadProvided) {
         // the normal application bootstrap provides before calling getInstance().
         $glpiRoot = dirname(dirname($argv[1]));
         $cacheRoot = sys_get_temp_dir() . '/gdms-glpi-template-renderer-test';
-        $cacheDirectory = $cacheRoot . '/gdms-template-test-production/templates';
         $pictureDirectory = $cacheRoot . '/_pictures';
-        foreach ([$cacheDirectory, $pictureDirectory] as $directory) {
+        foreach ([$cacheRoot, $pictureDirectory] as $directory) {
             if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
                 throw new RuntimeException('Could not create a temporary GLPI renderer directory: ' . $directory);
             }
@@ -83,11 +82,43 @@ if ($autoloadProvided) {
             'GLPI_ROOT' => $glpiRoot,
             'GLPI_STRICT_ENV' => false,
             'GLPI_CACHE_DIR' => $cacheRoot,
-            'GLPI_FILES_VERSION' => 'gdms-template-test',
             'GLPI_PICTURE_DIR' => $pictureDirectory,
         ] as $constant => $value) {
             if (!defined($constant)) {
                 define($constant, $value);
+            }
+        }
+
+        // GLPI 11 expects the cache directory derived from its already-defined
+        // GLPI_FILES_VERSION constant, which may differ from the fixture label.
+        $cacheDirectory = \Glpi\Kernel\Kernel::getCacheRootDir() . '/templates';
+        if (!is_dir($cacheDirectory) && !mkdir($cacheDirectory, 0777, true) && !is_dir($cacheDirectory)) {
+            throw new RuntimeException('Could not create GLPI 11 Twig cache directory: ' . $cacheDirectory);
+        }
+        if (!is_writable($cacheDirectory)) {
+            throw new RuntimeException('GLPI 11 Twig cache directory is not writable: ' . $cacheDirectory);
+        }
+
+        // Composer's static-analysis install omits GLPI's illustration frontend
+        // assets. The TemplateRenderer constructor only requires readable files;
+        // the plugin templates under test do not render illustration components.
+        $illustrationDirectory = $glpiRoot . '/public/lib/glpi-project/illustrations';
+        $illustrationAssets = [
+            $illustrationDirectory . '/icons.json' => "{}\n",
+            $illustrationDirectory . '/glpi-illustrations-icons.svg' => "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>\n",
+            $illustrationDirectory . '/glpi-illustrations-scenes-gradient.svg' => "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>\n",
+        ];
+        $createdIllustrationFixtures = [];
+        foreach ($illustrationAssets as $assetPath => $assetContent) {
+            $assetDirectory = dirname($assetPath);
+            if (!is_dir($assetDirectory) && !mkdir($assetDirectory, 0777, true) && !is_dir($assetDirectory)) {
+                throw new RuntimeException('Could not create GLPI illustration fixture directory: ' . $assetDirectory);
+            }
+            if (!is_file($assetPath)) {
+                if (file_put_contents($assetPath, $assetContent) === false) {
+                    throw new RuntimeException('Could not create GLPI illustration fixture: ' . $assetPath);
+                }
+                $createdIllustrationFixtures[] = $assetPath;
             }
         }
 
@@ -218,6 +249,12 @@ if ($autoloadProvided) {
             && str_contains($renderedConfig, 'name="_glpi_csrf_token"'),
         'The GLPI TemplateRenderer must compile and render the configuration form and its CSRF fields.',
     );
+
+    foreach ($createdIllustrationFixtures ?? [] as $fixturePath) {
+        if (is_file($fixturePath) && !unlink($fixturePath)) {
+            throw new RuntimeException('Could not remove temporary GLPI illustration fixture: ' . $fixturePath);
+        }
+    }
 }
 
 $dashboardScripts = preg_match_all('/<script\b/i', (string) $dashboardTemplate);
