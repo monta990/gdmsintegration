@@ -3,9 +3,13 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-if (isset($argv[1]) && is_file($argv[1])) {
+$autoloadProvided = isset($argv[1]) && is_file($argv[1]);
+if ($autoloadProvided) {
     require_once $argv[1];
+} elseif (getenv('GDMS_REQUIRE_GLPI_RENDERER') === '1') {
+    throw new RuntimeException('GLPI Composer autoload is required for the TemplateRenderer integration test.');
 }
+
 $assert = static function (bool $condition, string $message): void {
     if (!$condition) {
         throw new RuntimeException($message);
@@ -46,17 +50,55 @@ $assert(
 $assert(!str_contains((string) $dashboardTemplate, 'sprintf('), 'Dashboard must not call the removed plugin-only sprintf Twig function.');
 $assert(substr_count((string) $dashboardTemplate, '|format(chart_days)') === 2, 'Both dashboard chart labels must use Twig format filter.');
 
-if (class_exists(\Twig\Environment::class)) {
-    $loader = new \Twig\Loader\ArrayLoader([
-        'dashboard' => (string) $dashboardTemplate,
+if ($autoloadProvided) {
+    $assert(
+        class_exists(\Glpi\Application\View\TemplateRenderer::class)
+            && class_exists(\Twig\Environment::class)
+            && class_exists(\Twig\Loader\FilesystemLoader::class),
+        'GLPI autoload must expose the core TemplateRenderer and Twig runtime classes.',
+    );
+
+    // Exercise the real GLPI TemplateRenderer class and its FilesystemLoader
+    // namespace. The container bridge avoids booting GLPI's database-backed app kernel.
+    $loader = new \Twig\Loader\FilesystemLoader($root . '/templates');
+    $loader->addPath($root . '/templates', 'gdmsintegration');
+    $twig = new \Twig\Environment($loader, [
+        'autoescape' => 'html',
+        'strict_variables' => false,
+        'cache' => false,
     ]);
-    $twig = new \Twig\Environment($loader, ['strict_variables' => false]);
     $twig->addFunction(new \Twig\TwigFunction(
         '__',
         static fn(string $message, ?string $domain = null): string => $message,
     ));
 
-    $renderedDashboard = $twig->render('dashboard', [
+    $_SESSION['glpi_use_mode'] = 'normal';
+    $renderer = new \Glpi\Application\View\TemplateRenderer($twig);
+    $container = new class($renderer) {
+        public function __construct(private object $renderer) {}
+
+        public function get(string $serviceId): object
+        {
+            if ($serviceId !== \Glpi\Application\View\TemplateRenderer::class) {
+                throw new RuntimeException('Unexpected GLPI service requested by TemplateRenderer.');
+            }
+
+            return $this->renderer;
+        }
+    };
+    $GLOBALS['kernel'] = new class($container) {
+        public function __construct(private object $container) {}
+
+        public function getContainer(): object
+        {
+            return $this->container;
+        }
+    };
+
+    $coreRenderer = \Glpi\Application\View\TemplateRenderer::getInstance();
+    $assert($coreRenderer === $renderer, 'TemplateRenderer::getInstance() must resolve the configured core renderer service.');
+
+    $renderedDashboard = $coreRenderer->render('@gdmsintegration/dashboard.html.twig', [
         'is_configured' => true,
         'chart_days' => 7,
         'rows' => [],
@@ -81,22 +123,58 @@ if (class_exists(\Twig\Environment::class)) {
         'js_json' => [],
     ]);
     $assert(
-        str_contains($renderedDashboard, 'Based on availability and synchronization — last 7 days.'),
-        'Dashboard must compile and render its availability label through Twig.',
-    );
-    $assert(
-        str_contains($renderedDashboard, 'Online % — last 7 days'),
-        'Dashboard must compile and render its online chart label through Twig.',
+        str_contains($renderedDashboard, 'Based on availability and synchronization — last 7 days.')
+            && str_contains($renderedDashboard, 'Online % — last 7 days'),
+        'GLPI TemplateRenderer must compile and render both formatted dashboard labels.',
     );
 
-    $renderedUnconfiguredDashboard = $twig->render('dashboard', [
+    $renderedUnconfiguredDashboard = $coreRenderer->render('@gdmsintegration/dashboard.html.twig', [
         'is_configured' => false,
         'config_url' => '/plugins/gdmsintegration/config',
     ]);
     $assert(
         str_contains($renderedUnconfiguredDashboard, 'href="/plugins/gdmsintegration/config"')
             && str_contains($renderedUnconfiguredDashboard, 'Set up GDMS'),
-        'Unconfigured dashboard must render the setup link without requiring JavaScript dashboard data.',
+        'GLPI TemplateRenderer must render the setup link without device or JavaScript dashboard data.',
+    );
+
+    $renderedConfig = $coreRenderer->render('@gdmsintegration/config_form.html.twig', [
+        'cur' => [],
+        'entities_id' => 42,
+        'entity_dropdown' => '<select name="entities_id"><option value="42">Test entity</option></select>',
+        'has_gdms' => false,
+        'has_gwn' => false,
+        'refresh_interval' => 300,
+        'chart_days' => 60,
+        'show_topology' => 1,
+        'ip_version' => 'ipv4',
+        'ticket_requester_id' => 0,
+        'ticket_requesttype_id' => 0,
+        'ticket_requesttype_options' => [],
+        'ticket_category_network_id' => 0,
+        'ticket_category_telephony_id' => 0,
+        'ticket_category_options' => [],
+        'wan_debounce_seconds' => 120,
+        'wan_tickets_enabled' => 1,
+        'gwn_alert_tickets_enabled' => 1,
+        'max_xlsx_size_mb' => 5,
+        'history_retention_days' => 30,
+        'tickets_phone' => 1,
+        'tickets_router' => 1,
+        'tickets_switch' => 1,
+        'tickets_ap' => 1,
+        'tickets_pbx' => 1,
+        'users_options' => [],
+        'dashboard_url' => '/plugins/gdmsintegration/dashboard',
+        'plugin_update' => ['update_available' => false, 'latest_version' => null, 'current_version' => '1.6.9'],
+        'csrf_main' => 'csrf-main',
+        'csrf_history' => 'csrf-history',
+        'csrf_export' => 'csrf-export',
+    ]);
+    $assert(
+        str_contains($renderedConfig, '<select name="entities_id">')
+            && str_contains($renderedConfig, 'name="_glpi_csrf_token"'),
+        'GLPI TemplateRenderer must compile and render the configuration template and form tokens.',
     );
 }
 
@@ -117,4 +195,4 @@ $initEnd = strpos((string) $setup, "\n}", $initStart === false ? 0 : $initStart)
 $initBody = $initStart !== false && $initEnd !== false ? substr((string) $setup, $initStart, $initEnd - $initStart) : '';
 $assert(!str_contains($initBody, 'plugin_gdmsintegration_ensure_cron_task'), 'Plugin initialization must not query/repair CronTask on each request.');
 
-fwrite(STDOUT, "PASS: CSP/template renderer regression checks.\n");
+fwrite(STDOUT, "PASS: GLPI TemplateRenderer/Twig integration regression checks.\n");

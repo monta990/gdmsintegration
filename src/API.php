@@ -2295,27 +2295,22 @@ class API
         return $result;
     }
 
-    /**
-     * Retrieve the official Grandstream firmware catalog once per request.
-     * The returned model keys are normalized (uppercase alphanumeric only).
-     * Missing entries and failed HTTP retrieval are represented separately.
-     *
-     * @return array{ok:bool,models:array<string,array{official:?string,beta:?string,modelLabel:string}>,error:?string}
-     */
     private const FIRMWARE_CATALOG_CACHE_KEY = 'gdmsintegration.grandstream_firmware_catalog.v1';
     private const FIRMWARE_CATALOG_CACHE_TTL = 600;
 
     /**
-     * Retrieve the official firmware catalogue through GLPI's shared cache.
-     * The TTL prevents dashboard, cron and firmware actions from scraping the
-     * vendor site repeatedly. Failed/partial responses are never cached.
+     * Retrieve the official Grandstream firmware catalogue through GLPI's shared cache.
      *
-     * @return array{ok:bool,models:array<string,array{official:?string,beta:?string,modelLabel:string}>,error:?string}
+     * Failed or incomplete upstream responses are returned to the caller but are
+     * never persisted in the shared cache.
+     *
+     * @return array{ok: bool, models: array<string, array{official: ?string, beta: ?string, modelLabel: string}>, error: ?string}
      */
     public static function scrapeFirmwareCatalog(): array
     {
+        /** @var array{ok: bool, models: array<string, array{official: ?string, beta: ?string, modelLabel: string}>, error: ?string}|null $requestResult */
         static $requestResult = null;
-        if (is_array($requestResult)) {
+        if ($requestResult !== null) {
             return $requestResult;
         }
 
@@ -2325,7 +2320,11 @@ class API
             static function (): array {
                 $html = self::curlGet('https://www.grandstream.com/support/firmware');
                 if ($html === false) {
-                    return ['ok' => false, 'models' => [], 'error' => __('Grandstream firmware catalog could not be retrieved', 'gdmsintegration')];
+                    return [
+                        'ok' => false,
+                        'models' => [],
+                        'error' => __('Grandstream firmware catalog could not be retrieved', 'gdmsintegration'),
+                    ];
                 }
 
                 return self::parseFirmwareCatalogHtml($html);
@@ -2337,7 +2336,10 @@ class API
         return $requestResult;
     }
 
-    /** @param callable():array $fetcher */
+    /**
+     * @param callable(): array{ok: bool, models: array<string, array{official: ?string, beta: ?string, modelLabel: string}>, error: ?string} $fetcher
+     * @return array{ok: bool, models: array<string, array{official: ?string, beta: ?string, modelLabel: string}>, error: ?string}
+     */
     private static function getFirmwareCatalogUsingCache(callable $fetcher, ?object $cache, int $ttl): array
     {
         if ($cache !== null && method_exists($cache, 'get')) {
@@ -2360,18 +2362,51 @@ class API
             }
         }
 
-        return is_array($catalog) ? $catalog : ['ok' => false, 'models' => [], 'error' => __('Grandstream firmware catalog returned an invalid response', 'gdmsintegration')];
+        return $catalog;
     }
 
-    private static function isValidFirmwareCatalogResult($catalog): bool
+    /**
+     * Validate the complete cache shape before accepting it as a firmware catalogue.
+     *
+     * @phpstan-assert-if-true array{ok: true, models: array<string, array{official: ?string, beta: ?string, modelLabel: string}>, error: ?string} $catalog
+     * @psalm-assert-if-true array{ok: true, models: array<string, array{official: ?string, beta: ?string, modelLabel: string}>, error: ?string} $catalog
+     */
+    private static function isValidFirmwareCatalogResult(mixed $catalog): bool
     {
-        return is_array($catalog)
-            && ($catalog['ok'] ?? false) === true
-            && isset($catalog['models'])
-            && is_array($catalog['models']);
+        if (
+            !is_array($catalog)
+            || ($catalog['ok'] ?? false) !== true
+            || !isset($catalog['models'])
+            || !is_array($catalog['models'])
+            || !array_key_exists('error', $catalog)
+            || ($catalog['error'] !== null && !is_string($catalog['error']))
+        ) {
+            return false;
+        }
+
+        foreach ($catalog['models'] as $modelKey => $model) {
+            if (
+                !is_string($modelKey)
+                || !is_array($model)
+                || !array_key_exists('official', $model)
+                || ($model['official'] !== null && !is_string($model['official']))
+                || !array_key_exists('beta', $model)
+                || ($model['beta'] !== null && !is_string($model['beta']))
+                || !isset($model['modelLabel'])
+                || !is_string($model['modelLabel'])
+            ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
-    /** Parse a saved catalog response; separated for deterministic regression tests. */
+    /**
+     * Parse a saved catalog response; separated for deterministic regression tests.
+     *
+     * @return array{ok: bool, models: array<string, array{official: ?string, beta: ?string, modelLabel: string}>, error: ?string}
+     */
     public static function parseFirmwareCatalogHtml(string $html): array
     {
         $models = [];

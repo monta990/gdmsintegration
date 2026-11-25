@@ -256,7 +256,7 @@ class Sync extends \CommonGLPI
                         // Automatic tickets are controlled separately from offline/WAN incident tickets.
                         if (!empty($net_ids) && (int) ($config['gwn_alert_tickets_enabled'] ?? 1) === 1) {
                             $alertsStarted = microtime(true);
-                            self::syncGwnAlertTickets($config, $entities_id, array_map('intval', $net_ids), $gwnDevices);
+                            self::syncGwnAlertTickets($config, $entities_id, array_map('intval', $net_ids));
                             Utils::log(sprintf(
                                 'GWN alert stage — entity=%d networks=%d duration_ms=%d',
                                 $entities_id,
@@ -1861,11 +1861,15 @@ class Sync extends \CommonGLPI
         return false;
     }
 
-    /** Create deduplicated tickets for actionable GWN cloud alerts. Offline/WAN
+    /**
+     * Create deduplicated tickets for actionable GWN cloud alerts. Offline/WAN
      * transitions remain owned by the existing state/WAN ticket engine. Unknown
      * source severity codes are surfaced at normal priority instead of discarded.
+     *
+     * @param array<string, mixed> $config
+     * @param list<int> $networkIds
      */
-    private static function syncGwnAlertTickets(array $config, int $entities_id, array $networkIds, array $devices): void
+    private static function syncGwnAlertTickets(array $config, int $entities_id, array $networkIds): void
     {
         if ((int) ($config['gwn_alert_tickets_enabled'] ?? 1) !== 1 || !class_exists('Ticket')) {
             return;
