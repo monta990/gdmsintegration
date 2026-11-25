@@ -22,6 +22,27 @@ $assert(is_string($dashboardService) && str_contains($dashboardService, "Templat
 $assert(is_string($configService) && str_contains($configService, "TemplateRenderer::getInstance()->render('@gdmsintegration/config_form.html.twig'"), 'Configuration must render through GLPI TemplateRenderer namespace.');
 $assert(!str_contains((string) $dashboardService, 'Twig::get()'), 'Dashboard must not use the standalone Twig environment.');
 $assert(!str_contains((string) $configService, 'Twig::get()'), 'Configuration must not use the standalone Twig environment.');
+
+$unconfiguredStart = strpos((string) $dashboardService, 'if (!$is_configured) {');
+$configuredLoadStart = strpos((string) $dashboardService, '// Load GDMS-managed devices', $unconfiguredStart === false ? 0 : $unconfiguredStart);
+$unconfiguredBranch = $unconfiguredStart !== false && $configuredLoadStart !== false
+    ? substr((string) $dashboardService, $unconfiguredStart, $configuredLoadStart - $unconfiguredStart)
+    : '';
+$assert($unconfiguredBranch !== '', 'Dashboard must retain an early return for an unconfigured GDMS account.');
+$assert(!str_contains($unconfiguredBranch, '$js_json'), 'Unconfigured dashboard rendering must not prepare unused JavaScript JSON.');
+$assert(!str_contains($unconfiguredBranch, '$nodes'), 'Unconfigured dashboard rendering must not access device nodes before they are loaded.');
+$assert(!str_contains($unconfiguredBranch, '$edges'), 'Unconfigured dashboard rendering must not access topology edges before they are loaded.');
+$assert(
+    str_contains($unconfiguredBranch, "'is_configured' => false")
+        && str_contains($unconfiguredBranch, "'config_url'"),
+    'Unconfigured dashboard rendering must preserve the setup-link context.',
+);
+$assert(
+    str_contains((string) $dashboardTemplate, '{% if not is_configured %}')
+        && str_contains((string) $dashboardTemplate, 'href="{{ config_url }}"')
+        && str_contains((string) $dashboardTemplate, 'Set up GDMS'),
+    'The unconfigured dashboard template must continue to display its setup link.',
+);
 $assert(!str_contains((string) $dashboardTemplate, 'sprintf('), 'Dashboard must not call the removed plugin-only sprintf Twig function.');
 $assert(substr_count((string) $dashboardTemplate, '|format(chart_days)') === 2, 'Both dashboard chart labels must use Twig format filter.');
 
@@ -66,6 +87,16 @@ if (class_exists(\Twig\Environment::class)) {
     $assert(
         str_contains($renderedDashboard, 'Online % — last 7 days'),
         'Dashboard must compile and render its online chart label through Twig.',
+    );
+
+    $renderedUnconfiguredDashboard = $twig->render('dashboard', [
+        'is_configured' => false,
+        'config_url' => '/plugins/gdmsintegration/config',
+    ]);
+    $assert(
+        str_contains($renderedUnconfiguredDashboard, 'href="/plugins/gdmsintegration/config"')
+            && str_contains($renderedUnconfiguredDashboard, 'Set up GDMS'),
+        'Unconfigured dashboard must render the setup link without requiring JavaScript dashboard data.',
     );
 }
 

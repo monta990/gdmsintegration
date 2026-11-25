@@ -85,16 +85,6 @@ final class DashboardService
         $_plugin_web = ($CFG_GLPI['root_doc'] ?? '') . '/plugins/gdmsintegration';
 
         if (!$is_configured) {
-            $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES;
-            $js_json = [
-                'strings'        => json_encode($js_strings, $json_flags),
-                'nodes'          => json_encode(array_values($nodes), $json_flags),
-                'edges'          => json_encode(array_values($edges), $json_flags),
-                'chart_labels'   => json_encode($chart_labels, $json_flags),
-                'chart_datasets' => json_encode($chart_datasets, $json_flags),
-                'urls'           => array_map(static fn(string $url): string => json_encode($url, $json_flags), $urls),
-            ];
-
             echo TemplateRenderer::getInstance()->render('@gdmsintegration/dashboard.html.twig', [
                 'is_configured' => false,
                 'config_url'    => $_plugin_web . '/config',
