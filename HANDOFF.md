@@ -90,7 +90,7 @@ The CLI workflow builds the installable ZIP with `scripts/package.sh`, validates
 - Translation catalogs: all 4 `.po` files (es_MX, fr_FR, de_DE and pt_BR) parsed, compiled to `.mo`, and checked for the new settings/status messages.
 - Feature wiring: verified the configuration form, per-entity save/load/export/import paths, install migration and GWN ticket-creation guard are all connected.
 - GWN ticket creation: verified the history lookup object is separate and each successful or failed add attempt gets a fresh `Ticket` instance; same-batch deduplication and retry behavior remain covered.
-- WAN gateway links: verified strict IPv4/IPv6 literal validation, WAN-only rendering, escaping, new-tab behavior and opener isolation.
+- WAN gateway links: verified strict IPv4/IPv6 validation with executable Node.js cases for valid and invalid addresses, WAN-only rendering, escaping, new-tab behavior and opener isolation.
 - Installed GWN firmware regression: General `1.0.11.61` remains `up_to_date`, Beta `1.0.11.63` remains `beta_installed`, and catalog-only update candidates remain blocked unless GWN Cloud confirms them.
 - Compact firmware status consistency: beta and ahead-of-stable labels share one message; duplicate selection-row diagnostics are removed, and no selectable version is rendered unless scheduling is verified.
 - Package checks: `setup.php`, `plugin.xml`, `CHANGELOG.md` and the npm lockfile are synchronized for 1.6.9; the final ZIP is checked for required runtime files, a single plugin root and integrity.
@@ -113,7 +113,7 @@ Validation is performed against the exact head commit of PR #66; see the PR's la
 - Business logic: `tests/run.php` — 8/8 tests passed.
 - Firmware channels: `tests/firmware_channel_regression.php` — 23 assertions passed in the CLI matrix.
 - Release metadata/layout validation and installation ZIP build/integrity — passed in the CLI matrix.
-- GLPI 11 and GLPI 12: dashboard Twig compile/render regression, PHP-CS-Fixer baseline, changed-runtime PHP style, PHP lint, Twig lint and dashboard TwigCS — passed. PHPStan and Psalm run in non-blocking legacy-baseline mode; their existing diagnostics are not a clean pass and do not gate this PR.
+- GLPI 11 and GLPI 12: dashboard and configuration templates are rendered through GLPI's actual `TemplateRenderer` class and core Twig runtime. PHPStan level 8 and Psalm taint analysis generate legacy baselines from the exact PR target commit, then run as blocking checks against the PR source; any new diagnostic fails CI. Neither analyzer uses `continue-on-error`.
 - Gitleaks, CodeQL Actions and zizmor — passed.
 
 The installed GLPI UI and a live firmware task still require customer-environment validation; CI uses deterministic tests and GLPI source checkouts.

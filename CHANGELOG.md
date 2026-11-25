@@ -18,7 +18,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Quality
 
-- Added regression coverage for CSP rendering paths, shared catalogue caching, exact GWN alert-marker matching and per-ticket instance isolation, WAN gateway link safety, vis-network bundle integrity, and consolidated third-party license notices.
+- Added regression coverage for GLPI TemplateRenderer execution, shared catalogue caching, exact GWN alert-marker matching and per-ticket instance isolation, executable IPv4/IPv6 gateway URL cases, vis-network bundle integrity, and consolidated third-party license notices.
+- Made GLPI 11/12 PHPStan and Psalm checks blocking by comparing PR findings against a baseline generated from the exact target commit.
 
 ## [1.6.8] — 2026-11-18
 ### Fixed

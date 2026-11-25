@@ -81,11 +81,60 @@ jobs:
             --ignore-platform-req=php+ \
             --no-scripts
 
-      - name: Prepare plugin analysis workspace
+      - name: Prepare target-branch source for static-analysis baseline
+        id: baseline
+        env:
+          PR_BASE_SHA: \${{ github.event.pull_request.base.sha }}
         run: |
+          set -euo pipefail
+          base_sha="$PR_BASE_SHA"
+          if [[ -z "$base_sha" ]]; then
+            git -C "$GITHUB_WORKSPACE" fetch --no-tags origin main
+            base_sha="$(git -C "$GITHUB_WORKSPACE" merge-base "$GITHUB_SHA" origin/main)"
+          else
+            git -C "$GITHUB_WORKSPACE" fetch --no-tags origin "$base_sha"
+          fi
+          if [[ ! "$base_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Could not resolve the target-branch commit for static-analysis comparison." >&2
+            exit 1
+          fi
+
+          base_source="$RUNNER_TEMP/gdmsintegration-base"
+          mkdir -p "$base_source"
+          git -C "$GITHUB_WORKSPACE" archive "$base_sha" setup.php hook.php src templates | tar -x -C "$base_source"
+
+          rm -rf glpi/plugins/gdmsintegration
           mkdir -p glpi/plugins/gdmsintegration
-          cp -a setup.php hook.php src templates glpi/plugins/gdmsintegration/
-          cp .github/phpstan-gdms.neon glpi/phpstan-gdms.neon
+          cp -a "$base_source/setup.php" "$base_source/hook.php" "$base_source/src" "$base_source/templates" glpi/plugins/gdmsintegration/
+          cp "$GITHUB_WORKSPACE/.github/phpstan-gdms.neon" glpi/phpstan-gdms.neon
+          echo "GDMS_ANALYSIS_BASE_SHA=$base_sha" >> "$GITHUB_ENV"
+          echo "Generating legacy analyzer baselines from target commit $base_sha."
+
+      - name: Generate PHPStan and Psalm baselines from target branch
+        working-directory: glpi
+        run: |
+          set -euo pipefail
+          vendor/bin/phpstan analyse \
+            --configuration=phpstan-gdms.neon \
+            --generate-baseline="$RUNNER_TEMP/phpstan-target-baseline.neon" \
+            --no-progress \
+            --memory-limit=1G
+          test -s "$RUNNER_TEMP/phpstan-target-baseline.neon"
+
+          vendor/bin/psalm \
+            --config="$GITHUB_WORKSPACE/.github/psalm-gdms.xml" \
+            --set-baseline="$RUNNER_TEMP/psalm-target-baseline.xml" \
+            --no-cache \
+            --output-format=console
+          test -s "$RUNNER_TEMP/psalm-target-baseline.xml"
+
+      - name: Prepare pull-request source for static analysis
+        run: |
+          set -euo pipefail
+          rm -rf glpi/plugins/gdmsintegration
+          mkdir -p glpi/plugins/gdmsintegration
+          cp -a "$GITHUB_WORKSPACE/setup.php" "$GITHUB_WORKSPACE/hook.php" "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/templates" glpi/plugins/gdmsintegration/
+          cp "$GITHUB_WORKSPACE/.github/phpstan-gdms.neon" glpi/phpstan-gdms.neon
 
       - name: Verify installed GLPI PSR-4 namespace and class-to-file mapping
         run: |
@@ -94,7 +143,9 @@ jobs:
             'GlpiPlugin\Gdmsintegration' \
             "$GITHUB_WORKSPACE/glpi/vendor/autoload.php"
 
-      - name: Compile and render dashboard template with GLPI Twig runtime
+      - name: Compile and render templates through GLPI TemplateRenderer
+        env:
+          GDMS_REQUIRE_GLPI_RENDERER: "1"
         run: php "$GITHUB_WORKSPACE/tests/csp_readiness_regression.php" "$GITHUB_WORKSPACE/glpi/vendor/autoload.php"
 
       - name: PHP-CS-Fixer baseline — GLPI @PER-CS3x0
@@ -170,24 +221,32 @@ jobs:
             --exclude dashboard.html.twig \
             plugins/gdmsintegration/templates
 
-      - name: PHPStan level 8 with GLPI extensions
-        # Existing 1.6.7 findings are tracked as diagnostics; do not block the tooling-only PR.
-        continue-on-error: true
+      - name: PHPStan level 8 — reject findings beyond target-branch baseline
         working-directory: glpi
         run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/phpstan-pr.neon" <<NEON
+          includes:
+              - "$GITHUB_WORKSPACE/glpi/phpstan-gdms.neon"
+              - "$RUNNER_TEMP/phpstan-target-baseline.neon"
+          parameters:
+              tmpDir: "$RUNNER_TEMP/phpstan-pr-cache"
+              reportUnmatchedIgnoredErrors: false
+          NEON
           vendor/bin/phpstan analyse \
-            --configuration=phpstan-gdms.neon \
+            --configuration="$RUNNER_TEMP/phpstan-pr.neon" \
             --no-progress \
             --error-format=github \
             --memory-limit=1G
 
-      - name: Psalm security and taint analysis
-        # Existing 1.6.7 findings are tracked as diagnostics; do not block the tooling-only PR.
-        continue-on-error: true
+      - name: Psalm security and taint analysis — reject findings beyond target-branch baseline
         working-directory: glpi
         run: |
+          set -euo pipefail
           vendor/bin/psalm \
             --config="$GITHUB_WORKSPACE/.github/psalm-gdms.xml" \
+            --use-baseline="$RUNNER_TEMP/psalm-target-baseline.xml" \
+            --no-cache \
             --long-progress \
             --output-format=github
 
