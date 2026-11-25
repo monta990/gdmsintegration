@@ -281,13 +281,13 @@ namespace {
     Ticket::reset([['name' => '[GDMS] previous [GWN-ALERT:siteA1]']], [303]);
     $runBatch([$makeAlert('site_1')]);
     $assertSame(1, count(Ticket::$addAttempts), 'An underscore ID must not match another marker through SQL LIKE semantics.');
-    $assertSame(1, count(RegressionDatabase::$requests), 'Existing-ticket detection must use the shared batch lookup.')
+    $assertSame(1, count(RegressionDatabase::$requests), 'Existing-ticket detection must use the shared batch lookup.');
 
     // An exact existing marker, regardless of ticket status, must suppress creation.
     Ticket::reset([['name' => '[GDMS] previous [GWN-ALERT:site_1]']], [404]);
     $runBatch([$makeAlert('site_1')]);
     $assertSame(0, count(Ticket::$addAttempts), 'An exact existing alert marker must suppress duplicate ticket creation.');
-    $assertSame(1, count(RegressionDatabase::$requests), 'Exact existing-marker detection must reuse the same single history lookup.')
+    $assertSame(1, count(RegressionDatabase::$requests), 'Exact existing-marker detection must reuse the same single history lookup.');
 
     fwrite(STDOUT, sprintf("PASS: %d GWN alert deduplication regression assertions.\n", $assertions));
 }
