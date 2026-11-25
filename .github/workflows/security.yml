@@ -110,31 +110,78 @@ jobs:
           echo "GDMS_ANALYSIS_BASE_SHA=$base_sha" >> "$GITHUB_ENV"
           echo "Generating legacy analyzer baselines from target commit $base_sha."
 
-      - name: Generate PHPStan and Psalm baselines from target branch
+      - name: Capture PHPStan diagnostics from target branch
         working-directory: glpi
         run: |
           set -euo pipefail
+          cat > phpstan-target.neon <<NEON
+          includes:
+              - phpstan-gdms.neon
+          parameters:
+              tmpDir: "$RUNNER_TEMP/phpstan-target-cache"
+          NEON
+          set +e
           vendor/bin/phpstan analyse \
-            --configuration=phpstan-gdms.neon \
-            --generate-baseline=phpstan-target-baseline.neon \
+            --configuration=phpstan-target.neon \
             --no-progress \
-            --memory-limit=1G
-          test -s "phpstan-target-baseline.neon"
+            --error-format=json \
+            --memory-limit=1G \
+            > "$RUNNER_TEMP/phpstan-target.json"
+          target_status=$?
+          set -e
+          if (( target_status > 1 )); then
+            echo "PHPStan target-branch analysis failed internally (exit $target_status)." >&2
+            exit "$target_status"
+          fi
+          php -r '
+            $report = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
+            if (!is_array($report) || !isset($report["files"], $report["errors"])) {
+                fwrite(STDERR, "PHPStan target report has an unexpected JSON structure.\\n");
+                exit(1);
+            }
+          ' "$RUNNER_TEMP/phpstan-target.json"
 
+      - name: Generate Psalm baseline from target branch
+        working-directory: glpi
+        run: |
+          set -euo pipefail
+          set +e
           vendor/bin/psalm \
             --config="$GITHUB_WORKSPACE/.github/psalm-gdms.xml" \
             --set-baseline="$RUNNER_TEMP/psalm-target-baseline.xml" \
             --no-cache \
-            --output-format=console
-          test -s "$RUNNER_TEMP/psalm-target-baseline.xml"
+            --output-format=console \
+            > "$RUNNER_TEMP/psalm-target-baseline.log" 2>&1
+          baseline_status=$?
+          set -e
+          cat "$RUNNER_TEMP/psalm-target-baseline.log"
+          if [[ ! -s "$RUNNER_TEMP/psalm-target-baseline.xml" ]]; then
+            echo "Psalm did not create a usable baseline from target commit $GDMS_ANALYSIS_BASE_SHA (exit $baseline_status)." >&2
+            exit 1
+          fi
+          php -r '
+            $xml = simplexml_load_file($argv[1]);
+            if ($xml === false || !isset($xml->file)) {
+                fwrite(STDERR, "Psalm target baseline is not valid XML or has no file entries.\\n");
+                exit(1);
+            }
+          ' "$RUNNER_TEMP/psalm-target-baseline.xml"
+          echo "Psalm baseline generated from target commit $GDMS_ANALYSIS_BASE_SHA."
 
       - name: Prepare pull-request source for static analysis
+        working-directory: glpi
         run: |
           set -euo pipefail
-          rm -rf glpi/plugins/gdmsintegration
-          mkdir -p glpi/plugins/gdmsintegration
-          cp -a "$GITHUB_WORKSPACE/setup.php" "$GITHUB_WORKSPACE/hook.php" "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/templates" glpi/plugins/gdmsintegration/
-          cp "$GITHUB_WORKSPACE/.github/phpstan-gdms.neon" glpi/phpstan-gdms.neon
+          rm -rf plugins/gdmsintegration
+          mkdir -p plugins/gdmsintegration
+          cp -a "$GITHUB_WORKSPACE/setup.php" "$GITHUB_WORKSPACE/hook.php" "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/templates" plugins/gdmsintegration/
+          cp "$GITHUB_WORKSPACE/.github/phpstan-gdms.neon" phpstan-gdms.neon
+          cat > phpstan-pr.neon <<NEON
+          includes:
+              - phpstan-gdms.neon
+          parameters:
+              tmpDir: "$RUNNER_TEMP/phpstan-pr-cache"
+          NEON
 
       - name: Verify installed GLPI PSR-4 namespace and class-to-file mapping
         run: |
@@ -221,23 +268,36 @@ jobs:
             --exclude dashboard.html.twig \
             plugins/gdmsintegration/templates
 
-      - name: PHPStan level 8 — reject findings beyond target-branch baseline
+      - name: Capture PHPStan diagnostics from pull-request source
         working-directory: glpi
         run: |
           set -euo pipefail
-          cat > phpstan-pr.neon <<NEON
-          includes:
-              - phpstan-gdms.neon
-              - phpstan-target-baseline.neon
-          parameters:
-              tmpDir: "$RUNNER_TEMP/phpstan-pr-cache"
-              reportUnmatchedIgnoredErrors: false
-          NEON
+          set +e
           vendor/bin/phpstan analyse \
             --configuration=phpstan-pr.neon \
             --no-progress \
-            --error-format=github \
-            --memory-limit=1G
+            --error-format=json \
+            --memory-limit=1G \
+            > "$RUNNER_TEMP/phpstan-pr.json"
+          pr_status=$?
+          set -e
+          if (( pr_status > 1 )); then
+            echo "PHPStan pull-request analysis failed internally (exit $pr_status)." >&2
+            exit "$pr_status"
+          fi
+          php -r '
+            $report = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
+            if (!is_array($report) || !isset($report["files"], $report["errors"])) {
+                fwrite(STDERR, "PHPStan pull-request report has an unexpected JSON structure.\\n");
+                exit(1);
+            }
+          ' "$RUNNER_TEMP/phpstan-pr.json"
+
+      - name: Compare PHPStan findings with target-branch diagnostics
+        run: |
+          php "$GITHUB_WORKSPACE/tests/compare-phpstan-reports.php" \
+            "$RUNNER_TEMP/phpstan-target.json" \
+            "$RUNNER_TEMP/phpstan-pr.json"
 
       - name: Psalm security and taint analysis — reject findings beyond target-branch baseline
         working-directory: glpi
