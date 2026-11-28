@@ -116,9 +116,10 @@ namespace {
         $invokePrivate('parseRetryAfter', ["Retry-After: 45\r\nContent-Type: application/json\r\n"]) === 45,
         'Retry-After delta-seconds should be parsed.'
     );
-    $httpDate = gmdate('D, d M Y H:i:s', time() + 30) . ' GMT';
-    $dateDelay = $invokePrivate('parseRetryAfter', ["HTTP/1.1 429 Too Many Requests\r\nRetry-After: {$httpDate}\r\n"]);
-    $expect($dateDelay >= 20 && $dateDelay <= 30, 'Retry-After HTTP-date should be parsed within the expected window.');
+    $referenceTime = time();
+    $httpDate = gmdate('D, d M Y H:i:s', $referenceTime + 30) . ' GMT';
+    $dateDelay = $invokePrivate('parseRetryAfter', ["HTTP/1.1 429 Too Many Requests\\r\\nRetry-After: {$httpDate}\\r\\n", $referenceTime]);
+    $expect($dateDelay === 30, 'Retry-After HTTP-date should use the same fixed reference timestamp.');
     $expect(
         $invokePrivate('parseRetryAfter', ['Content-Type: application/json' . "\r\n"]) === 0,
         'Missing Retry-After should return zero and use the configured fallback.'
@@ -128,12 +129,19 @@ namespace {
     $remaining = \GlpiPlugin\Gdmsintegration\Utils::getProviderCooldownRemaining('gdms');
     $expect($remaining > 0 && $remaining <= 30, 'GDMS cooldown should be persisted and returned.');
 
-    \GlpiPlugin\Gdmsintegration\Utils::setProviderCooldown('gdms', 120);
-    $extended = \GlpiPlugin\Gdmsintegration\Utils::getProviderCooldownRemaining('gdms');
+    $extensionRequestedAt = time();
+    \\GlpiPlugin\\Gdmsintegration\\Utils::setProviderCooldown('gdms', 120);
+    $extended = \\GlpiPlugin\\Gdmsintegration\\Utils::getProviderCooldownRemaining('gdms');
+    $storedExpiry = (int) substr((string) ($DB->rows['gdmsinteg_cooldown_gdms']['lock_token'] ?? ''), strlen('cooldown:'));
     $expect($extended > 30 && $extended <= 120, 'A longer cooldown must extend, not shorten, the current window.');
+    $expect($storedExpiry >= $extensionRequestedAt + 120, 'The stored absolute expiry must cover the full requested extension.');
 
-    \GlpiPlugin\Gdmsintegration\Utils::setProviderCooldown('gwn', 30);
-    $expect(\GlpiPlugin\Gdmsintegration\Utils::getProviderCooldownRemaining('gwn') > 0, 'Provider cooldowns should be isolated by provider.');
+    $gdmsExpiryBeforeGwn = $storedExpiry;
+    $expect(\\GlpiPlugin\\Gdmsintegration\\Utils::getProviderCooldownRemaining('gwn') === 0, 'A GDMS cooldown must not activate the GWN provider.');
+    \\GlpiPlugin\\Gdmsintegration\\Utils::setProviderCooldown('gwn', 30);
+    $expect(\\GlpiPlugin\\Gdmsintegration\\Utils::getProviderCooldownRemaining('gwn') > 0, 'Provider cooldowns should be isolated by provider.');
+    $expect((int) substr((string) ($DB->rows['gdmsinteg_cooldown_gdms']['lock_token'] ?? ''), strlen('cooldown:')) === $gdmsExpiryBeforeGwn, 'Writing a GWN cooldown must not change the GDMS expiry.');
+
 
     $expiredName = 'gdmsinteg_cooldown_expired';
     $DB->rows[$expiredName] = [
@@ -142,7 +150,7 @@ namespace {
         'acquired_at' => gmdate('Y-m-d H:i:s'),
     ];
     $expect(\GlpiPlugin\Gdmsintegration\Utils::getProviderCooldownRemaining('expired') === 0, 'Expired cooldown should return zero.');
-    $expect(!isset($DB->rows[$expiredName]), 'Expired cooldown row should be removed.');
+    $expect(isset($DB->rows[$expiredName]), 'Expired cooldown rows remain for a serialized writer to extend safely.');
 
     $expect(
         strlen((string) ($DB->rows['gdmsinteg_cooldown_gdms']['lock_token'] ?? '')) <= 32,
