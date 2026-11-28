@@ -597,7 +597,7 @@ class API
             return false;
         }
 
-        foreach ([1, 2] as $attempt) {
+        for ($attempt = 1; $attempt !== 3; $attempt++) {
             $timestamp = (int) (microtime(true) * 1000);
             $urlParams = ['access_token' => (string) $config['access_token']];
             $signature = self::gdmsBuildSignature($urlParams, $config, $timestamp, $body);
@@ -652,6 +652,8 @@ class API
             return $data;
         }
 
+        Utils::log("GDMS {$endpoint} failed after token refresh — device_mac={$mac}.");
+        return false;
     }
 
     /**

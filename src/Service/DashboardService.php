@@ -750,7 +750,7 @@ final class DashboardService
                 : $traffic_src;
 
             $rnet = (string) ($r['network_name'] ?? '');
-            $rnetworkId = (int) ($r['network_id'] ?? 0);
+            $rnetworkId = (int) $r['network_id'];
             $rnetworkKey = $rnetworkId > 0
                 ? 'id:' . $rnetworkId
                 : 'name:' . strtolower(trim(html_entity_decode($rnet, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
@@ -1039,8 +1039,8 @@ final class DashboardService
             'ops_summary'      => $ops_summary,
             'chart_datasets'   => $chart_datasets,
             'chart_labels'     => $chart_labels,
-            'nodes'            => array_values($nodes),
-            'edges'            => array_values($edges),
+            'nodes'            => $nodes,
+            'edges'            => $edges,
             'show_topology'    => $show_topology,
             'chart_days'       => $chart_days,
             'has_gwn_config'   => !empty($config['gwn_client_id']),
