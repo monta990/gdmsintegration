@@ -5,13 +5,15 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
+// The dashboard renderers now live in the nonce-aware external JavaScript
+// asset, not in the Twig template. Support both repository and packaged layouts.
 const candidates = [
-    path.join(__dirname, '..', 'templates', 'dashboard.html.twig'),
-    path.join(__dirname, '..', 'gdmsintegration', 'templates', 'dashboard.html.twig'),
+    path.join(__dirname, '..', 'public', 'js', 'dashboard.js'),
+    path.join(__dirname, '..', 'gdmsintegration', 'public', 'js', 'dashboard.js'),
 ];
-const templatePath = candidates.find((candidate) => fs.existsSync(candidate));
-assert.ok(templatePath, 'The dashboard Twig template must exist in the repository or installable package.');
-const source = fs.readFileSync(templatePath, 'utf8');
+const dashboardScript = candidates.find((candidate) => fs.existsSync(candidate));
+assert.ok(dashboardScript, 'The external dashboard JavaScript asset must exist in the repository or installable package.');
+const source = fs.readFileSync(dashboardScript, 'utf8');
 
 const escMatch = source.match(/function esc\(value\)\s*\{[\s\S]*?\n    \}/);
 assert.ok(escMatch, 'The shared HTML escaping helper must exist.');
