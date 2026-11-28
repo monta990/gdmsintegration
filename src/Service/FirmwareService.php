@@ -851,7 +851,9 @@ final class FirmwareService
             // Its TTL covers the scheduled execution window plus GDMS's seven-day
             // task window, preventing duplicate tasks from tabs/retries/parallel POSTs.
             $scheduleSeconds = $scheduleMs > 0 ? (int) floor($scheduleMs / 1000) : time();
-            $pendingTtl = max(3600, min(31536000, $scheduleSeconds - time() + (7 * 86400)));
+            $pendingTtl = $scheduleMs > 0
+                ? max(3600, min(31536000, $scheduleSeconds - time() + (7 * 86400)))
+                : 7200;
             $upgradeLockName = 'gdmsinteg_fw_pending_' . strtolower($mac);
             $upgradeLockToken = Utils::acquireLock($upgradeLockName, $pendingTtl);
             if ($upgradeLockToken === null) {
