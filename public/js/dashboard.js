@@ -1006,7 +1006,7 @@
                 var accountStatus = String(account.status || '').trim().toLowerCase();
                 var isRegistered = /^(1|true|up|normal|registered|online|ok)$/.test(accountStatus);
                 var isUnknownStatus = accountStatus === ''
-                    || /^(unknown|n\\/?a|not available|pending|unavailable|-)$/i.test(accountStatus);
+                    || /^(unknown|n\/?a|not available|pending|unavailable|-)$/i.test(accountStatus);
                 var accountLabel = isRegistered
                     ? STR.sipRegistered
                     : (isUnknownStatus ? (STR.unknown || 'Unknown') : STR.sipUnregistered);
