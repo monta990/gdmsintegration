@@ -116,7 +116,7 @@ final class DashboardService
         global $CFG_GLPI, $DB;
 
         \Session::checkLoginUser();
-        if (!\Session::haveRight('config', READ) && !\Session::haveRight('networking', READ)) {
+        if (!\Session::haveRight(Config::$rightname, READ) && !\Session::haveRight('networking', READ)) {
             throw new AccessDeniedHttpException();
         }
 
@@ -387,7 +387,7 @@ final class DashboardService
             return $category === 'pbx' ? 'pbx' : 'network';
         };
         usort($rows, static function (array $a, array $b) use ($tableGroup, $tableGroupOrder): int {
-            $groupCompare = ($tableGroupOrder[$tableGroup($a)] ?? 99) <=> ($tableGroupOrder[$tableGroup($b)] ?? 99);
+            $groupCompare = $tableGroupOrder[$tableGroup($a)] <=> $tableGroupOrder[$tableGroup($b)];
             return $groupCompare !== 0 ? $groupCompare : strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
         });
 
@@ -411,7 +411,7 @@ final class DashboardService
             'reasons' => [],
         ];
         foreach ($rows as $_associationRow) {
-            if (API::getDeviceCategory((string) ($_associationRow['raw_model'] ?? '')) !== 'phone') {
+            if (API::getDeviceCategory((string) $_associationRow['raw_model']) !== 'phone') {
                 continue;
             }
             $_associationMac = PbxAssociationResolver::normalizeMac((string) ($_associationRow['mac'] ?? ''));
@@ -464,7 +464,7 @@ final class DashboardService
         $net_stats = []; // network_name -- [router_on, router_off, switch_on, switch_off, ap_on, ap_off, clients_wired, clients_wireless]
         foreach ($rows as $r) {
             $nname = (string) ($r['network_name'] ?? '');
-            $networkId = (int) ($r['network_id'] ?? 0);
+            $networkId = (int) $r['network_id'];
             $networkStatsKey = $networkId > 0
                 ? 'id:' . $networkId
                 : 'name:' . strtolower(trim(html_entity_decode($nname, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
@@ -765,7 +765,7 @@ final class DashboardService
             $_device_mac = PbxAssociationResolver::normalizeMac((string) ($r['mac'] ?? ''));
             $r['_pbx'] = $pbx_for_device_mac[$_device_mac] ?? null;
             $r['_sip_accounts_display'] = self::enrichSipAccountsForDisplay(
-                is_array($r['sip_accounts'] ?? null) ? $r['sip_accounts'] : [],
+                $r['sip_accounts'],
                 $rows,
             );
             $_sip_tip    = '';
@@ -1010,8 +1010,8 @@ final class DashboardService
         $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR;
         $dashboard_data_json = json_encode([
             'strings' => $js_strings,
-            'nodes' => array_values($nodes),
-            'edges' => array_values($edges),
+            'nodes' => $nodes,
+            'edges' => $edges,
             'chartLabels' => $chart_labels,
             'chartDatasets' => $chart_datasets,
             'urls' => $urls,

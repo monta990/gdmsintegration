@@ -124,7 +124,11 @@ class API
         return false;
     }
 
-    /** Extract a safe, human-readable error message from a GDMS API response. */
+    /**
+     * Extract a safe, human-readable error message from a GDMS API response.
+     *
+     * @param array<string, mixed> $data
+     */
     private static function gdmsResponseMessage(array $data): string
     {
         foreach (['msg', 'message', 'retMsg', 'description', 'error'] as $key) {
@@ -562,6 +566,7 @@ class API
      * device/list: JSON body hash is included in the SHA-256 signature.
      * A single controlled token refresh is attempted on transport/auth errors.
      *
+     * @param array<string, mixed> $config
      * @return array<string, mixed>|false
      */
     private static function gdmsPostDeviceAccountEndpoint(array &$config, string $endpoint, string $mac): array|false
@@ -592,7 +597,7 @@ class API
             return false;
         }
 
-        for ($attempt = 1; $attempt <= 2; $attempt++) {
+        foreach ([1, 2] as $attempt) {
             $timestamp = (int) (microtime(true) * 1000);
             $urlParams = ['access_token' => (string) $config['access_token']];
             $signature = self::gdmsBuildSignature($urlParams, $config, $timestamp, $body);
@@ -647,17 +652,25 @@ class API
             return $data;
         }
 
-        Utils::log("GDMS {$endpoint} failed after token refresh — device_mac={$mac}.");
-        return false;
     }
 
-    /** Retrieve the configured SIP accounts for one GDMS phone/ATA. */
+    /**
+     * Retrieve the configured SIP accounts for one GDMS phone/ATA.
+     *
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>|false
+     */
     public static function gdmsGetDeviceAccountInfo(array &$config, string $mac): array|false
     {
         return self::gdmsPostDeviceAccountEndpoint($config, 'device/account/info', $mac);
     }
 
-    /** Retrieve the registration state of SIP accounts for one GDMS phone/ATA. */
+    /**
+     * Retrieve the registration state of SIP accounts for one GDMS phone/ATA.
+     *
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>|false
+     */
     public static function gdmsGetDeviceAccountStatus(array &$config, string $mac): array|false
     {
         return self::gdmsPostDeviceAccountEndpoint($config, 'device/account/status', $mac);
@@ -887,8 +900,9 @@ class API
      * Retrieve SIP information for multiple devices via bounded cURL multi.
      * Grandstream does not publish a concurrency ceiling; default to 4 inflight
      * to limit request bursts after an IP-based rate-limit response.
+     * @param array<string, mixed> $config
      * @param array<int, string> $macs
-     * @return array<string, array<string, mixed>> uppercase-MAC keyed snapshots
+     * @return array<string, array{checked_at: string, info_ok: bool, status_ok: bool, info: array<string, mixed>, status: array<string, mixed>}>
      */
     public static function gdmsGetDeviceSipSnapshots(array &$config, array $macs, int $maxConcurrent = 4): array
     {
@@ -1017,8 +1031,8 @@ class API
         $snapshots = [];
         $rateLimitCooldown = Utils::getProviderCooldownRemaining('gdms');
         foreach ($results as $mac => $result) {
-            $info = $result['info'];
-            $status = $result['status'];
+            $info = $result['info'] ?? false;
+            $status = $result['status'] ?? false;
             if ($rateLimitCooldown > 0 && $info === false && $status === false) {
                 // Keep the prior good SIP snapshot; this was a quota response, not
                 // evidence that the phone has no SIP accounts or registration data.
@@ -1065,7 +1079,12 @@ class API
         return $snapshots;
     }
 
-    /** Query both SIP endpoints for one phone/ATA. */
+    /**
+     * Query both SIP endpoints for one phone/ATA.
+     *
+     * @param array<string, mixed> $config
+     * @return array{checked_at: string, info_ok: bool, status_ok: bool, info: array<string, mixed>, status: array<string, mixed>}
+     */
     public static function gdmsGetDeviceSipSnapshot(array &$config, string $mac): array
     {
         $snapshots = self::gdmsGetDeviceSipSnapshots($config, [$mac], 2);

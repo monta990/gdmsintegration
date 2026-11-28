@@ -568,6 +568,8 @@ class Sync extends \CommonGLPI
 
     /** Extract SIP server and extension/user from nested GDMS account payloads.
      * Only values under SIP/account structures are inspected; secrets are ignored.
+     *
+     * @param array<string, mixed> $device
      * @return array{server:string,extension:string}
      */
     private static function extractSipAssignment(array $device): array

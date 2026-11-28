@@ -311,7 +311,10 @@ final class PbxAssociationResolver
         return array_values($byMac);
     }
 
-    /** @param array<string, mixed> $candidate */
+    /**
+     * @param array<string, mixed> $candidate
+     * @return array{name: string, mac: string, private_ip: string, public_ip: string}
+     */
     private static function candidateLabel(array $candidate): array
     {
         return [
