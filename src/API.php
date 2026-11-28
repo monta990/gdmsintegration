@@ -858,7 +858,8 @@ class API
         $status = is_array($snapshot['status'] ?? null) ? $extract($snapshot['status'], true) : [];
         $accounts = [];
         $merge = static function (array $record, bool $isStatus) use (&$accounts): void {
-            $exactMatch = null;
+            $exactIdMatch = null;
+            $indexMatch = null;
             $weakMatch = null;
             foreach ($accounts as $i => $existing) {
                 $sameId = $record['account_id'] !== '' && $existing['account_id'] !== '' && $record['account_id'] === $existing['account_id'];
@@ -866,8 +867,11 @@ class API
                 if ($idConflict) {
                     continue;
                 }
+                // Search the complete account list for an exact ID before using
+                // weaker index/extension evidence. A line may move between API
+                // responses while its stable account ID remains unchanged.
                 if ($sameId) {
-                    $exactMatch = $i;
+                    $exactIdMatch = $i;
                     break;
                 }
 
@@ -879,16 +883,15 @@ class API
                 $sameIndex = $record['index'] !== '' && $existing['index'] !== '' && $record['index'] === $existing['index'];
                 $sameExt = $record['extension'] !== '' && $existing['extension'] !== '' && $record['extension'] === $existing['extension'];
                 $sameServer = $record['server'] === '' || $existing['server'] === '' || strcasecmp($record['server'], $existing['server']) === 0;
-                if ($sameIndex && ($sameExt || $record['extension'] === '' || $existing['extension'] === '') && $sameServer) {
-                    $exactMatch = $i;
-                    break;
+                if ($indexMatch === null && $sameIndex && ($sameExt || $record['extension'] === '' || $existing['extension'] === '') && $sameServer) {
+                    $indexMatch = $i;
                 }
                 if ($weakMatch === null && !$bothIndexed && $sameExt && $sameServer) {
                     $weakMatch = $i;
                 }
             }
 
-            $found = $exactMatch ?? $weakMatch;
+            $found = $exactIdMatch ?? $indexMatch ?? $weakMatch;
             if ($found === null) {
                 $accounts[] = [
                     'account_id' => $record['account_id'],
