@@ -135,6 +135,7 @@ final class PbxAssociationResolver
             // Multiple distinct SIP server hosts cannot be represented by a
             // single device-level PBX edge. The SIP modal resolves each line.
             if ($sipServerCount > 1) {
+                $associations[$mac] = null;
                 $detail['reason'] = 'multiple_sip_account_servers_on_device';
                 $diagnostics[$mac] = $detail;
                 continue;
