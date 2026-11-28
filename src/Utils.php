@@ -230,6 +230,8 @@ class Utils
      * Return the remaining seconds for a provider-wide cooldown.
      * The state is stored in the plugin lock table so web and cron workers on
      * different hosting nodes observe the same rate-limit window.
+     *
+     * @return int<0, max>
      */
     public static function getProviderCooldownRemaining(string $provider): int
     {
