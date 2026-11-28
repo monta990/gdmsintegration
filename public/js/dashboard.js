@@ -15,12 +15,6 @@
         }
         window.GDMS_DASHBOARD_DATA = DATA;
 
-
-(function () {
-    'use strict';
-
-    var STR = DATA.strings;
-
     // Escape untrusted values for both HTML text nodes and quoted attributes.
     // Keep one implementation shared by the dynamic modal/table renderers.
     function esc(value) {
@@ -34,6 +28,12 @@
             }[character];
         });
     }
+
+
+(function () {
+    'use strict';
+
+    var STR = DATA.strings;
 
     // Tooltips use GLPI's native initTooltips() implementation.
 
