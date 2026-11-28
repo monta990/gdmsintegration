@@ -8,6 +8,7 @@ namespace {
         public array $rows = [];
         private int $affected = 0;
         public bool $failDelete = false;
+        public int $zeroAffectedUpdates = 0;
 
         /** @return array<int, array<string, mixed>> */
         public function request(array $criteria): array
@@ -30,6 +31,11 @@ namespace {
 
         public function update(string $table, array $values, array $where): bool
         {
+            if ($this->zeroAffectedUpdates > 0) {
+                $this->zeroAffectedUpdates--;
+                $this->affected = 0;
+                return true;
+            }
             $name = (string) ($where['lock_name'] ?? '');
             if (!isset($this->rows[$name])) {
                 $this->affected = 0;
@@ -156,6 +162,11 @@ namespace {
     \GlpiPlugin\Gdmsintegration\Utils::setProviderCooldown('gwn', 30);
     $expect(\GlpiPlugin\Gdmsintegration\Utils::getProviderCooldownRemaining('gwn') > 0, 'Provider cooldowns should be isolated by provider.');
     $expect((int) substr((string) ($DB->rows['gdmsinteg_cooldown_gdms']['lock_token'] ?? ''), strlen('cooldown:')) === $gdmsExpiryBeforeGwn, 'Writing a GWN cooldown must not change the GDMS expiry.');
+    $DB->zeroAffectedUpdates = 1;
+    $retryRequestedAt = time();
+    \GlpiPlugin\Gdmsintegration\Utils::setProviderCooldown('gdms', 240);
+    $retryExpiry = (int) substr((string) ($DB->rows['gdmsinteg_cooldown_gdms']['lock_token'] ?? ''), strlen('cooldown:'));
+    $expect($retryExpiry >= $retryRequestedAt + 240, 'A cooldown writer must retry when its conditional update affects no row.');
 
 
     $expiredName = 'gdmsinteg_cooldown_expired';
