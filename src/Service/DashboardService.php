@@ -54,7 +54,14 @@ final class DashboardService
      * @param array<int, array<string, mixed>> $pbxRows
      * @return array<int, array<string, mixed>>
      */
-    public static function enrichSipAccountsForDisplay(array $accounts, array $pbxRows): array
+    /**
+     * Build reusable indexes once per render; RemoteConnect PBX lookup must not
+     * depend on the PBX having a valid management IP.
+     *
+     * @param array<int, array<string, mixed>> $pbxRows
+     * @return array{by_ip: array<string, array<int, array{name:string,ip:string,url:string,ip_url:string}>>, by_mac: array<string, array<int, array{name:string,ip:string,url:string,ip_url:string}>>}
+     */
+    private static function buildSipPbxDisplayIndexes(array $pbxRows): array
     {
         $pbxByIp = [];
         $pbxByMac = [];
@@ -62,35 +69,43 @@ final class DashboardService
             if (API::getDeviceCategory((string) ($pbxRow['raw_model'] ?? '')) !== 'pbx') {
                 continue;
             }
-            $ip = trim((string) ($pbxRow['private_ip'] ?? ''));
-            if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
-                continue;
-            }
-            $ip = strtolower($ip);
-            $host = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false ? '[' . $ip . ']' : $ip;
+            $rawIp = trim((string) ($pbxRow['private_ip'] ?? ''));
+            $packedIp = filter_var($rawIp, FILTER_VALIDATE_IP) !== false ? inet_pton($rawIp) : false;
+            $ip = $packedIp === false ? '' : (inet_ntop($packedIp) ?: '');
+            $host = $ip !== '' && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false
+                ? '[' . $ip . ']'
+                : $ip;
             $pbxDisplay = [
                 'name' => (string) ($pbxRow['name'] ?? ''),
                 'ip' => $ip,
                 'url' => (string) ($pbxRow['asset_url'] ?? ''),
-                'ip_url' => 'http://' . $host,
+                'ip_url' => $ip !== '' ? 'http://' . $host : '',
             ];
-            $pbxByIp[$ip][] = $pbxDisplay;
             $pbxMac = PbxAssociationResolver::normalizeMac((string) ($pbxRow['mac'] ?? ''));
             if ($pbxMac !== '') {
                 $pbxByMac[$pbxMac][] = $pbxDisplay;
             }
-        }
-
-        foreach ($accounts as &$account) {
-            if (!is_array($account)) {
-                continue;
+            if ($ip !== '') {
+                $pbxByIp[strtolower($ip)][] = $pbxDisplay;
             }
+        }
+        return ['by_ip' => $pbxByIp, 'by_mac' => $pbxByMac];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $accounts
+     * @param array{by_ip: array<string, array<int, array{name:string,ip:string,url:string,ip_url:string}>>, by_mac: array<string, array<int, array{name:string,ip:string,url:string,ip_url:string}>>} $indexes
+     * @return array<int, array<string, mixed>>
+     */
+    private static function enrichSipAccountsWithIndexes(array $accounts, array $indexes): array
+    {
+        foreach ($accounts as &$account) {
             $server = (string) ($account['server'] ?? '');
             $serverIp = PbxAssociationResolver::sipServerIp($server);
             $serverPbxMac = $serverIp === '' ? PbxAssociationResolver::sipServerPbxMac($server) : '';
             $candidates = $serverIp !== ''
-                ? ($pbxByIp[$serverIp] ?? [])
-                : ($serverPbxMac !== '' ? ($pbxByMac[$serverPbxMac] ?? []) : []);
+                ? ($indexes['by_ip'][strtolower($serverIp)] ?? [])
+                : ($serverPbxMac !== '' ? ($indexes['by_mac'][$serverPbxMac] ?? []) : []);
             if (count($candidates) !== 1) {
                 $account['pbx_name'] = '';
                 $account['pbx_ip'] = '';
@@ -98,7 +113,6 @@ final class DashboardService
                 $account['pbx_ip_url'] = '';
                 continue;
             }
-
             $pbx = $candidates[0];
             $account['pbx_name'] = $pbx['name'];
             $account['pbx_ip'] = $pbx['ip'];
@@ -106,8 +120,19 @@ final class DashboardService
             $account['pbx_ip_url'] = $pbx['ip_url'];
         }
         unset($account);
-
         return $accounts;
+    }
+
+    /**
+     * Public compatibility wrapper for integrations and regression tests.
+     *
+     * @param array<int, array<string, mixed>> $accounts
+     * @param array<int, array<string, mixed>> $pbxRows
+     * @return array<int, array<string, mixed>>
+     */
+    public static function enrichSipAccountsForDisplay(array $accounts, array $pbxRows): array
+    {
+        return self::enrichSipAccountsWithIndexes($accounts, self::buildSipPbxDisplayIndexes($pbxRows));
     }
 
     public static function render(Request $request): Response
@@ -617,7 +642,7 @@ final class DashboardService
             }
             // Reuse the same unambiguous PBX resolver as the SIP information modal.
             foreach ($rows as $_r) {
-                if (empty($_r['mac'])) {
+                if (API::getDeviceCategory((string) ($_r['raw_model'] ?? '')) !== 'phone' || empty($_r['mac'])) {
                     continue;
                 }
                 $_phone_mac = PbxAssociationResolver::normalizeMac((string) $_r['mac']);
@@ -678,6 +703,7 @@ final class DashboardService
         };
 
         $previousTableGroup = null;
+        $sipPbxDisplayIndexes = null;
         foreach ($rows as &$r) {
             $us = (int) ($r['uptime_sec'] ?? 0);
             $ud = intdiv($us, 86400);
@@ -764,13 +790,17 @@ final class DashboardService
 
             $_device_mac = PbxAssociationResolver::normalizeMac((string) ($r['mac'] ?? ''));
             $r['_pbx'] = $pbx_for_device_mac[$_device_mac] ?? null;
-            $r['_sip_accounts_display'] = self::enrichSipAccountsForDisplay(
-                $r['sip_accounts'],
-                $rows,
-            );
-            $_sip_tip    = '';
-            if (!empty($r['sip_status'])) {
-                $_sip_tip  = $r['sip_status'] === 'registered' ? __('SIP Registered', 'gdmsintegration') : __('SIP Unregistered', 'gdmsintegration');
+            $r['_sip_accounts_display'] = [];
+            if (!empty($r['sip_accounts'])) {
+                if ($sipPbxDisplayIndexes === null) {
+                    $sipPbxDisplayIndexes = self::buildSipPbxDisplayIndexes($rows);
+                }
+                $r['_sip_accounts_display'] = self::enrichSipAccountsWithIndexes($r['sip_accounts'], $sipPbxDisplayIndexes);
+            }
+            $_sip_tip = !empty($r['sip_status'])
+                ? ($r['sip_status'] === 'registered' ? __('SIP Registered', 'gdmsintegration') : __('SIP Unregistered', 'gdmsintegration'))
+                : __('Unknown', 'gdmsintegration');
+            if (!empty($r['sip_status']) || !empty($r['sip_accounts'])) {
                 if (!empty($r['sip_accounts'])) {
                     $extensions = array_values(array_filter(array_map(static fn(array $account): string => (string) ($account['extension'] ?? ''), $r['sip_accounts'])));
                     if ($extensions !== []) {
@@ -784,7 +814,9 @@ final class DashboardService
                 }
             }
             $r['_sip_tip']   = $_sip_tip;
-            $r['_sip_color'] = ($r['sip_status'] ?? '') === 'registered' ? '#28a745' : '#dc3545';
+            $r['_sip_color'] = ($r['sip_status'] ?? '') === 'registered'
+                ? '#28a745'
+                : (($r['sip_status'] ?? '') === 'unregistered' ? '#dc3545' : '#6c757d');
         }
         unset($r);
 

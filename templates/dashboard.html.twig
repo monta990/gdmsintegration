@@ -352,7 +352,7 @@
                      <small class="d-block text-muted font-monospace">{{ r._pbx.ip }}</small>
                      {% endif %}
                      {% endif %}
-                     {% elseif r._is_phone and r.sip_status is not empty %}
+                     {% elseif r._is_phone and (r.sip_status is not empty or r.sip_accounts is not empty) %}
                      <span class="text-muted">{{ __('None', 'gdmsintegration') }}</span>
                      {% else %}—{% endif %}
                   </td>
@@ -407,7 +407,7 @@
                            data-last-seen="{{ r.last_seen }}">
                         <span class="text-muted small">—</span>
                      </span>
-                     {% elseif r._is_phone and r.sip_status is not empty %}
+                     {% elseif r._is_phone and (r.sip_status is not empty or r.sip_accounts is not empty) %}
                      <span class="gdms-sip-dot" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;"
                            title="{{ r._sip_tip }}"
                            data-bs-toggle="tooltip"
@@ -415,7 +415,7 @@
                            data-pbx-ip="{{ r._pbx.ip ?? '' }}"
                            data-pbx-url="{{ r._pbx.url ?? '' }}"
                            data-mac="{{ r.mac }}"
-                           data-sip="{{ r.sip_status }}"
+                           data-sip="{{ r.sip_status is not empty ? r.sip_status : 'unknown' }}"
                            data-dnd="{{ r.dnd }}"
                            data-sync="{{ r.is_synchronized }}"
                            data-sync-msg="{{ r.sync_failure_msg }}"
