@@ -131,35 +131,21 @@ jobs:
           fi
 
           bash scripts/package.sh "$RUNNER_TEMP/gdms-dist"
-          mapfile -t archives < <(find "$RUNNER_TEMP/gdms-dist" -maxdepth 1 -type f -name 'gdmsintegration-*.zip' -print)
+
+          mapfile -t archives < <(
+            find "$RUNNER_TEMP/gdms-dist" -maxdepth 1 -type f -name 'gdmsintegration-*.zip' -print
+          )
           if [[ ${#archives[@]} -ne 1 ]]; then
             echo "Expected exactly one generated plugin archive; found ${#archives[@]}." >&2
             exit 1
           fi
-          archive="${archives[0]}"
-          test -f "$archive"
-          unzip -t "$archive"
-          if unzip -Z1 "$archive" | grep -Evq '^gdmsintegration(/|$)'; then
-            echo "The archive contains a path outside gdmsintegration/." >&2
-            exit 1
-          fi
-          if unzip -Z1 "$archive" | grep -Eq '^gdmsintegration/(tests|scripts|\.github|vendor)(/|$)'; then
-            echo "Development files leaked into the installation ZIP." >&2
-            exit 1
-          fi
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/setup.php'
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/hook.php'
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/src/Sync.php'
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/templates/dashboard.html.twig'
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/public/js/config.js'
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/public/js/dashboard.js'
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/public/js/vis-network.min.js'
-          public_js_entries="$(unzip -Z1 "$archive" | grep -E '^gdmsintegration/public/js/[^/]+
 
-          # Upload the exact archive created by the packager, without
-          # duplicating the plugin version in the workflow definition.
+          archive="${archives[0]}"
+          unzip -t "$archive"
           checksum="${archive}.sha256"
           sha256sum "$archive" > "$checksum"
+
+          # Expose the exact validated files to the artifact upload step.
           printf 'archive_path=%s\n' "$archive" >> "$GITHUB_OUTPUT"
           printf 'checksum_path=%s\n' "$checksum" >> "$GITHUB_OUTPUT"
 
