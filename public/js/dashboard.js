@@ -1003,9 +1003,13 @@
         if (sipAccounts.length) {
             var accountRows = '<div class="table-responsive"><table class="table table-sm mb-0 align-middle"><thead><tr><th>' + esc(STR.extension) + '</th><th>' + esc(STR.pbxUcm) + '</th><th>' + esc(STR.sipStatusLbl) + '</th></tr></thead><tbody>';
             sipAccounts.forEach(function(account) {
-                var accountStatus = String(account.status || '').toLowerCase();
+                var accountStatus = String(account.status || '').trim().toLowerCase();
                 var isRegistered = /^(1|true|up|normal|registered|online|ok)$/.test(accountStatus);
-                var accountLabel = isRegistered ? STR.sipRegistered : (account.status ? STR.sipUnregistered : '—');
+                var isUnknownStatus = accountStatus === ''
+                    || /^(unknown|n\\/?a|not available|pending|unavailable|-)$/i.test(accountStatus);
+                var accountLabel = isRegistered
+                    ? STR.sipRegistered
+                    : (isUnknownStatus ? (STR.unknown || 'Unknown') : STR.sipUnregistered);
                 var accountServer = String(account.server || '').trim();
                 var accountPbxName = String(account.pbx_name || '').trim();
                 var accountPbxUrl = String(account.pbx_url || '').trim();
