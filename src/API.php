@@ -627,8 +627,7 @@ class API
             ]);
             $response = self::curl($url, ['Content-Type: application/json'], $body, true);
 
-            if ($response === false && self::$lastHttpStatus === 429
-                && Utils::getProviderCooldownRemaining('gdms') <= 0) {
+            if ($response === false && self::$lastHttpStatus === 429) {
                 $cooldownSeconds = self::$lastRetryAfterSeconds > 0
                     ? self::$lastRetryAfterSeconds
                     : self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS;
@@ -774,7 +773,7 @@ class API
     {
         $extract = static function (array $root, bool $isStatus = false): array {
             $records = [];
-            $walk = static function (array $node, string $path = '') use (&$walk, &$records): void {
+            $walk = static function (array $node, string $path = '') use (&$walk, &$records, $isStatus): void {
                 $r = ['account_id' => '', 'index' => '', 'explicit_index' => '', 'extension' => '', 'server' => '', 'server_rank' => 0, 'status' => ''];
                 foreach ($node as $key => $value) {
                     if (!is_scalar($value)) {
@@ -1293,27 +1292,6 @@ class API
         ];
     }
 
-    /** @param array<string, mixed> $payload
-     *  @return array<int, string>
-     */
-    private static function sipPayloadFieldPaths(array $payload): array
-    {
-        $paths = [];
-        $walk = static function (array $node, string $path = '') use (&$walk, &$paths): void {
-            foreach ($node as $key => $value) {
-                $name = (string) $key;
-                $field = $path === '' ? $name : $path . '.' . $name;
-                if (preg_match('/sip|account|server|proxy|registrar|extension|user.?id|status|register|index/i', $name) === 1 && count($paths) < 100) {
-                    $paths[] = $field;
-                }
-                if (is_array($value)) {
-                    $walk($value, $field);
-                }
-            }
-        };
-        $walk($payload);
-        return $paths;
-    }
 
     // -----------------------------------------------------------------------
     // GWN signature
