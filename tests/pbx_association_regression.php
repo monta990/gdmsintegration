@@ -226,6 +226,8 @@ namespace {
             'extension' => '2204',
             'password' => 'DO-NOT-LOG-THIS',
             'authUser' => 'private-user',
+            'serverPwd' => 'private-server-password',
+            'serverUsername' => 'private-server-user',
         ]],
     ]);
     $expect(in_array('accountStatus', $summary['paths'], true), 'SIP payload summary must include accountStatus field path.');
@@ -257,6 +259,7 @@ namespace {
                 'password' => 'DO-NOT-STORE',
                 'authName' => 'DO-NOT-STORE-AUTH',
                 'access_token' => 'DO-NOT-STORE-TOKEN',
+                'serverUsername' => 'DO-NOT-STORE-USERNAME',
             ]],
         ],
     ]);
