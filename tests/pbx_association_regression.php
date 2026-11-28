@@ -73,6 +73,18 @@ namespace {
     $expect(($ambiguousSipDisplay[0]['pbx_name'] ?? '') === '', 'Duplicate managed PBX private IPs must not produce an arbitrary link.');
     $expect(PbxAssociationResolver::sipServerIp('sip:192.168.20.10:5060;transport=udp') === '192.168.20.10', 'SIP display resolver must normalize IP/port/transport before matching the PBX.');
     $expect(PbxAssociationResolver::sipServerIp('sip:pbx.example.com:5060') === '', 'SIP display resolver must not treat hostnames as managed PBX IPs.');
+    $ipv6PbxRows = [
+        ['raw_model' => 'UCM6300A', 'name' => 'IPv6 PBX', 'mac' => '02:00:00:00:03:01', 'private_ip' => '2001:db8::10', 'asset_url' => '/front/networkequipment.form.php?id=901'],
+    ];
+    $ipv6Display = DashboardService::enrichSipAccountsForDisplay([
+        ['extension' => '6001', 'server' => 'sip:[2001:db8::10]:5061'],
+    ], $ipv6PbxRows);
+    $expect(($ipv6Display[0]['pbx_name'] ?? '') === 'IPv6 PBX', 'Canonical IPv6 SIP server addresses must match the same IPv6 management address in the PBX index.');
+    $noMacPbx = DashboardService::enrichSipAccountsForDisplay(
+        [['extension' => '6002', 'server' => '192.168.10.10']],
+        [['raw_model' => 'UCM6300A', 'name' => 'No MAC PBX', 'mac' => '', 'private_ip' => '192.168.10.10']],
+    );
+    $expect(($noMacPbx[0]['pbx_name'] ?? '') === '', 'PBX inventory without a valid MAC must not become a SIP display candidate by IP alone.');
     $expect(PbxAssociationResolver::sipServerPbxMac('sip:020000000102.a.gdms.cloud:5061') === '02:00:00:00:01:02', 'SIP display resolver must extract the managed UCM MAC from a RemoteConnect hostname.');
 
     // Representative multi-site topology from the a representative GDMS sync fixture.
@@ -389,6 +401,7 @@ namespace {
     $expect($effectivePrivateIp->invoke(null, '', ['private_ip' => '198.51.100.53']) === '198.51.100.53', 'Blank sync must preserve last known local IP.');
     $expect($effectivePrivateIp->invoke(null, 'invalid', ['private_ip' => '198.51.100.53']) === '198.51.100.53', 'Invalid sync value must preserve last known local IP.');
     $expect($effectivePrivateIp->invoke(null, '198.51.100.54', ['private_ip' => '198.51.100.53']) === '198.51.100.54', 'New valid local IP must replace old value.');
+    $expect($effectivePrivateIp->invoke(null, '2001:db8::53', ['private_ip' => '2001:db8::52']) === '2001:db8::53', 'A valid IPv6 management address must be preserved as the local IP.');
 
     printf("PASS: %d PBX / SIP diagnostics / privacy / local-IP regression assertions\n", $checks);
 }
