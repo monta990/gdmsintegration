@@ -3,6 +3,43 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.7.0] — 2026-11-28
+
+### Added
+
+- **GDMS SIP account discovery** — query the documented `device/account/info` and `device/account/status` operations using the existing signed GDMS authentication flow for supported phones and ATAs.
+- **Per-account SIP visibility** — retain every configured account, including multiple FXS accounts, merge configuration and registration status by account identity, ignore device-level status fields as account rows, and count each registered account once.
+- **Per-extension PBX links** — resolve each SIP account independently against the managed UCM inventory. The PBX asset name links to its GLPI record, and a validated management IP links to the UCM interface in a separate tab. Duplicate device-level PBX details are omitted when the account table already provides that information.
+- **RemoteConnect identity support** — resolve a managed PBX when the SIP hostname embeds its MAC address. Ambiguous, unknown or generic hostnames are not assigned by guesswork.
+- **Automatic dashboard synchronization** — on first visit or when the configured refresh interval has expired, a user with the required update permission starts the normal full synchronization automatically. Fresh data is reused and a concurrent sync does not trigger a reload loop.
+- **Shared GDMS rate-limit protection** — recognize HTTP 429 and application-level rate-limit messages, honor `Retry-After`, use bounded retries, persist a provider-specific cooldown in GLPI's shared database lock table, and avoid refreshing valid credentials for quota errors.
+- **External CSP-aware page assets** — move configuration and dashboard behavior to external JavaScript and register page-specific assets through GLPI's JavaScript hook so GLPI can attach its active CSP nonce.
+- **Configuration UI refinements** — group dashboard/ticket controls more consistently, align history import and configuration backup tools, and improve responsive filter grouping and keyboard focus.
+- **SIP diagnostics and snapshot persistence** — store sanitized account snapshots, account check timestamps, server identity and extension metadata; preserve last-known details when a partial API response is unavailable.
+
+### Changed
+
+- **Lower GDMS request burst size** — use bounded cURL-multi batches of four simultaneous SIP requests rather than unbounded parallelism. Successful account snapshots remain cached for six hours; failed refreshes use the shorter retry window.
+- **Safer inventory handling** — an incomplete or rate-limited device list is not treated as an empty inventory. Removal detection is disabled for that cycle and existing assets and SIP snapshots are preserved.
+- **PBX association evidence** — prefer explicit PBX identity and exact SIP-server-to-managed-UCM IP matches. Private-subnet evidence remains available where unambiguous; WAN/public-IP equality and shared site labels are diagnostic only.
+- **Consistent extension presentation** — show one badge for each configured SIP account and display the account's own server, registration state and PBX association rather than forcing a single device-level PBX on all accounts.
+
+### Security and privacy
+
+- Keep SIP account credentials, URI user-info, OAuth tokens, client secrets and authentication usernames out of logs and persisted diagnostic summaries.
+- Restrict management links to validated IP addresses and use safe new-tab link attributes.
+- Keep configuration and dashboard scripts external; render PHP-provided JavaScript data as escaped, non-executable JSON input.
+- Replace organization-specific names, phone labels, MAC addresses, extensions and network addresses in regression fixtures and developer documentation with generic labels and documentation-only test values.
+
+### Validation
+
+- Add PBX/SIP regression coverage for multi-account devices, account-status normalization, RemoteConnect MAC extraction, mixed PBX assignments, ambiguous inventory, cache preservation and safe management links.
+- Add GDMS rate-limit regression coverage for HTTP/application error forms, `Retry-After`, shared cooldown extension and GWN isolation.
+- Add dashboard first-run policy coverage for first sync, freshness, permissions, stale data, invalid timestamps and missing credentials.
+- Update CI and the installation packager to include `config.js` and `dashboard.js` alongside the pinned `vis-network` runtime bundle.
+
+Live GDMS rate-limit recovery, cURL-multi timing and GLPI 11/12 browser acceptance remain environment-level checks and must be confirmed against a configured test instance.
+
 ## [1.6.10] — 2026-11-25
 
 ### Security

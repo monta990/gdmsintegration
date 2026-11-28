@@ -1,6 +1,9 @@
 <?php
 
 namespace GlpiPlugin\Gdmsintegration;
+
+use Glpi\RichText\RichText;
+
 /**
  * GDMS Integration — \GlpiPlugin\Gdmsintegration\Utils
  *
@@ -14,28 +17,29 @@ namespace GlpiPlugin\Gdmsintegration;
  *                            inputs, SN diagnostics. Enabled when "Debug logging" is
  *                            checked in plugin config OR when GLPI debug mode is active.
  */
-class Utils {
-
+class Utils
+{
     /**
      * Returns true when verbose logging should be written.
      * Verbose when: plugin debug_logging = 1  OR  GLPI $_SESSION['glpi_use_mode'] = 2 (debug).
      */
-    public static function isDebug(): bool {
+    public static function isDebug(): bool
+    {
         // GLPI debug mode
-        if (isset($_SESSION['glpi_use_mode']) && (int)$_SESSION['glpi_use_mode'] === \Session::DEBUG_MODE) {
+        if (isset($_SESSION['glpi_use_mode']) && (int) $_SESSION['glpi_use_mode'] === \Session::DEBUG_MODE) {
             return true;
         }
         // Plugin-level debug toggle (cached in session for performance)
         if (!isset($_SESSION['_gdms_debug'])) {
             try {
-                $cfg = new \GlpiPlugin\Gdmsintegration\Config();
+                $cfg = new Config();
                 $row = $cfg->getConfigByEntity(0);
                 $_SESSION['_gdms_debug'] = !empty($row['debug_logging']) ? 1 : 0;
             } catch (\Throwable $e) {
                 $_SESSION['_gdms_debug'] = 0;
             }
         }
-        return (bool)$_SESSION['_gdms_debug'];
+        return (bool) $_SESSION['_gdms_debug'];
     }
 
     /**
@@ -45,7 +49,8 @@ class Utils {
      * @param bool   $verbose  If true, only written when debug mode is active.
      *                         If false (default), always written.
      */
-    public static function log(string $message, bool $verbose = false): void {
+    public static function log(string $message, bool $verbose = false): void
+    {
         if ($verbose && !self::isDebug()) {
             return;
         }
@@ -57,7 +62,8 @@ class Utils {
     /**
      * Shorthand — write only in debug/verbose mode.
      */
-    public static function debug(string $message): void {
+    public static function debug(string $message): void
+    {
         self::log($message, true);
     }
 
@@ -77,8 +83,8 @@ class Utils {
      */
     private static function sanitizeTicketHtml(string $html): string
     {
-        if (class_exists(\Glpi\RichText\RichText::class)) {
-            return \Glpi\RichText\RichText::getSafeHtml($html);
+        if (class_exists(RichText::class)) {
+            return RichText::getSafeHtml($html);
         }
 
         return htmlspecialchars($html, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -99,7 +105,7 @@ class Utils {
         string $summary,
         array $rows,
         string $footer = '',
-        string $reference = ''
+        string $reference = '',
     ): string {
         $html = '<div class="gdms-ticket-content" style="font-size:14px;line-height:1.5;">';
 
@@ -185,11 +191,13 @@ class Utils {
         return self::sanitizeTicketHtml($html);
     }
 
-    public static function encrypt(string $value): string {
+    public static function encrypt(string $value): string
+    {
         return (new \GLPIKey())->encrypt($value);
     }
 
-    public static function decrypt(string $value): string {
+    public static function decrypt(string $value): string
+    {
         try {
             return (new \GLPIKey())->decrypt($value);
         } catch (\Throwable $e) {
@@ -197,29 +205,193 @@ class Utils {
         }
     }
     /** Structured severity helpers. Debug remains opt-in; warnings are always retained. */
-    public static function warning(string $message): void { self::log('[WARNING] ' . $message); }
+    public static function warning(string $message): void
+    {
+        self::log('[WARNING] ' . $message);
+    }
 
     /** Remove operational rows older than the configured retention window. */
-    public static function cleanupOperationalHistory(int $entities_id, int $days): void {
+    public static function cleanupOperationalHistory(int $entities_id, int $days): void
+    {
         global $DB;
         $days = max(7, min(3650, $days));
         $cutoff = gmdate('Y-m-d H:i:s', time() - ($days * 86400));
         foreach (['glpi_plugin_gdmsintegration_client_history' => 'seen_at', 'glpi_plugin_gdmsintegration_action_log' => 'date'] as $table => $field) {
-            try { $DB->delete($table, ['entities_id' => $entities_id, $field => ['<', $cutoff]]); } catch (\Throwable $e) { self::debug("Retention cleanup skipped for {$table}: " . $e->getMessage()); }
+            try {
+                $DB->delete($table, ['entities_id' => $entities_id, $field => ['<', $cutoff]]);
+            } catch (\Throwable $e) {
+                self::debug("Retention cleanup skipped for {$table}: " . $e->getMessage());
+            }
         }
     }
 
 
     /**
-     * Acquire a short-lived application lock using GLPI's DB abstraction.
-     * Returns a token that must be passed to releaseLock().
+     * Return the remaining seconds for a provider-wide cooldown.
+     * The state is stored in the plugin lock table so web and cron workers on
+     * different hosting nodes observe the same rate-limit window.
+     *
+     * @return int<0, max>
+     * @phpstan-impure Other workers may extend the value between separate reads.
      */
-    public static function acquireLock(string $name, int $ttl = 900): ?string {
+    public static function getProviderCooldownRemaining(string $provider): int
+    {
+        global $DB;
+        $provider = strtolower((string) preg_replace('/[^a-z0-9_-]/i', '', $provider));
+        if ($provider === '') {
+            return 0;
+        }
+
+        $name = 'gdmsinteg_cooldown_' . substr($provider, 0, 80);
+        $table = 'glpi_plugin_gdmsintegration_locks';
+        try {
+            foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                $token = (string) ($row['lock_token'] ?? '');
+                if (!preg_match('/^cooldown:(\d+)$/', $token, $match)) {
+                    return 0;
+                }
+                // Readers must not delete expired rows: a concurrent writer may
+                // be extending this exact row under the provider writer lock.
+                return max(0, (int) $match[1] - time());
+            }
+        } catch (\Throwable $e) {
+            self::debug('Provider cooldown lookup unavailable: ' . $e->getMessage());
+        }
+        return 0;
+    }
+
+    /**
+     * Persist a provider-wide cooldown monotonically across PHP and cron workers.
+     * A dedicated writer lock serializes the read/extend/write sequence, so a
+     * shorter concurrent Retry-After can never reduce a longer cooldown.
+     */
+    public static function setProviderCooldown(string $provider, int $seconds): void
+    {
+        global $DB;
+        $provider = strtolower((string) preg_replace('/[^a-z0-9_-]/i', '', $provider));
+        if ($provider === '') {
+            return;
+        }
+
+        $seconds = max(10, min(86400, $seconds));
+        $name = 'gdmsinteg_cooldown_' . substr($provider, 0, 80);
+        $writerLock = 'gdmsinteg_cooldown_writer_' . substr($provider, 0, 60);
+        $writerToken = null;
+
+        // Ordinary contention gets a short bounded wait. A database failure
+        // is surfaced separately and must not be mistaken for a busy lock.
+        for ($attempt = 0; $attempt < 30; $attempt++) {
+            $lock = self::acquireLock($writerLock, 30);
+            if (is_string($lock)) {
+                $writerToken = $lock;
+                break;
+            }
+            if ($lock === false) {
+                self::debug('Provider cooldown writer lock failed because of a database error.');
+                return;
+            }
+            usleep(10000);
+        }
+        if ($writerToken === null) {
+            self::debug('Provider cooldown writer lock remained busy; current expiry was left unchanged.');
+            return;
+        }
+
+        try {
+            self::persistProviderCooldownUntil($name, time() + $seconds);
+        } catch (\Throwable $e) {
+            self::debug('Provider cooldown persistence unavailable: ' . $e->getMessage());
+        } finally {
+            self::releaseLock($writerLock, $writerToken);
+        }
+    }
+
+    /**
+     * Persist an absolute cooldown expiry without shortening a concurrent value.
+     *
+     * @param positive-int $requestedUntil
+     */
+    private static function persistProviderCooldownUntil(string $name, int $requestedUntil): void
+    {
+        global $DB;
+        $table = 'glpi_plugin_gdmsintegration_locks';
+
+        // The provider writer lock serializes normal writers. The bounded retry
+        // also handles a row deleted/recreated by an external worker between
+        // the read and conditional update.
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $existingRow = null;
+            foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                $existingRow = $row;
+                break;
+            }
+
+            if (!is_array($existingRow)) {
+                $inserted = $DB->insert($table, [
+                    'lock_name' => $name,
+                    'lock_token' => 'cooldown:' . $requestedUntil,
+                    'acquired_at' => gmdate('Y-m-d H:i:s'),
+                ]);
+                if ($inserted !== false) {
+                    foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                        if ((string) ($row['lock_token'] ?? '') === 'cooldown:' . $requestedUntil) {
+                            return;
+                        }
+                    }
+                }
+                continue;
+            }
+
+            $existingToken = (string) ($existingRow['lock_token'] ?? '');
+            $existingUntil = preg_match('/^cooldown:(\\d+)$/', $existingToken, $match) === 1
+                ? (int) $match[1]
+                : 0;
+            if ($existingUntil >= $requestedUntil) {
+                return;
+            }
+
+            $updated = $DB->update($table, [
+                'lock_token' => 'cooldown:' . $requestedUntil,
+                'acquired_at' => gmdate('Y-m-d H:i:s'),
+            ], [
+                'lock_name' => $name,
+                'lock_token' => $existingToken,
+            ]);
+            if ($updated !== false) {
+                foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                    $token = (string) ($row['lock_token'] ?? '');
+                    if (preg_match('/^cooldown:(\\d+)$/', $token, $match) === 1 && (int) $match[1] >= $requestedUntil) {
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Confirm whether a concurrent writer already persisted an equal or
+        // later expiry before reporting failure.
+        foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+            $token = (string) ($row['lock_token'] ?? '');
+            if (preg_match('/^cooldown:(\\d+)$/', $token, $match) === 1 && (int) $match[1] >= $requestedUntil) {
+                return;
+            }
+        }
+
+        throw new \RuntimeException('Provider cooldown could not be inserted or extended.');
+    }
+
+    /**
+     * Acquire a short-lived application lock using GLPI's DB abstraction.
+     *
+     * @return string|null|false Token on success, null on contention, false on DB error.
+     */
+    public static function acquireLock(string $name, int $ttl = 900): string|false|null
+    {
         global $DB;
         $name = substr($name, 0, 190);
         $token = bin2hex(random_bytes(16));
         $now = gmdate('Y-m-d H:i:s');
-        $stale = gmdate('Y-m-d H:i:s', time() - max(30, $ttl));
+        $staleTimestamp = time() - max(30, $ttl);
+        $stale = gmdate('Y-m-d H:i:s', $staleTimestamp);
         $table = 'glpi_plugin_gdmsintegration_locks';
 
         try {
@@ -232,13 +404,43 @@ class Utils {
                 'lock_token' => $token,
                 'acquired_at' => $now,
             ]);
-            return $DB->affectedRows() > 0 ? $token : null;
+
+            foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                if ((string) ($row['lock_token'] ?? '') === $token) {
+                    return $token;
+                }
+                $existingAt = strtotime((string) ($row['acquired_at'] ?? '') . ' UTC');
+                if ($existingAt !== false && $existingAt >= $staleTimestamp) {
+                    return null;
+                }
+                self::debug("Lock row could not be reclaimed for {$name}; treating acquisition as a database failure.");
+                return false;
+            }
+            self::debug("Lock acquisition failed without an existing row: {$name}");
+            return false;
         } catch (\Throwable $e) {
-            return null;
+            // A recent row means genuine contention. A stale row that could not
+            // be reclaimed, or a failed lookup, indicates a database problem.
+            try {
+                foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                    $existingAt = strtotime((string) ($row['acquired_at'] ?? '') . ' UTC');
+                    if ($existingAt !== false && $existingAt >= $staleTimestamp) {
+                        return null;
+                    }
+                    self::debug("Stale lock row could not be reclaimed for {$name}: " . $e->getMessage());
+                    return false;
+                }
+            } catch (\Throwable $lookupError) {
+                self::debug('Lock acquisition failed and lock state could not be checked: ' . $e->getMessage());
+                return false;
+            }
+            self::debug('Lock acquisition failed: ' . $e->getMessage());
+            return false;
         }
     }
 
-    public static function releaseLock(string $name, string $token): void {
+    public static function releaseLock(string $name, string $token): void
+    {
         global $DB;
         try {
             $DB->delete('glpi_plugin_gdmsintegration_locks', [

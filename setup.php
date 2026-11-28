@@ -18,7 +18,7 @@ require_once __DIR__ . '/hook.php';
  * License: GPL v3+
  */
 
-define('PLUGIN_GDMSINTEGRATION_VERSION', '1.6.10');
+define('PLUGIN_GDMSINTEGRATION_VERSION', '1.7.0');
 define('PLUGIN_GDMSINTEGRATION_MIN_GLPI', '11.0');
 define('PLUGIN_GDMSINTEGRATION_MAX_GLPI', '12.99');
 
@@ -33,6 +33,7 @@ function plugin_version_gdmsintegration(): array
         'author'       => 'Edwin Elias Alvarez',
         'license'      => 'GPLv3+',
         'homepage'     => 'https://github.com/monta990/gdmsintegration',
+        'csp_compliant' => true,
         'requirements' => [
             'glpi' => [
                 'min' => PLUGIN_GDMSINTEGRATION_MIN_GLPI,
@@ -70,7 +71,7 @@ function plugin_gdmsintegration_check_config(bool $verbose = false): bool
 // ---------------------------------------------------------------------------
 function plugin_init_gdmsintegration(): void
 {
-    global $PLUGIN_HOOKS;
+    global $PLUGIN_HOOKS, $CFG_GLPI;
 
     // CronTask repair is handled by install/update and activation hooks,
     // never during ordinary page initialization.
@@ -83,6 +84,23 @@ function plugin_init_gdmsintegration(): void
     // Keep the plugin configuration link compatible with GLPI's plugin UI.
     // Plugin::getConfigPage() prefixes this value with /plugins/gdmsintegration/.
     $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['gdmsintegration'] = 'config';
+
+    // Load only the assets needed by each plugin page. GLPI's ADD_JAVASCRIPT
+    // hook emits scripts through Html::script(), which attaches the active CSP
+    // nonce; same-origin is not assumed to be allowed by script-src.
+    $requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+    $requestPath = is_string($requestPath) ? rtrim($requestPath, '/') : '';
+    $pluginPath = rtrim((string) ($CFG_GLPI['root_doc'] ?? ''), '/') . '/plugins/gdmsintegration';
+    if ($requestPath === $pluginPath . '/dashboard') {
+        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['gdmsintegration'] = [
+            'js/vis-network.min.js',
+            'js/dashboard.js',
+        ];
+    } elseif ($requestPath === $pluginPath . '/config') {
+        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['gdmsintegration'] = [
+            'js/config.js',
+        ];
+    }
 
     // plugin_init() runs before the user session is loaded. Class registration
     // must therefore never depend on Session state. Permission checks belong

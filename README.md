@@ -46,6 +46,14 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 | GDMS Unified Communications (`gdms.cloud`) | UCM, GCC PBX appliances | `NetworkEquipment` |
 | GDMS Networking / GWN Cloud (`gwn.cloud`) | GWN APs, switches, routers | `NetworkEquipment` |
 
+#### SIP account discovery (GDMS API)
+
+For GDMS UC phones and ATAs, the plugin additionally calls the documented signed POST operations `device/account/info` and `device/account/status`, with a JSON body containing the device `mac`. The first returns the configured SIP account details; the second returns registration status. The responses are filtered before persistence: passwords, authentication fields, tokens, secrets, and credential-bearing URI user-info are excluded. Redacted snapshots are cached per device for six hours after both calls succeed (15 minutes when either endpoint fails).
+
+The dashboard associates a phone with a managed UCM when an account server IP equals the UCM private IP, or when a GDMS RemoteConnect server hostname encodes the UCM MAC. A device with multiple different SIP server hosts is left unassigned rather than arbitrarily selecting one PBX. WAN/public-IP and site-name matches are diagnostic-only.
+
+During an upgrade, use GLPI’s normal plugin update/activation flow so the idempotent schema migration can add the SIP snapshot fields. Do not uninstall the plugin as part of an upgrade; uninstalling removes plugin-owned data.
+
 ### Asset Management
 
 - **Smart matching** — matches existing assets by serial number → MAC (`uuid`) → normalized name, across both itemtypes and all entities.
@@ -214,7 +222,7 @@ A vis-network graph rendered below the device table (toggle in settings). Nodes 
 | Edge | How determined |
 |------|---------------|
 | GWN uplink (AP/switch → parent) | `uplink_mac` field from GWN Cloud sync |
-| Phone → PBX | Matched by shared `/24 subnet` of private IP; falls back to network name when private IP is unavailable |
+| Phone → PBX | Explicit SIP/PBX identity first; otherwise a unique managed UCM on the same private IPv4 `/24`. WAN/public-IP and GDMS site-name matches are logged as candidates only and never auto-assigned |
 
 Because phones and their UCM share the same LAN segment, each PBX forms its own independent cluster with only its registered phones connected to it — multiple UCMs produce multiple distinct sub-graphs.
 
@@ -499,4 +507,12 @@ Report bugs or request features on the [issue tracker](https://github.com/monta9
 
 ## Third-party assets
 
-The NOC topology uses `vis-network` 10.1.5. CI audits the pinned `package.json` dependency and verifies the bundle against the source repository's `public/js/vis-network.manifest.json`. The installation ZIP ships only the minified browser bundle under `public/js`; the full Apache-2.0 and MIT license texts are included together in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+The NOC topology uses `vis-network` 10.1.5. CI audits the pinned `package.json` dependency and verifies the bundle against the source repository's `public/js/vis-network.manifest.json`. The installation ZIP ships the minified `vis-network` browser bundle plus the maintained `config.js` and `dashboard.js` plugin scripts under `public/js`; the full Apache-2.0 and MIT license texts are included together in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+## Content Security Policy and PBX association
+
+The dashboard and configuration screens do not execute JavaScript embedded in Twig. Their behavior is loaded from `public/js/dashboard.js` and `public/js/config.js` through GLPI `Hooks::ADD_JAVASCRIPT`; the bundled `vis-network` file uses the same core-managed script path. When GLPI CSP is active, GLPI's script helper attaches its generated nonce to the script elements. This implementation does not rely on `script-src 'self'` and does not create its own nonce.
+
+Dashboard values are transferred as JSON in an autoescaped, non-executable textarea and parsed by the external script. JSON encoding uses the `JSON_HEX_*` flags. The plugin currently declares `csp_compliant => true` in its metadata. Static source checks cover the external-script registration and the absence of executable inline scripts/event attributes; a live GLPI 11 CSP-backport and GLPI 12 browser acceptance session is still required to complete runtime verification.
+
+Phone-to-PBX association is centralized for the device list and network topology. The resolver prefers an explicit PBX MAC reference (including the MAC embedded in a GDMS UCM RemoteConnect SIP hostname), then a unique managed UCM on the same private IPv4 /24. Public/WAN IP equality and GDMS network/site names are retained as diagnostic candidates only; they do not prove SIP registration and never create an automatic association. Debug mode records the discovered PBX inventory, candidate devices and the exact reason an item was or was not associated. SIP diagnostics include field paths and only safe server host/port or registration status values; SIP URI user-info, passwords, tokens, secrets and authentication usernames are redacted. SIP assignment parsing remains payload-driven: if GDMS `device/list` omits the assignment fields, a separate voice-account API endpoint must not be guessed without its documented request/response schema. The device table visually separates network infrastructure, PBX/UCM systems and IP phones.

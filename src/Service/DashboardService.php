@@ -6,29 +6,133 @@ use Glpi\Application\View\TemplateRenderer;
 use Glpi\DBAL\QueryExpression;
 use Glpi\DBAL\QueryFunction;
 use Glpi\Exception\Http\AccessDeniedHttpException;
+use GlpiPlugin\Gdmsintegration\API;
 use GlpiPlugin\Gdmsintegration\Config;
 use GlpiPlugin\Gdmsintegration\Device;
 use GlpiPlugin\Gdmsintegration\History;
 use GlpiPlugin\Gdmsintegration\Link;
 use GlpiPlugin\Gdmsintegration\Sync;
+use GlpiPlugin\Gdmsintegration\Utils;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 final class DashboardService
 {
-    private const VIS_NETWORK_ASSET_VERSION = '10.1.5';
-
-    private static function getVisNetworkAssetVersion(): string
-    {
-        return self::VIS_NETWORK_ASSET_VERSION;
+    /**
+     * Run a dashboard synchronization when no prior run exists or the configured
+     * refresh interval has elapsed. This avoids a redundant full sync on every
+     * page visit while ensuring a stale dashboard refreshes as soon as it opens.
+     */
+    public static function shouldRunDashboardSync(
+        ?string $lastSyncAt,
+        int $refreshInterval,
+        bool $canSync,
+        bool $providerReady,
+        ?int $now = null,
+    ): bool {
+        if (!$canSync || !$providerReady) {
+            return false;
+        }
+        if ($lastSyncAt === null || trim($lastSyncAt) === '') {
+            return true;
+        }
+        $lastSyncTimestamp = strtotime(trim($lastSyncAt) . ' UTC');
+        if ($lastSyncTimestamp === false) {
+            return true;
+        }
+        return max(0, ($now ?? time()) - $lastSyncTimestamp) >= max(30, $refreshInterval);
     }
+
+    /**
+     * Build reusable indexes once per render; RemoteConnect PBX lookup must not
+     * depend on the PBX having a valid management IP.
+     *
+     * @param array<int, array<string, mixed>> $pbxRows
+     * @return array{by_ip: array<string, array<int, array{name:string,ip:string,url:string,ip_url:string}>>, by_mac: array<string, array<int, array{name:string,ip:string,url:string,ip_url:string}>>}
+     */
+    private static function buildSipPbxDisplayIndexes(array $pbxRows): array
+    {
+        $pbxByIp = [];
+        $pbxByMac = [];
+        foreach ($pbxRows as $pbxRow) {
+            if (API::getDeviceCategory((string) ($pbxRow['raw_model'] ?? '')) !== 'pbx') {
+                continue;
+            }
+            $rawIp = trim((string) ($pbxRow['private_ip'] ?? ''));
+            $packedIp = filter_var($rawIp, FILTER_VALIDATE_IP) !== false ? inet_pton($rawIp) : false;
+            $ip = $packedIp === false ? '' : (inet_ntop($packedIp) ?: '');
+            $host = $ip !== '' && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false
+                ? '[' . $ip . ']'
+                : $ip;
+            $pbxDisplay = [
+                'name' => (string) ($pbxRow['name'] ?? ''),
+                'ip' => $ip,
+                'url' => (string) ($pbxRow['asset_url'] ?? ''),
+                'ip_url' => $ip !== '' ? 'http://' . $host : '',
+            ];
+            $pbxMac = PbxAssociationResolver::normalizeMac((string) ($pbxRow['mac'] ?? ''));
+            if ($pbxMac !== '') {
+                $pbxByMac[$pbxMac][] = $pbxDisplay;
+            }
+            // Only inventory-eligible PBXs with a valid MAC can be associated
+            // by IP, matching PbxAssociationResolver's candidate rules.
+            if ($pbxMac !== '' && $ip !== '') {
+                $pbxByIp[strtolower($ip)][] = $pbxDisplay;
+            }
+        }
+        return ['by_ip' => $pbxByIp, 'by_mac' => $pbxByMac];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $accounts
+     * @param array{by_ip: array<string, array<int, array{name:string,ip:string,url:string,ip_url:string}>>, by_mac: array<string, array<int, array{name:string,ip:string,url:string,ip_url:string}>>} $indexes
+     * @return array<int, array<string, mixed>>
+     */
+    private static function enrichSipAccountsWithIndexes(array $accounts, array $indexes): array
+    {
+        foreach ($accounts as &$account) {
+            $server = (string) ($account['server'] ?? '');
+            $serverIp = PbxAssociationResolver::sipServerIp($server);
+            $serverPbxMac = $serverIp === '' ? PbxAssociationResolver::sipServerPbxMac($server) : '';
+            $candidates = $serverIp !== ''
+                ? ($indexes['by_ip'][strtolower($serverIp)] ?? [])
+                : ($serverPbxMac !== '' ? ($indexes['by_mac'][$serverPbxMac] ?? []) : []);
+            if (count($candidates) !== 1) {
+                $account['pbx_name'] = '';
+                $account['pbx_ip'] = '';
+                $account['pbx_url'] = '';
+                $account['pbx_ip_url'] = '';
+                continue;
+            }
+            $pbx = $candidates[0];
+            $account['pbx_name'] = $pbx['name'];
+            $account['pbx_ip'] = $pbx['ip'];
+            $account['pbx_url'] = $pbx['url'];
+            $account['pbx_ip_url'] = $pbx['ip_url'];
+        }
+        unset($account);
+        return $accounts;
+    }
+
+    /**
+     * Public compatibility wrapper for integrations and regression tests.
+     *
+     * @param array<int, array<string, mixed>> $accounts
+     * @param array<int, array<string, mixed>> $pbxRows
+     * @return array<int, array<string, mixed>>
+     */
+    public static function enrichSipAccountsForDisplay(array $accounts, array $pbxRows): array
+    {
+        return self::enrichSipAccountsWithIndexes($accounts, self::buildSipPbxDisplayIndexes($pbxRows));
+    }
+
     public static function render(Request $request): Response
     {
         ob_start();
         global $CFG_GLPI, $DB;
 
         \Session::checkLoginUser();
-        if (!\Session::haveRight('config', READ) && !\Session::haveRight('networking', READ)) {
+        if (!\Session::haveRight(Config::$rightname, READ) && !\Session::haveRight('networking', READ)) {
             throw new AccessDeniedHttpException();
         }
 
@@ -54,6 +158,16 @@ final class DashboardService
         $is_configured    = !empty($config['client_id']) || !empty($config['gwn_client_id']);
         $refresh_interval = max(30, (int) ($config['refresh_interval'] ?? 300));
         $last_sync_at     = $config['last_sync_at'] ?? null;
+        $can_sync         = (bool) \Session::haveRight('config', UPDATE);
+        $has_complete_gwn = !empty($config['gwn_client_id']) && !empty($config['gwn_client_secret']);
+        $has_complete_gdms = !empty($config['client_id']) && !empty($config['client_secret'])
+            && !empty($config['username']) && !empty($config['password']);
+        $needs_auto_sync = self::shouldRunDashboardSync(
+            is_string($last_sync_at) ? $last_sync_at : null,
+            $refresh_interval,
+            $can_sync,
+            $has_complete_gwn || $has_complete_gdms,
+        );
         $last_sync_label  = '';
         if ($last_sync_at) {
             // last_sync_at is stored as UTC (gmdate). Append ' UTC' so strtotime() parses it correctly
@@ -164,6 +278,27 @@ final class DashboardService
             $location         = (string) ($state['location'] ?? '');
             $uptime_sec       = (int) ($state['uptime_sec']                   ?? 0);
             $sn_cloud         = (string) ($state['sn_cloud'] ?? '');
+            $sipSnapshot = json_decode((string) ($state['sip_accounts_json'] ?? ''), true);
+            $sipSummary = is_array($sipSnapshot) ? API::gdmsSummarizeSipSnapshot($sipSnapshot) : [];
+            $sip_accounts = is_array($sipSummary['accounts'] ?? null) ? $sipSummary['accounts'] : [];
+            if ($sip_accounts !== []) {
+                $hasUnknownStatus = false;
+                $hasNegativeStatus = false;
+                foreach ($sip_accounts as $sipAccount) {
+                    $accountStatus = strtolower(trim((string) ($sipAccount['status'] ?? '')));
+                    if ($accountStatus === '' || preg_match('/^(?:unknown|n\\/?a|not available|pending|unavailable|-)$/i', $accountStatus) === 1) {
+                        $hasUnknownStatus = true;
+                    } elseif (preg_match('/^(?:1|true|up|normal|registered|online|ok)$/', $accountStatus) !== 1) {
+                        $hasNegativeStatus = true;
+                    }
+                }
+                $sip_status = $hasNegativeStatus
+                    ? 'unregistered'
+                    : ($hasUnknownStatus ? 'unknown' : 'registered');
+            }
+            if (($sipSummary['primary_extension'] ?? '') !== '') {
+                $sip_extension = (string) $sipSummary['primary_extension'];
+            }
 
             // Find the GLPI asset if it exists
             $glpi     = $mac_to_asset[$mac] ?? null;
@@ -253,146 +388,139 @@ final class DashboardService
                 'mgmt_ip'         => (string) ($state['mgmt_ip'] ?? ''),
                 'sip_status'       => $sip_status,
                 'sip_extension'    => $sip_extension,
+                'sip_accounts'     => $sip_accounts,
+                'sip_server'       => (string) ($state['sip_server'] ?? ''),
+                'sip_server_count' => (int) ($sipSummary['server_count'] ?? 0),
                 'dnd'              => $dnd,
                 'is_synchronized'  => $is_synchronized,
                 'sync_failure_msg' => $sync_failure_msg,
                 'scheduled_task'   => $scheduled_task,
                 'ipv6'             => $ipv6,
                 'private_ip'       => $private_ip,
+                'pbx_mac'          => (string) ($state['pbx_mac'] ?? ''),
                 'location'         => $location,
                 'sla_rank'         => ($uptime === 0.0 && $isOnline ? 4 : ($uptime >= 99.9 ? 0 : ($uptime >= 99.0 ? 1 : ($uptime >= 95.0 ? 2 : 3)))),
             ];
         }
 
-        // Default order: network devices first, then phones; within each group sort by name
-        usort($rows, function (array $a, array $b): int {
-            $ta = ($a['type'] === 'Phone') ? 1 : 0;
-            $tb = ($b['type'] === 'Phone') ? 1 : 0;
-            if ($ta !== $tb) {
-                return $ta - $tb;
+        // Keep infrastructure, PBX/UCM systems and IP phones in distinct sections.
+        // This order is also retained when a user sorts one of the table columns.
+        $tableGroupOrder = ['network' => 0, 'pbx' => 1, 'phone' => 2, 'other' => 3];
+        $tableGroup = static function (array $row): string {
+            $category = API::getDeviceCategory((string) ($row['raw_model'] ?? ''));
+            if (($row['type'] ?? '') === 'Phone' || $category === 'phone') {
+                return 'phone';
             }
-            return strnatcasecmp($a['name'], $b['name']);
+            return $category === 'pbx' ? 'pbx' : 'network';
+        };
+        usort($rows, static function (array $a, array $b) use ($tableGroup, $tableGroupOrder): int {
+            $groupCompare = $tableGroupOrder[$tableGroup($a)] <=> $tableGroupOrder[$tableGroup($b)];
+            return $groupCompare !== 0 ? $groupCompare : strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
         });
 
-        // Helper: true if model prefix matches any phone/ATA prefix (same list as api.class.php)
-        $isPhoneModel = static function (string $m): bool {
-            $u = strtoupper(trim($m));
-            foreach (['GRP','GXP','GXV','GXW','WP','HT','DP','GHP','GVC','GSC','GDS'] as $p) {
-                if (str_starts_with($u, $p)) {
-                    return true;
-                }
-            }
-            return false;
-        };
+        // One resolver feeds the SIP detail, device list and network topology.
+        // Public/WAN IP and GDMS site-name coincidences are diagnostics only;
+        // only an explicit SIP-to-UCM reference or a unique private subnet can
+        // associate a phone automatically.
+        $pbxResolution = PbxAssociationResolver::resolveDetailed($rows);
+        $pbx_for_device_mac = $pbxResolution['associations'];
+        Utils::debug(sprintf(
+            'Dashboard PBX inventory: count=%d devices=%s',
+            count($pbxResolution['pbx_inventory']),
+            json_encode($pbxResolution['pbx_inventory'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '[]',
+        ));
 
-        // Resolve PBX associations once and reuse the same answer for the SIP modal
-        // and network topology. GDMS network_name is not a unique PBX identifier:
-        // multiple sites/PBXs can share it, so never select "the first" PBX.
-        $_pbx_subnet = static function (string $ip): string {
-            $ip = trim($ip);
-            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
-                return '';
-            }
-            $parts = explode('.', $ip);
-            return $parts[0] . '.' . $parts[1] . '.' . $parts[2];
-        };
-        $_network_key = static function (string $network): string {
-            return strtolower(trim(html_entity_decode($network, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
-        };
-
-        $pbx_by_subnet  = []; // /24 => list of candidate PBXs
-        $pbx_by_network = []; // normalized GDMS network name => list of PBXs
-        foreach ($rows as $_r) {
-            if (!preg_match('/^(?:UCM|GCC|CLOUDUCM|SOFTWAREUCM)/i', (string) ($_r['raw_model'] ?? ''))) {
+        $pbxResolutionSummary = [
+            'phones' => 0,
+            'associated' => 0,
+            'unassigned' => 0,
+            'methods' => [],
+            'reasons' => [],
+        ];
+        foreach ($rows as $_associationRow) {
+            if (API::getDeviceCategory((string) $_associationRow['raw_model']) !== 'phone') {
                 continue;
             }
-            $_pbx_mac = strtolower(trim((string) ($_r['mac'] ?? '')));
-            if ($_pbx_mac === '') {
+            $_associationMac = PbxAssociationResolver::normalizeMac((string) ($_associationRow['mac'] ?? ''));
+            if ($_associationMac === '') {
                 continue;
             }
-            $_pbx_ip = trim((string) (($_r['private_ip'] ?? '') ?: ($_r['ip'] ?? '')));
-            $_pbx_net = $_network_key((string) ($_r['network_name'] ?? ''));
-            $_pbx = [
-                'mac' => $_pbx_mac,
-                'name' => (string) ($_r['name'] ?? ''),
-                'ip' => $_pbx_ip,
-                'url' => (string) ($_r['asset_url'] ?? ''),
-                'network_key' => $_pbx_net,
-            ];
-            $_pbx_sn = $_pbx_subnet($_pbx_ip);
-            if ($_pbx_sn !== '') {
-                $pbx_by_subnet[$_pbx_sn][] = $_pbx;
+            $_association = $pbx_for_device_mac[$_associationMac] ?? null;
+            $_diagnostic = $pbxResolution['diagnostics'][$_associationMac] ?? [];
+            $_method = is_array($_association) ? (string) ($_association['match_method'] ?? 'unknown') : 'none';
+            $_reason = (string) ($_diagnostic['reason'] ?? 'no_diagnostic');
+            $pbxResolutionSummary['phones']++;
+            if (is_array($_association)) {
+                $pbxResolutionSummary['associated']++;
+            } else {
+                $pbxResolutionSummary['unassigned']++;
             }
-            if ($_pbx_net !== '') {
-                $pbx_by_network[$_pbx_net][] = $_pbx;
-            }
+            $pbxResolutionSummary['methods'][$_method] = ($pbxResolutionSummary['methods'][$_method] ?? 0) + 1;
+            $pbxResolutionSummary['reasons'][$_reason] = ($pbxResolutionSummary['reasons'][$_reason] ?? 0) + 1;
+
+            Utils::debug(sprintf(
+                'Dashboard PBX resolution: device=%s mac=%s private_ip=%s subnet=%s public_ip=%s sip_server=%s extension_present=%s result=%s pbx=%s pbx_mac=%s method=%s reason=%s candidates=%s',
+                (string) ($_associationRow['name'] ?? ''),
+                $_associationMac,
+                (string) ($_diagnostic['private_ip'] ?? ''),
+                (string) ($_diagnostic['private_subnet'] ?? ''),
+                (string) ($_diagnostic['public_ip'] ?? ''),
+                (string) ($_diagnostic['sip_server'] ?? ''),
+                !empty($_diagnostic['sip_extension_present']) ? 'yes' : 'no',
+                is_array($_association) ? 'ASSIGNED' : 'UNASSIGNED',
+                is_array($_association) ? (string) ($_association['name'] ?? '') : '',
+                is_array($_association) ? (string) ($_association['mac'] ?? '') : '',
+                $_method,
+                $_reason,
+                json_encode([
+                    'explicit' => $_diagnostic['explicit_candidates'] ?? [],
+                    'sip_server_ip' => $_diagnostic['sip_server_ip_candidates'] ?? [],
+                    'private_subnet' => $_diagnostic['private_subnet_candidates'] ?? [],
+                    'public_ip_non_authoritative' => $_diagnostic['public_ip_candidates'] ?? [],
+                    'network_name_non_authoritative' => $_diagnostic['network_name_candidates'] ?? [],
+                ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}',
+            ));
         }
-
-        // Cache one unambiguous PBX match per device MAC. Prefer the same
-        // IPv4 /24 as the topology; use network_name only when it identifies
-        // exactly one PBX (or disambiguates candidates on a shared subnet).
-        $pbx_for_device_mac = [];
-        foreach ($rows as $_r) {
-            $_device_mac = strtolower(trim((string) ($_r['mac'] ?? '')));
-            if ($_device_mac === '') {
-                continue;
-            }
-
-            $_device_ip = trim((string) (($_r['private_ip'] ?? '') ?: ($_r['ip'] ?? '')));
-            $_device_sn = $_pbx_subnet($_device_ip);
-            $_device_net = $_network_key((string) ($_r['network_name'] ?? ''));
-            $_subnet_candidates = $_device_sn !== '' ? ($pbx_by_subnet[$_device_sn] ?? []) : [];
-
-            $_chosen_pbx = null;
-            if (count($_subnet_candidates) === 1) {
-                $_chosen_pbx = $_subnet_candidates[0];
-            } elseif (count($_subnet_candidates) > 1 && $_device_net !== '') {
-                $_matching_net = array_values(array_filter(
-                    $_subnet_candidates,
-                    static fn(array $candidate): bool => $candidate['network_key'] === $_device_net,
-                ));
-                if (count($_matching_net) === 1) {
-                    $_chosen_pbx = $_matching_net[0];
-                }
-            } elseif ($_device_net !== '') {
-                $_network_candidates = $pbx_by_network[$_device_net] ?? [];
-                if (count($_network_candidates) === 1) {
-                    $_chosen_pbx = $_network_candidates[0];
-                }
-            }
-            $pbx_for_device_mac[$_device_mac] = $_chosen_pbx;
-        }
+        Utils::debug(sprintf(
+            'Dashboard PBX resolution summary: %s',
+            json_encode($pbxResolutionSummary, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}',
+        ));
 
         // Build per-network device stats for tooltip (router/switch/AP/clients counts)
         // Device classification: GWN7001/7002/7003 prefix -- router; GWN7800/GSS -- switch; GWN76xx -- AP; UCM/GCC/GRP/GXP etc -- phone/pbx
         $net_stats = []; // network_name -- [router_on, router_off, switch_on, switch_off, ap_on, ap_off, clients_wired, clients_wireless]
         foreach ($rows as $r) {
-            $nname = $r['network_name'];
-            if ($nname === '') {
+            $nname = (string) ($r['network_name'] ?? '');
+            $networkId = (int) $r['network_id'];
+            $networkStatsKey = $networkId > 0
+                ? 'id:' . $networkId
+                : 'name:' . strtolower(trim(html_entity_decode($nname, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            if ($nname === '' && $networkId <= 0) {
                 continue;
             }
-            if (!isset($net_stats[$nname])) {
-                $net_stats[$nname] = ['router_on' => 0,'router_off' => 0,'switch_on' => 0,'switch_off' => 0,'ap_on' => 0,'ap_off' => 0,'phone_on' => 0,'phone_off' => 0,'clients' => 0,'upload_bytes' => 0,'download_bytes' => 0];
+            if (!isset($net_stats[$networkStatsKey])) {
+                $net_stats[$networkStatsKey] = ['name' => $nname, 'network_id' => $networkId, 'router_on' => 0,'router_off' => 0,'switch_on' => 0,'switch_off' => 0,'ap_on' => 0,'ap_off' => 0,'phone_on' => 0,'phone_off' => 0,'clients' => 0,'upload_bytes' => 0,'download_bytes' => 0];
             }
-            $m   = strtoupper($r['raw_model'] ?? '');
+            $m   = strtoupper($r['raw_model']);
             $on  = $r['online'];
-            $isPhone  = ($r['type'] === 'Phone') || $isPhoneModel($r['raw_model'] ?? '');
-            $isPbxDev = preg_match('/^UCM|^GCC|^CLOUDUCM|^SOFTWAREUCM/', $m);
+            $deviceCategory = API::getDeviceCategory($r['raw_model']);
+            $isPhone = ($r['type'] === 'Phone') || $deviceCategory === 'phone';
+            $isPbxDev = $deviceCategory === 'pbx';
             if (!$isPhone && !$isPbxDev) {
                 if (preg_match('/^GWN700[0-9]/', $m)) {
-                    $on ? $net_stats[$nname]['router_on']++ : $net_stats[$nname]['router_off']++;
+                    $on ? $net_stats[$networkStatsKey]['router_on']++ : $net_stats[$networkStatsKey]['router_off']++;
                 } elseif (preg_match('/^GWN78|^GSS/', $m)) {
-                    $on ? $net_stats[$nname]['switch_on']++ : $net_stats[$nname]['switch_off']++;
+                    $on ? $net_stats[$networkStatsKey]['switch_on']++ : $net_stats[$networkStatsKey]['switch_off']++;
                 } elseif (preg_match('/^GWN/', $m)) {
-                    $on ? $net_stats[$nname]['ap_on']++ : $net_stats[$nname]['ap_off']++;
+                    $on ? $net_stats[$networkStatsKey]['ap_on']++ : $net_stats[$networkStatsKey]['ap_off']++;
                 }
             }
             if ($isPhone || $isPbxDev) {
-                $on ? $net_stats[$nname]['phone_on']++ : $net_stats[$nname]['phone_off']++;
+                $on ? $net_stats[$networkStatsKey]['phone_on']++ : $net_stats[$networkStatsKey]['phone_off']++;
             }
-            $net_stats[$nname]['clients']        += $r['clients'];
-            $net_stats[$nname]['upload_bytes']   += $r['upload_bytes'];
-            $net_stats[$nname]['download_bytes'] += $r['download_bytes'];
+            $net_stats[$networkStatsKey]['clients']        += $r['clients'];
+            $net_stats[$networkStatsKey]['upload_bytes']   += $r['upload_bytes'];
+            $net_stats[$networkStatsKey]['download_bytes'] += $r['download_bytes'];
         }
 
         // Uptime history -- last N days per device per day (configurable via chart_days)
@@ -482,29 +610,57 @@ final class DashboardService
             $links_raw   = empty($entity_macs) ? [] : $link->find(['source_mac' => $entity_macs, 'target_mac' => $entity_macs]);
 
             foreach ($rows as $r) {
+                $category = API::getDeviceCategory((string) ($r['raw_model'] ?? ''));
+                if ($r['type'] === 'Phone') {
+                    $category = 'phone';
+                }
+                $shape = match ($category) {
+                    'pbx' => 'database',
+                    'phone' => 'box',
+                    'switch' => 'hexagon',
+                    'router' => 'diamond',
+                    default => 'dot',
+                };
+                $nodeMac = PbxAssociationResolver::normalizeMac((string) ($r['mac'] ?? ''));
+                $nodeId = $nodeMac !== '' ? $nodeMac : (string) $r['mac'];
                 $nodes[] = [
-                    'id'    => $r['mac'],
+                    'id'    => $nodeId,
                     'label' => $r['name'],
+                    'shape' => $shape,
                     'color' => ['background' => $r['online'] ? '#28a745' : '#dc3545', 'border' => '#aaa'],
                     'font'  => ['color' => '#ffffff'],
-                    'title' => $r['name'] . ' — ' . ($r['online'] ? __('Online', 'gdmsintegration') : __('Offline', 'gdmsintegration')),
+                    'title' => $r['name'] . ' — ' . strtoupper($category) . ' — ' . ($r['online'] ? __('Online', 'gdmsintegration') : __('Offline', 'gdmsintegration')),
                 ];
             }
             foreach ($links_raw as $l) {
                 if (!empty($l['source_mac']) && !empty($l['target_mac'])) {
-                    $edges[] = ['from' => $l['source_mac'], 'to' => $l['target_mac']];
+                    $sourceMac = PbxAssociationResolver::normalizeMac((string) $l['source_mac']);
+                    $targetMac = PbxAssociationResolver::normalizeMac((string) $l['target_mac']);
+                    $edges[] = [
+                        'from' => $sourceMac !== '' ? $sourceMac : (string) $l['source_mac'],
+                        'to' => $targetMac !== '' ? $targetMac : (string) $l['target_mac'],
+                    ];
                 }
             }
             // Reuse the same unambiguous PBX resolver as the SIP information modal.
             foreach ($rows as $_r) {
-                if (empty($_r['sip_status']) || empty($_r['mac'])) {
+                if (($_r['type'] !== 'Phone' && API::getDeviceCategory($_r['raw_model']) !== 'phone') || empty($_r['mac'])) {
                     continue;
                 }
-                $_phone_mac = strtolower(trim((string) $_r['mac']));
+                $_phone_mac = PbxAssociationResolver::normalizeMac((string) $_r['mac']);
+                if ($_phone_mac === '') {
+                    continue;
+                }
                 $_phone_pbx = $pbx_for_device_mac[$_phone_mac] ?? null;
-                $_pbx_mac = strtolower(trim((string) ($_phone_pbx['mac'] ?? '')));
+                $_pbx_mac = PbxAssociationResolver::normalizeMac((string) ($_phone_pbx['mac'] ?? ''));
                 if ($_pbx_mac !== '' && $_pbx_mac !== $_phone_mac) {
-                    $edges[] = ['from' => $_r['mac'], 'to' => $_pbx_mac];
+                    $edges[] = [
+                        'from' => $_phone_mac,
+                        'to' => $_pbx_mac,
+                        'color' => ['color' => '#6f42c1', 'highlight' => '#8b5cf6'],
+                        'dashes' => true,
+                        'width' => 2,
+                    ];
                 }
             }
         } // end show_topology block
@@ -548,6 +704,8 @@ final class DashboardService
             return 'http://' . (strpos($ip, ':') !== false ? '[' . $ip . ']' : urlencode($ip));
         };
 
+        $previousTableGroup = null;
+        $sipPbxDisplayIndexes = null;
         foreach ($rows as &$r) {
             $us = (int) ($r['uptime_sec'] ?? 0);
             $ud = intdiv($us, 86400);
@@ -555,7 +713,14 @@ final class DashboardService
             $um = intdiv($us % 3600, 60);
             $r['_uptime_str']     = $ud > 0 ? "{$ud}d {$uh}h {$um}m" : ($uh > 0 ? "{$uh}h {$um}m" : "{$um}m");
             $r['_uptime_display'] = $us > 0 ? $r['_uptime_str'] : '—';
-            $r['_is_phone']       = ($r['type'] === 'Phone') || $isPhoneModel($r['raw_model'] ?? '');
+            $r['_device_category'] = API::getDeviceCategory((string) ($r['raw_model'] ?? ''));
+            $r['_is_phone'] = ($r['type'] === 'Phone') || $r['_device_category'] === 'phone';
+            if ($r['_is_phone']) {
+                $r['_device_category'] = 'phone';
+            }
+            $r['_table_group'] = $r['_is_phone'] ? 'phone' : ($r['_device_category'] === 'pbx' ? 'pbx' : 'network');
+            $r['_table_group_start'] = $r['_table_group'] !== $previousTableGroup;
+            $previousTableGroup = $r['_table_group'];
 
             $r['_pref_ip'] = $ip_version === 'ipv6'
                 ? (!empty($r['ipv6']) ? $r['ipv6'] : $r['private_ip'])
@@ -612,21 +777,38 @@ final class DashboardService
                 ? sprintf(__('%s — since first seen in cloud (%s, ~%d days)', 'gdmsintegration'), $traffic_src, substr($fs_raw, 0, 10), max(1, (int) ((time() - strtotime($fs_raw)) / 86400)))
                 : $traffic_src;
 
-            $rnet            = $r['network_name'] ?? '';
-            $rstat           = $net_stats[$rnet] ?? null;
-            $r['_net_data']  = ($rnet !== '' && $rstat !== null)
-                ? array_merge(['name' => html_entity_decode($rnet)], $rstat)
+            $rnet = (string) ($r['network_name'] ?? '');
+            $rnetworkId = (int) $r['network_id'];
+            $rnetworkKey = $rnetworkId > 0
+                ? 'id:' . $rnetworkId
+                : 'name:' . strtolower(trim(html_entity_decode($rnet, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            $rstat = $net_stats[$rnetworkKey] ?? null;
+            $r['_net_data'] = $rstat !== null
+                ? array_merge(['name' => html_entity_decode($rnet), 'network_id' => $rnetworkId], $rstat)
                 : null;
 
             // Firmware update badges are controlled exclusively by the live official-firmware check.
             $r['_fw_badge_shown'] = false;
 
-            $_pbx_mac = strtolower(trim((string) ($r['mac'] ?? '')));
-            $r['_pbx'] = $pbx_for_device_mac[$_pbx_mac] ?? null;
-            $_sip_tip    = '';
-            if (!empty($r['sip_status'])) {
-                $_sip_tip  = $r['sip_status'] === 'registered' ? __('SIP Registered', 'gdmsintegration') : __('SIP Unregistered', 'gdmsintegration');
-                if (!empty($r['sip_extension'])) {
+            $_device_mac = PbxAssociationResolver::normalizeMac((string) ($r['mac'] ?? ''));
+            $r['_pbx'] = $pbx_for_device_mac[$_device_mac] ?? null;
+            $r['_sip_accounts_display'] = [];
+            if (!empty($r['sip_accounts'])) {
+                if ($sipPbxDisplayIndexes === null) {
+                    $sipPbxDisplayIndexes = self::buildSipPbxDisplayIndexes($rows);
+                }
+                $r['_sip_accounts_display'] = self::enrichSipAccountsWithIndexes($r['sip_accounts'], $sipPbxDisplayIndexes);
+            }
+            $_sip_tip = $r['sip_status'] === 'registered'
+                ? __('SIP Registered', 'gdmsintegration')
+                : ($r['sip_status'] === 'unregistered' ? __('SIP Unregistered', 'gdmsintegration') : __('Unknown', 'gdmsintegration'));
+            if (!empty($r['sip_status']) || !empty($r['sip_accounts'])) {
+                if (!empty($r['sip_accounts'])) {
+                    $extensions = array_values(array_filter(array_map(static fn(array $account): string => (string) ($account['extension'] ?? ''), $r['sip_accounts'])));
+                    if ($extensions !== []) {
+                        $_sip_tip .= ' · ' . __('Ext', 'gdmsintegration') . ': ' . implode(', ', $extensions);
+                    }
+                } elseif (!empty($r['sip_extension'])) {
                     $_sip_tip .= ' · ' . __('Ext', 'gdmsintegration') . ': ' . $r['sip_extension'];
                 }
                 if (!empty($r['dnd'])) {
@@ -634,7 +816,9 @@ final class DashboardService
                 }
             }
             $r['_sip_tip']   = $_sip_tip;
-            $r['_sip_color'] = ($r['sip_status'] ?? '') === 'registered' ? '#28a745' : '#dc3545';
+            $r['_sip_color'] = $r['sip_status'] === 'registered'
+                ? '#28a745'
+                : ($r['sip_status'] === 'unregistered' ? '#dc3545' : '#6c757d');
         }
         unset($r);
 
@@ -814,6 +998,7 @@ final class DashboardService
             'sipUnregistered' => __('Unregistered', 'gdmsintegration'),
             'sipStatusLbl'    => __('SIP Status', 'gdmsintegration'),
             'extension'       => __('Extension', 'gdmsintegration'),
+            'sipAccounts'     => __('SIP Accounts', 'gdmsintegration'),
             'site'            => __('Site', 'gdmsintegration'),
             'macLbl'          => __('MAC', 'gdmsintegration'),
             'copyMac'         => __('Copy MAC', 'gdmsintegration'),
@@ -846,17 +1031,34 @@ final class DashboardService
             'clientsPartialNotice' => __('The API returned a partial client list; some clients may not be shown.', 'gdmsintegration'),
             'alertsPartialRetry' => __('The API returned partial alerts. Please try again.', 'gdmsintegration'),
             'alertsPartialNotice' => __('The alert list is partial; some alerts may not be shown.', 'gdmsintegration'),
+            'filterAll'       => __('All', 'gdmsintegration'),
+            'filterOnline'    => __('Online', 'gdmsintegration'),
+            'filterOffline'   => __('Offline', 'gdmsintegration'),
+            'filterNetwork'   => __('Network', 'gdmsintegration'),
+            'filterPhone'     => __('Phone', 'gdmsintegration'),
+            'filterDevice'    => __('Device', 'gdmsintegration') . '...',
+            'syncWaiting' => __('Another synchronization is running. Waiting to retry…', 'gdmsintegration'),
+            'fwScheduleExpired' => __('The selected time has passed. Please choose a new future time.', 'gdmsintegration'),
         ];
 
-        $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES;
-        $js_json = [
-            'strings'        => json_encode($js_strings, $json_flags),
-            'nodes'          => json_encode(array_values($nodes), $json_flags),
-            'edges'          => json_encode(array_values($edges), $json_flags),
-            'chart_labels'   => json_encode($chart_labels, $json_flags),
-            'chart_datasets' => json_encode($chart_datasets, $json_flags),
-            'urls'           => array_map(static fn(string $url): string => json_encode($url, $json_flags), $urls),
-        ];
+        // Keep data in an HTML-escaped textarea, never in an executable inline script.
+        // JSON_HEX_* prevents untrusted strings from introducing HTML delimiters.
+        $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR;
+        $dashboard_data_json = json_encode([
+            'strings' => $js_strings,
+            'nodes' => $nodes,
+            'edges' => $edges,
+            'chartLabels' => $chart_labels,
+            'chartDatasets' => $chart_datasets,
+            'urls' => $urls,
+            'refreshInterval' => $refresh_interval,
+            'needsAutoSync' => $needs_auto_sync,
+            'canSync' => $can_sync,
+            'fpLang' => $_fp_lang,
+            'fpRegion' => $_fp_region,
+            'showTopology' => $show_topology === 1,
+        ], $json_flags);
+
 
         echo TemplateRenderer::getInstance()->render('@gdmsintegration/dashboard.html.twig', [
             'is_configured'    => true,
@@ -874,20 +1076,20 @@ final class DashboardService
             'ops_summary'      => $ops_summary,
             'chart_datasets'   => $chart_datasets,
             'chart_labels'     => $chart_labels,
-            'nodes'            => array_values($nodes),
-            'edges'            => array_values($edges),
+            'nodes'            => $nodes,
+            'edges'            => $edges,
             'show_topology'    => $show_topology,
             'chart_days'       => $chart_days,
             'has_gwn_config'   => !empty($config['gwn_client_id']),
             'js_strings'       => $js_strings,
             'urls'             => $urls,
-            'js_json'          => $js_json,
+            'dashboard_data_json' => $dashboard_data_json,
             'fp_lang'          => $_fp_lang,
             'fp_region'        => $_fp_region,
             'refresh_interval' => $refresh_interval,
+            'needs_auto_sync' => $needs_auto_sync,
             'last_sync_label'  => $last_sync_label,
             'last_sync_at'     => $last_sync_at ?? '',
-            'visnetwork_url'   => $_plugin_web . '/js/vis-network.min.js?v=' . self::getVisNetworkAssetVersion(),
             'config_url'       => $_plugin_web . '/config',
         ]);
 

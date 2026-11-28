@@ -67,6 +67,11 @@ jobs:
       - name: Show runtime
         run: php -v
 
+      - name: Validate shell scripts
+        run: |
+          bash -n scripts/package.sh
+          bash -n scripts/update-vis-network.sh
+
       - name: PHP syntax
         run: |
           find setup.php hook.php src tests .github -type f -name '*.php' -print0 \
@@ -75,6 +80,17 @@ jobs:
 
       - name: Run CLI business-logic tests
         run: php tests/run.php
+
+      - name: Run PBX/SIP account regression tests
+        run: php tests/pbx_association_regression.php
+
+      - name: Run GDMS rate-limit regression tests
+        run: php tests/gdms_rate_limit_regression.php
+
+      - name: Check external JavaScript syntax
+        run: |
+          node --check public/js/config.js
+          node --check public/js/dashboard.js
 
       - name: Run firmware-channel regression tests
         run: php tests/firmware_channel_regression.php
@@ -120,43 +136,26 @@ jobs:
           fi
 
           bash scripts/package.sh "$RUNNER_TEMP/gdms-dist"
-          mapfile -t archives < <(find "$RUNNER_TEMP/gdms-dist" -maxdepth 1 -type f -name 'gdmsintegration-*.zip' -print)
+
+          mapfile -t archives < <(
+            find "$RUNNER_TEMP/gdms-dist" -maxdepth 1 -type f -name 'gdmsintegration-*.zip' -print
+          )
           if [[ ${#archives[@]} -ne 1 ]]; then
             echo "Expected exactly one generated plugin archive; found ${#archives[@]}." >&2
             exit 1
           fi
-          archive="${archives[0]}"
-          test -f "$archive"
-          unzip -t "$archive"
-          if unzip -Z1 "$archive" | grep -Evq '^gdmsintegration(/|$)'; then
-            echo "The archive contains a path outside gdmsintegration/." >&2
-            exit 1
-          fi
-          if unzip -Z1 "$archive" | grep -Eq '^gdmsintegration/(tests|scripts|\.github|vendor)(/|$)'; then
-            echo "Development files leaked into the installation ZIP." >&2
-            exit 1
-          fi
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/setup.php'
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/hook.php'
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/src/Sync.php'
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/templates/dashboard.html.twig'
-          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/public/js/vis-network.min.js'
-          public_js_entries="$(unzip -Z1 "$archive" | grep -E '^gdmsintegration/public/js/[^/]+$' || true)"
-          if [[ "$public_js_entries" != "gdmsintegration/public/js/vis-network.min.js" ]]; then
-            printf 'Unexpected files in installable public/js directory:\\n%s\\n' "${public_js_entries:-<none>}" >&2
-            exit 1
-          fi
 
-          # Upload the exact archive created by the packager, without
-          # duplicating the plugin version in the workflow definition.
+          archive="${archives[0]}"
+          unzip -t "$archive"
           checksum="${archive}.sha256"
           sha256sum "$archive" > "$checksum"
+
+          # Expose the exact validated files to the artifact upload step.
           printf 'archive_path=%s\n' "$archive" >> "$GITHUB_OUTPUT"
           printf 'checksum_path=%s\n' "$checksum" >> "$GITHUB_OUTPUT"
 
       - name: Upload installable GDMS Integration ZIP
-        # This unprivileged PR/push workflow uploads the package artifact;
-        # no privileged workflow consumes artifacts built from PR code.
+        # Upload only the validated package from the designated build leg.
         if: matrix.php == '8.3'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

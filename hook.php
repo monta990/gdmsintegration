@@ -98,6 +98,33 @@ function plugin_gdmsintegration_ensure_cron_task(bool $force = false): bool
     }
 }
 
+/**
+ * Ensure the SIP snapshot columns exist after activation. This idempotent
+ * guard protects installations where the plugin was upgraded from an earlier
+ * schema before the full install/update migration could complete.
+ */
+function plugin_gdmsintegration_ensure_sip_account_fields(): bool
+{
+    global $DB;
+
+    $table = 'glpi_plugin_gdmsintegration_devices';
+    if (!$DB->tableExists($table)) {
+        return false;
+    }
+
+    $migration = new Migration(PLUGIN_GDMSINTEGRATION_VERSION);
+    if (!$DB->fieldExists($table, 'sip_accounts_json')) {
+        $migration->addField($table, 'sip_accounts_json', 'longtext NULL');
+    }
+    if (!$DB->fieldExists($table, 'sip_accounts_checked_at')) {
+        $migration->addField($table, 'sip_accounts_checked_at', 'datetime NULL');
+    }
+    $migration->executeMigration();
+
+    return $DB->fieldExists($table, 'sip_accounts_json')
+        && $DB->fieldExists($table, 'sip_accounts_checked_at');
+}
+
 // ---------------------------------------------------------------------------
 // Install
 // ---------------------------------------------------------------------------
@@ -200,11 +227,13 @@ function plugin_gdmsintegration_install(): bool
             `last_factory_reset_at` TIMESTAMP NULL DEFAULT NULL,
             `sip_status` varchar(50) NOT NULL DEFAULT '',
             `sip_extension` varchar(50) NOT NULL DEFAULT '',
+            `sip_server` varchar(255) NOT NULL DEFAULT '',
             `location` varchar(255) NOT NULL DEFAULT '',
             `dnd` tinyint unsigned NOT NULL DEFAULT 0,
             `is_synchronized` tinyint unsigned NOT NULL DEFAULT 0,
             `sync_failure_msg` varchar(255) NOT NULL DEFAULT '',
             `scheduled_task` tinyint unsigned NOT NULL DEFAULT 0,
+            `pbx_mac` varchar(50) NOT NULL DEFAULT '',
             PRIMARY KEY (`id`),
             UNIQUE KEY `entity_mac` (`entities_id`, `mac`),
             KEY `entities_id` (`entities_id`)
@@ -358,11 +387,15 @@ function plugin_gdmsintegration_install(): bool
         'ipv6' => 'varchar(60) NOT NULL DEFAULT \'\'',
         'private_ip' => 'varchar(45) NOT NULL DEFAULT \'\'',
         'sip_extension' => 'varchar(50) NOT NULL DEFAULT \'\'',
+        'sip_server' => 'varchar(255) NOT NULL DEFAULT \'\'',
+        'sip_accounts_json' => 'longtext NULL',
+        'sip_accounts_checked_at' => 'datetime NULL',
         'location' => 'varchar(255) NOT NULL DEFAULT \'\'',
         'dnd' => 'tinyint unsigned NOT NULL DEFAULT 0',
         'is_synchronized' => 'tinyint unsigned NOT NULL DEFAULT 0',
         'sync_failure_msg' => 'varchar(255) NOT NULL DEFAULT \'\'',
         'scheduled_task' => 'tinyint unsigned NOT NULL DEFAULT 0',
+        'pbx_mac' => 'varchar(50) NOT NULL DEFAULT \'\'',
     ];
     foreach ($deviceFields as $field => $type) {
         if (!$DB->fieldExists('glpi_plugin_gdmsintegration_devices', $field)) {
@@ -446,6 +479,9 @@ function plugin_gdmsintegration_install(): bool
 /** Ensure the native automatic action is repaired whenever the plugin is enabled. */
 function plugin_gdmsintegration_activate(): bool
 {
+    if (!plugin_gdmsintegration_ensure_sip_account_fields()) {
+        return false;
+    }
     return plugin_gdmsintegration_ensure_cron_task();
 }
 
