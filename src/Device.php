@@ -190,6 +190,10 @@ class Device extends BaseTM
             // A previous single-host association is invalid once the phone
             // reports multiple different SIP servers.
             $data['pbx_mac'] = '';
+        } elseif ($sip_accounts_info_ok === true) {
+            // A successful account-info refresh is authoritative: clear an old
+            // PBX link when the current SIP server no longer resolves to one.
+            $data['pbx_mac'] = $pbx_mac;
         } elseif ($pbx_mac !== '') {
             $data['pbx_mac'] = $pbx_mac;
         }
