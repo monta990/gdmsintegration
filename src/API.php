@@ -960,6 +960,120 @@ class API
     }
 
     /**
+     * Build a signed request for one SIP account endpoint.
+     *
+     * @param array<string, mixed> $config
+     * @return array{mac:string,kind:string,endpoint:string,url:string,body:string}|false
+     */
+    private static function buildGdmsDeviceAccountRequest(array $config, string $kind, string $endpoint, string $mac): array|false
+    {
+        $body = json_encode(['mac' => $mac], JSON_UNESCAPED_SLASHES);
+        if (!is_string($body)) {
+            return false;
+        }
+        $timestamp = (int) (microtime(true) * 1000);
+        $urlParams = ['access_token' => (string) $config['access_token']];
+        $signature = self::gdmsBuildSignature($urlParams, $config, $timestamp, $body);
+        $url = self::gdmsBase($config) . '/' . self::VERSION . '/' . $endpoint . '?' . http_build_query([
+            'access_token' => $config['access_token'],
+            'timestamp' => $timestamp,
+            'signature' => $signature,
+        ]);
+        return ['mac' => $mac, 'kind' => $kind, 'endpoint' => $endpoint, 'url' => $url, 'body' => $body];
+    }
+
+    /**
+     * Execute at most one bounded concurrent SIP request group.
+     *
+     * @param array<string, array{mac:string,kind:string,endpoint:string,url:string,body:string}> $requests
+     * @return array{results: array<string, array{ok:bool,data:array<string,mixed>|null,http:int,quota:bool,auth:bool,retry_after:int}>, quota_hit:bool, auth_rejected:bool}
+     */
+    private static function executeGdmsSipRequestGroup(array $requests, int $timeoutSeconds): array
+    {
+        if ($requests === [] || !function_exists('curl_multi_init')) {
+            return ['results' => [], 'quota_hit' => false, 'auth_rejected' => false];
+        }
+
+        $multi = curl_multi_init();
+        $handles = [];
+        foreach ($requests as $key => $request) {
+            $handle = curl_init($request['url']);
+            curl_setopt_array($handle, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => max(1, min(4, $timeoutSeconds)),
+                CURLOPT_TIMEOUT => max(1, min(self::TIMEOUT, $timeoutSeconds)),
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                CURLOPT_HEADER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $request['body'],
+            ]);
+            curl_multi_add_handle($multi, $handle);
+            $handles[$key] = $handle;
+        }
+
+        $running = 0;
+        $multiCode = CURLM_OK;
+        do {
+            do {
+                $multiCode = curl_multi_exec($multi, $running);
+            } while (defined('CURLM_CALL_MULTI_PERFORM') && $multiCode === CURLM_CALL_MULTI_PERFORM);
+            if ($running > 0) {
+                $selected = curl_multi_select($multi, 0.2);
+                if ($selected === -1) {
+                    usleep(10000);
+                }
+            }
+        } while ($running > 0 && $multiCode === CURLM_OK);
+
+        $results = [];
+        $quotaHit = false;
+        $authRejected = false;
+        foreach ($handles as $key => $handle) {
+            $response = curl_multi_getcontent($handle);
+            $error = curl_error($handle);
+            $http = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+            $headerSize = (int) curl_getinfo($handle, CURLINFO_HEADER_SIZE);
+            $rawHeaders = is_string($response) ? substr($response, 0, $headerSize) : '';
+            $raw = is_string($response) ? substr($response, $headerSize) : '';
+            $decoded = $raw !== '' ? json_decode($raw, true) : null;
+            $retCode = is_array($decoded) && array_key_exists('retCode', $decoded) ? (int) $decoded['retCode'] : 0;
+            $message = is_array($decoded) ? self::gdmsResponseMessage($decoded) : '';
+            $isQuota = $http === 429 || (is_array($decoded) && self::isGdmsRateLimitMessage($message));
+            $isAuth = $http === 401
+                || (is_array($decoded) && $retCode !== 0 && preg_match('/token|signature|auth|expir/i', $message) === 1);
+            $ok = $error === ''
+                && $http >= 200
+                && $http < 300
+                && is_array($decoded)
+                && !$isQuota
+                && !$isAuth
+                && $retCode === 0;
+
+            if ($isQuota) {
+                $quotaHit = true;
+            }
+            if ($isAuth) {
+                $authRejected = true;
+            }
+            $results[$key] = [
+                'ok' => $ok,
+                'data' => is_array($decoded) ? $decoded : null,
+                'http' => $http,
+                'quota' => $isQuota,
+                'auth' => $isAuth,
+                'retry_after' => self::parseRetryAfter($rawHeaders),
+            ];
+            curl_multi_remove_handle($multi, $handle);
+            curl_close($handle);
+        }
+        curl_multi_close($multi);
+
+        return ['results' => $results, 'quota_hit' => $quotaHit, 'auth_rejected' => $authRejected];
+    }
+
+    /**
      * Retrieve SIP information for multiple devices via bounded cURL multi.
      * Grandstream does not publish a concurrency ceiling; default to 4 inflight
      * to limit request bursts after an IP-based rate-limit response.
@@ -967,20 +1081,36 @@ class API
      * @param array<int, string> $macs
      * @return array<string, array{checked_at: string, info_ok: bool, status_ok: bool, info: array<string, mixed>, status: array<string, mixed>}>
      */
-    public static function gdmsGetDeviceSipSnapshots(array &$config, array $macs, int $maxConcurrent = 4): array
-    {
-        $cooldown = Utils::getProviderCooldownRemaining('gdms');
-        if ($cooldown > 0) {
-            Utils::warning("GDMS SIP batch skipped — shared rate-limit cooldown has {$cooldown}s remaining; existing SIP snapshots will be preserved.");
+    /**
+     * Retrieve SIP information for multiple devices via bounded cURL multi.
+     * Grandstream does not publish a concurrency ceiling; default to 4 inflight
+     * to limit request bursts after an IP-based rate-limit response.
+     *
+     * @param array<string, mixed> $config
+     * @param array<int, string> $macs
+     * @param array<string, array<string, mixed>> $previousSnapshots
+     * @return array<string, array{checked_at: string, info_ok: bool, status_ok: bool, info: array<string, mixed>, status: array<string, mixed>}>
+     */
+    public static function gdmsGetDeviceSipSnapshots(
+        array &$config,
+        array $macs,
+        int $maxConcurrent = 4,
+        array $previousSnapshots = [],
+    ): array {
+        if (Utils::getProviderCooldownRemaining('gdms') > 0) {
+            Utils::warning('GDMS SIP batch skipped — shared rate-limit cooldown is active; existing SIP snapshots will be preserved.');
             return [];
         }
+
         $started = microtime(true);
         $maxConcurrent = max(2, min(16, $maxConcurrent));
         $uniqueMacs = [];
         foreach ($macs as $mac) {
             $mac = strtoupper(trim((string) $mac));
             if ($mac !== '' && preg_match('/^[0-9A-F:-]{12,17}$/', $mac) === 1) {
-                $uniqueMacs[$mac] = true;
+                // Numeric-only MAC strings become integer array keys in PHP;
+                // store the MAC as the value so JSON always receives a string.
+                $uniqueMacs[$mac] = $mac;
             }
         }
         if ($uniqueMacs === []) {
@@ -993,123 +1123,132 @@ class API
             }
             $config['access_token'] = $tokenData['access_token'];
         }
+
         $results = [];
         $requests = [];
-        foreach (array_keys($uniqueMacs) as $mac) {
+        foreach (array_values($uniqueMacs) as $mac) {
             $results[$mac] = ['info' => false, 'status' => false];
             foreach (['info' => 'device/account/info', 'status' => 'device/account/status'] as $kind => $endpoint) {
-                $body = json_encode(['mac' => $mac], JSON_UNESCAPED_SLASHES);
-                if (!is_string($body)) {
-                    continue;
+                $request = self::buildGdmsDeviceAccountRequest($config, $kind, $endpoint, $mac);
+                if ($request !== false) {
+                    $requests[$mac . '|' . $kind] = $request;
                 }
-                $timestamp = (int) (microtime(true) * 1000);
-                $urlParams = ['access_token' => (string) $config['access_token']];
-                $signature = self::gdmsBuildSignature($urlParams, $config, $timestamp, $body);
-                $url = self::gdmsBase($config) . '/' . self::VERSION . '/' . $endpoint . '?' . http_build_query([
-                    'access_token' => $config['access_token'], 'timestamp' => $timestamp, 'signature' => $signature,
-                ]);
-                $requests[$mac . '|' . $kind] = ['mac' => $mac, 'kind' => $kind, 'endpoint' => $endpoint, 'url' => $url, 'body' => $body];
             }
         }
-        $failed = [];
-        if (function_exists('curl_multi_init')) {
-            // Explicit chunks provide a hard upper bound even on older libcurl
-            // builds that do not support CURLMOPT_MAX_HOST_CONNECTIONS.
-            foreach (array_chunk($requests, $maxConcurrent, true) as $requestBatch) {
-                $multi = curl_multi_init();
-                $handles = [];
-                foreach ($requestBatch as $key => $request) {
-                    $handle = curl_init($request['url']);
-                    curl_setopt_array($handle, [
-                        CURLOPT_RETURNTRANSFER => true,
-                        CURLOPT_CONNECTTIMEOUT => 4,
-                        CURLOPT_TIMEOUT => self::TIMEOUT,
-                        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-                        CURLOPT_SSL_VERIFYPEER => true,
-                        CURLOPT_SSL_VERIFYHOST => 2,
-                        CURLOPT_HEADER => true,
-                        CURLOPT_POST => true,
-                        CURLOPT_POSTFIELDS => $request['body'],
-                    ]);
-                    curl_multi_add_handle($multi, $handle);
-                    $handles[$key] = $handle;
-                }
-                $running = null;
-                do {
-                    do {
-                        $multiCode = curl_multi_exec($multi, $running);
-                    } while (defined('CURLM_CALL_MULTI_PERFORM') && $multiCode === CURLM_CALL_MULTI_PERFORM);
-                    if ($running > 0) {
-                        $selected = curl_multi_select($multi, 0.25);
-                        if ($selected === -1) {
-                            usleep(10000);
-                        }
-                    }
-                } while ($running > 0 && $multiCode === CURLM_OK);
 
-                foreach ($handles as $key => $handle) {
-                    $request = $requestBatch[$key];
-                    $response = curl_multi_getcontent($handle);
-                    $error = curl_error($handle);
-                    $http = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
-                    $headerSize = (int) curl_getinfo($handle, CURLINFO_HEADER_SIZE);
-                    $rawHeaders = is_string($response) ? substr($response, 0, $headerSize) : '';
-                    $raw = is_string($response) ? substr($response, $headerSize) : '';
-                    $decoded = $raw !== '' ? json_decode($raw, true) : null;
-                    $apiRateLimited = is_array($decoded) && self::isGdmsRateLimitMessage(self::gdmsResponseMessage($decoded));
-                    if ($http === 429 || $apiRateLimited) {
-                        $retryAfter = self::parseRetryAfter($rawHeaders);
-                        Utils::setProviderCooldown('gdms', $retryAfter > 0 ? $retryAfter : self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS);
-                        Utils::warning("GDMS SIP batch rate-limited by {$request['endpoint']} — shared cooldown activated; further GDMS requests paused.");
-                    }
-                    $ok = $error === '' && $http >= 200 && $http < 300 && is_array($decoded)
-                        && (!array_key_exists('retCode', $decoded) || (int) $decoded['retCode'] === 0);
-                    if ($ok) {
-                        $results[$request['mac']][$request['kind']] = $decoded;
-                    } else {
-                        $failed[$key] = $request;
-                    }
-                    curl_multi_remove_handle($multi, $handle);
-                    curl_close($handle);
+        $failed = [];
+        $quotaHit = false;
+        $needsTokenRefresh = false;
+        foreach (array_chunk($requests, $maxConcurrent, true) as $requestGroup) {
+            if ($quotaHit || Utils::getProviderCooldownRemaining('gdms') > 0) {
+                break;
+            }
+            $groupResult = self::executeGdmsSipRequestGroup($requestGroup, self::TIMEOUT);
+            foreach ($groupResult['results'] as $key => $result) {
+                $request = $requestGroup[$key];
+                if ($result['ok'] && is_array($result['data'])) {
+                    $results[$request['mac']][$request['kind']] = $result['data'];
+                } else {
+                    $failed[$key] = $request;
                 }
-                curl_multi_close($multi);
-                if (Utils::getProviderCooldownRemaining('gdms') > 0) {
+                if ($result['auth']) {
+                    $needsTokenRefresh = true;
+                }
+                if ($result['quota']) {
+                    // Local state is authoritative within this PHP process even
+                    // when the shared cooldown cannot be persisted to the database.
+                    $quotaHit = true;
+                    $cooldownSeconds = $result['retry_after'] > 0
+                        ? $result['retry_after']
+                        : self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS;
+                    Utils::setProviderCooldown('gdms', $cooldownSeconds);
+                    Utils::warning("GDMS SIP batch rate-limited by {$request['endpoint']} — local request batch stopped.");
+                }
+            }
+        }
+
+        // Refresh once for the whole failed group if an authentication response
+        // was observed. Never refresh after a quota response.
+        if (!$quotaHit && $needsTokenRefresh && Utils::getProviderCooldownRemaining('gdms') <= 0) {
+            $renewed = self::gdmsGetToken($config, true);
+            if ($renewed !== false) {
+                $config['access_token'] = $renewed['access_token'];
+            }
+        }
+
+        // Retry only inside one bounded stage. Each group runs in parallel and
+        // the overall retry budget is capped at eight seconds regardless of
+        // the number of failed phones. Anything left can be retried next sync.
+        $retryDeadline = microtime(true) + 8.0;
+        if (!$quotaHit && $failed !== [] && Utils::getProviderCooldownRemaining('gdms') <= 0) {
+            foreach (array_chunk($failed, $maxConcurrent, true) as $requestGroup) {
+                $remaining = $retryDeadline - microtime(true);
+                if ($remaining <= 0 || $quotaHit || Utils::getProviderCooldownRemaining('gdms') > 0) {
+                    break;
+                }
+                $freshRequests = [];
+                foreach ($requestGroup as $key => $oldRequest) {
+                    $freshRequest = self::buildGdmsDeviceAccountRequest(
+                        $config,
+                        $oldRequest['kind'],
+                        $oldRequest['endpoint'],
+                        $oldRequest['mac'],
+                    );
+                    if ($freshRequest !== false) {
+                        $freshRequests[$key] = $freshRequest;
+                    }
+                }
+                if ($freshRequests === []) {
+                    continue;
+                }
+                $timeout = max(1, min(4, (int) ceil($remaining)));
+                $groupResult = self::executeGdmsSipRequestGroup($freshRequests, $timeout);
+                foreach ($groupResult['results'] as $key => $result) {
+                    $request = $freshRequests[$key];
+                    if ($result['ok'] && is_array($result['data'])) {
+                        $results[$request['mac']][$request['kind']] = $result['data'];
+                    }
+                    if ($result['quota']) {
+                        $quotaHit = true;
+                        $cooldownSeconds = $result['retry_after'] > 0
+                            ? $result['retry_after']
+                            : self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS;
+                        Utils::setProviderCooldown('gdms', $cooldownSeconds);
+                        Utils::warning("GDMS SIP retry rate-limited by {$request['endpoint']} — further local retries stopped.");
+                    }
+                }
+                if ($groupResult['quota_hit'] || microtime(true) >= $retryDeadline) {
                     break;
                 }
             }
-        } else {
-            $failed = $requests;
         }
-        // Only failed requests use existing retry + token-refresh handling. A rate
-        // limit is shared across nodes; never serialize the failed batch as retries.
-        foreach ($failed as $request) {
-            if (Utils::getProviderCooldownRemaining('gdms') > 0) {
-                break;
-            }
-            $retry = self::gdmsPostDeviceAccountEndpoint($config, $request['endpoint'], $request['mac']);
-            if ($retry !== false) {
-                $results[$request['mac']][$request['kind']] = $retry;
-            }
-        }
+
         $snapshots = [];
-        $rateLimitCooldown = Utils::getProviderCooldownRemaining('gdms');
         foreach ($results as $mac => $result) {
+            $previous = $previousSnapshots[$mac] ?? [];
+            $previousInfo = is_array($previous['info'] ?? null)
+                ? self::gdmsSanitizeSipPayload($previous['info'])
+                : [];
+            $previousStatus = is_array($previous['status'] ?? null)
+                ? self::gdmsSanitizeSipPayload($previous['status'])
+                : [];
             $info = $result['info'] ?? false;
             $status = $result['status'] ?? false;
-            if ($rateLimitCooldown > 0 && $info === false && $status === false) {
-                // Keep the prior good SIP snapshot; this was a quota response, not
-                // evidence that the phone has no SIP accounts or registration data.
-                continue;
-            }
+
+            // A successful empty endpoint response is authoritative and clears
+            // that endpoint. A failed endpoint keeps its last known payload,
+            // while its *_ok flag remains false so the short retry TTL is used.
             $snapshot = [
-                'checked_at' => gmdate('Y-m-d H:i:s'), 'info_ok' => $info !== false, 'status_ok' => $status !== false,
-                'info' => $info !== false ? self::gdmsSanitizeSipPayload($info) : [],
-                'status' => $status !== false ? self::gdmsSanitizeSipPayload($status) : [],
+                'checked_at' => gmdate('Y-m-d H:i:s'),
+                'info_ok' => $info !== false,
+                'status_ok' => $status !== false,
+                'info' => $info !== false ? self::gdmsSanitizeSipPayload($info) : $previousInfo,
+                'status' => $status !== false ? self::gdmsSanitizeSipPayload($status) : $previousStatus,
             ];
             $summary = self::gdmsSummarizeSipSnapshot($snapshot);
             Utils::debug(sprintf(
                 'GDMS SIP API result: mac=%s info_ok=%s status_ok=%s accounts=%d servers=%s registered=%d',
-                $mac,
+                (string) $mac,
                 $snapshot['info_ok'] ? 'yes' : 'no',
                 $snapshot['status_ok'] ? 'yes' : 'no',
                 $summary['account_count'],
@@ -1118,25 +1257,23 @@ class API
             ));
             if ($summary['accounts'] !== []) {
                 $safeAccounts = array_map(static fn(array $a): array => [
-                    'index' => $a['index'], 'extension' => $a['extension'],
-                    'server' => Service\PbxAssociationResolver::safeSipServer($a['server']), 'status' => $a['status'],
+                    'index' => $a['index'],
+                    'extension' => $a['extension'],
+                    'server' => Service\PbxAssociationResolver::safeSipServer($a['server']),
+                    'status' => $a['status'],
                 ], $summary['accounts']);
                 Utils::debug('GDMS SIP account details (credential-free): mac=' . $mac . ' accounts=' . json_encode($safeAccounts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
             }
-            if ($info !== false) {
-                Utils::debug('GDMS device/account/info safe payload: mac=' . $mac . ' fields=' . json_encode(self::sipPayloadFieldPaths($snapshot['info']), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-            }
-            if ($status !== false) {
-                Utils::debug('GDMS device/account/status safe payload: mac=' . $mac . ' fields=' . json_encode(self::sipPayloadFieldPaths($snapshot['status']), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-            }
             $snapshots[$mac] = $snapshot;
         }
+
         Utils::debug(sprintf(
-            'GDMS SIP concurrent batch: phones=%d requests=%d concurrency=%d duration_ms=%d failed_requests=%d',
+            'GDMS SIP concurrent batch: phones=%d requests=%d concurrency=%d retry_budget_ms=%d quota_hit=%s failed_requests=%d',
             count($snapshots),
             count($requests),
             $maxConcurrent,
-            (int) round((microtime(true) - $started) * 1000),
+            min(8000, (int) round((microtime(true) - $started) * 1000)),
+            $quotaHit ? 'yes' : 'no',
             count($failed),
         ));
         return $snapshots;
