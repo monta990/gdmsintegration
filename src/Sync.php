@@ -144,6 +144,11 @@ class Sync extends \CommonGLPI
             Utils::warning("Sync skipped — another synchronization is already running for entity {$entities_id}");
             return 0;
         }
+        if ($syncToken === false) {
+            $partial = true;
+            Utils::warning("Sync could not start for entity {$entities_id}: database lock acquisition failed.");
+            return 0;
+        }
 
         try {
             $syncStarted = microtime(true);
@@ -312,6 +317,7 @@ class Sync extends \CommonGLPI
                     $sipInfoFailures = 0;
                     $sipStatusFailures = 0;
                     $pendingSipMacs = [];
+                    $previousSipSnapshots = [];
                     foreach ($gdmsDevices as &$gdmsDevice) {
                         $deviceModel = (string) ($gdmsDevice['deviceType'] ?? $gdmsDevice['model'] ?? $gdmsDevice['type'] ?? '');
                         if (API::getDeviceCategory($deviceModel) !== 'phone') {
@@ -326,6 +332,9 @@ class Sync extends \CommonGLPI
                         $checkedTimestamp = $cachedSip['checked_at'] !== '' ? strtotime($cachedSip['checked_at'] . ' UTC') : false;
                         if ($checkedTimestamp !== false && $cachedSip['json'] !== '') {
                             $storedSnapshot = json_decode($cachedSip['json'], true);
+                            if (is_array($storedSnapshot)) {
+                                $previousSipSnapshots[$deviceMac] = $storedSnapshot;
+                            }
                             $cacheTtl = is_array($storedSnapshot) && !empty($storedSnapshot['info_ok']) && !empty($storedSnapshot['status_ok'])
                                 ? self::GDMS_SIP_ACCOUNT_CACHE_TTL
                                 : 900;
@@ -352,7 +361,7 @@ class Sync extends \CommonGLPI
 
                     // Two API operations per phone are now queued into a bounded
                     // cURL-multi pool instead of awaiting 56 serial HTTP requests.
-                    $sipSnapshots = API::gdmsGetDeviceSipSnapshots($config, $pendingSipMacs, 4);
+                    $sipSnapshots = API::gdmsGetDeviceSipSnapshots($config, $pendingSipMacs, 4, $previousSipSnapshots);
                     $sipQueried = count($pendingSipMacs);
                     foreach ($gdmsDevices as &$gdmsDevice) {
                         $deviceModel = (string) ($gdmsDevice['deviceType'] ?? $gdmsDevice['model'] ?? $gdmsDevice['type'] ?? '');
@@ -554,16 +563,14 @@ class Sync extends \CommonGLPI
             return '';
         }
 
-        $hex = preg_replace('/[^0-9a-f]/i', '', $text) ?? '';
-        if (strlen($hex) === 12) {
+        // Only complete MAC literals are accepted. Removing arbitrary separators
+        // turns dotted IPs such as 100.100.100.100 into false MAC identities.
+        if (preg_match('/^(?:[0-9a-f]{12}|(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2})$/i', $text) === 1) {
+            $hex = preg_replace('/[^0-9a-f]/i', '', $text) ?? '';
             return implode(':', str_split(strtolower($hex), 2));
         }
 
-        if (preg_match('/(?<![0-9a-f])([0-9a-f]{12})(?![0-9a-f])/i', $text, $matches) === 1) {
-            return implode(':', str_split(strtolower($matches[1]), 2));
-        }
-
-        return '';
+        return Service\PbxAssociationResolver::sipServerPbxMac($text);
     }
 
     /** Extract SIP server and extension/user from nested GDMS account payloads.
@@ -576,12 +583,15 @@ class Sync extends \CommonGLPI
     {
         $result = ['server' => '', 'extension' => ''];
         $serverKeys = '/^(?:sipserver|sipserveraddress|sipserverhost|sipserverip|sipdomain|serveraddress|serverhost|serverip|proxy|proxyhost|proxyaddress|pbxhost|pbxaddress|ucmhost|ucmaddress|registrar|outboundproxy)$/i';
-        $extensionKeys = '/^(?:extension|ext|sipextension|sipuser|sipusername|authuser|userid|accountnumber|phonenumber|username)$/i';
+        $explicitExtensionKeys = ['extension', 'ext', 'sipextension', 'sipuser', 'sipusername'];
+        $genericExtensionKeys = ['userid', 'accountnumber', 'phonenumber', 'username'];
 
-        $walk = static function (array $values) use (&$walk, &$result, $serverKeys, $extensionKeys): void {
+        $walk = static function (array $values, bool $inSipContext = false, bool $root = false) use (&$walk, &$result, $serverKeys, $explicitExtensionKeys, $genericExtensionKeys): void {
             foreach ($values as $key => $value) {
                 $name = strtolower((string) $key);
                 $flatName = preg_replace('/[^a-z0-9]/', '', $name) ?? $name;
+                $childIsSipContext = $inSipContext
+                    || in_array($flatName, ['sip', 'sipaccounts', 'sipaccountlist', 'account', 'accounts', 'accountlist', 'fxs', 'fxsaccounts', 'lines', 'voip', 'sipconfig'], true);
                 if (is_scalar($value)) {
                     $text = trim((string) $value);
                     if ($result['server'] === '' && preg_match($serverKeys, $flatName) === 1 && $text !== '') {
@@ -590,18 +600,21 @@ class Sync extends \CommonGLPI
                             $result['server'] = $server;
                         }
                     }
-                    if ($result['extension'] === '' && preg_match($extensionKeys, $flatName) === 1) {
-                        // Keep identifiers bounded and reject URI-like or secret-bearing values.
+
+                    $explicitExtension = in_array($flatName, $explicitExtensionKeys, true)
+                        && ($root || $inSipContext || str_starts_with($flatName, 'sip'));
+                    $genericExtension = $inSipContext && in_array($flatName, $genericExtensionKeys, true);
+                    if ($result['extension'] === '' && ($explicitExtension || $genericExtension)) {
                         if ($text !== '' && strlen($text) <= 50 && preg_match('/^[a-zA-Z0-9*#+._-]+$/', $text) === 1) {
                             $result['extension'] = $text;
                         }
                     }
                 } elseif (is_array($value)) {
-                    $walk($value);
+                    $walk($value, $childIsSipContext);
                 }
             }
         };
-        $walk($device);
+        $walk($device, false, true);
 
         return $result;
     }
@@ -623,7 +636,11 @@ class Sync extends \CommonGLPI
                 $name = (string) $key;
                 $normalized = strtolower($name);
                 $fieldPath = $path === '' ? $name : $path . '.' . $name;
-                $sensitive = preg_match('/password|passwd|secret|token|credential|authorization|authuser|username|privatekey|private_key/i', $normalized) === 1;
+                $flatName = preg_replace('/[^a-z0-9]/', '', $normalized) ?? $normalized;
+                $sensitive = preg_match('/password|passwd|pwd|secret|token|credential|authorization|auth|private.?key|username/i', $normalized) === 1;
+                $safeServerFields = ['sipserver', 'sipserveraddress', 'sipserveraddr', 'sipserverip', 'sipserverhost', 'serveraddress', 'serveraddr', 'serverip', 'serverhost', 'proxy', 'proxyaddress', 'proxyhost', 'registrar', 'registraraddress', 'outboundproxy', 'outboundproxyaddress', 'pbxhost', 'pbxaddress', 'ucmhost', 'ucmaddress'];
+                $safeStatusFields = ['accountstatus', 'sipstatus', 'registerstatus', 'registrationstatus', 'regstatus', 'registered', 'enabled', 'active'];
+                $safeExtensionFields = ['extension', 'ext', 'sipextension', 'sipuser', 'sipuserid', 'accountuserid', 'accountnumber', 'phonenumber'];
                 $isSipField = preg_match('/sip|account|pbx|ucm|server|proxy|registrar|extension|\bext\b/i', $normalized) === 1;
                 $context = $inSipContext || $isSipField;
 
@@ -634,14 +651,14 @@ class Sync extends \CommonGLPI
                 if ($context && is_scalar($value) && count($safeValues) < 40) {
                     if ($sensitive) {
                         $safeValues[$fieldPath] = '[REDACTED]';
-                    } elseif (preg_match('/server|proxy|registrar|pbx|ucm|domain|host|address/i', $normalized) === 1) {
+                    } elseif (in_array($flatName, $safeServerFields, true)) {
                         $safeHost = Service\PbxAssociationResolver::safeSipServer((string) $value);
                         if ($safeHost !== '') {
                             $safeValues[$fieldPath] = $safeHost;
                         }
-                    } elseif (preg_match('/accountstatus|sipstatus|registered|enabled|active/i', $normalized) === 1) {
+                    } elseif (in_array($flatName, $safeStatusFields, true)) {
                         $safeValues[$fieldPath] = substr((string) $value, 0, 32);
-                    } elseif (preg_match('/extension|(^|_)ext($|_)|accountnumber|phonenumber/i', $normalized) === 1) {
+                    } elseif (in_array($flatName, $safeExtensionFields, true)) {
                         $safeValues[$fieldPath] = trim((string) $value) === '' ? '[empty]' : '[present]';
                     }
                 }
@@ -1366,7 +1383,7 @@ class Sync extends \CommonGLPI
                 ? ''
                 : ((string) ($_sip_account_summary['primary_server'] ?? '') ?: $_sip_assignment['server']);
             $_sip_extension = (string) ($_sip_account_summary['primary_extension'] ?? '')
-                ?: (string) ($d['sip_extension'] ?? $_sip_assignment['extension']);
+                ?: ((string) ($d['sip_extension'] ?? '') ?: $_sip_assignment['extension']);
 
             $sipPayloadDiagnostic = self::summarizeSipPayload($d);
             Utils::debug(sprintf(
@@ -1450,6 +1467,7 @@ class Sync extends \CommonGLPI
                 isset($d['_gdms_sip_account_json']) ? (string) $d['_gdms_sip_account_json'] : null,
                 isset($d['_gdms_sip_account_checked_at']) ? (string) $d['_gdms_sip_account_checked_at'] : null,
                 isset($d['_gdms_sip_account_snapshot']) ? (bool) ($d['_gdms_sip_account_snapshot']['info_ok'] ?? false) : null,
+                (int) ($_sip_account_summary['server_count'] ?? 0),
             );
 
             // \Ticket transitions: ONLY on true online→offline transition.
@@ -1626,7 +1644,11 @@ class Sync extends \CommonGLPI
         $lock_name = 'gdmsinteg_' . substr(md5("wan_{$reason}_{$itemtype}_{$glpi_id}_{$portSilk}"), 0, 24);
         $lock_token = Utils::acquireLock($lock_name, 300);
         if ($lock_token === null) {
-            Utils::log("GDMS: Lock busy for {$deviceName} WAN {$portSilk} — concurrent sync, skipping");
+            Utils::log("GDMS: WAN ticket lock is busy for {$deviceName} {$portSilk}; another worker owns it.");
+            return;
+        }
+        if ($lock_token === false) {
+            Utils::warning("GDMS: Could not acquire WAN ticket lock for {$deviceName} {$portSilk} because the database operation failed.");
             return;
         }
 
@@ -1802,9 +1824,11 @@ class Sync extends \CommonGLPI
         $lock_name = 'gdmsinteg_' . substr(md5("offline_{$itemtype}_{$glpi_id}"), 0, 24);
         $lock_token = Utils::acquireLock($lock_name, 300);
         if ($lock_token === null) {
-            Utils::log(
-                "GDMS: Lock busy for {$name} (offline ticket) — concurrent sync, skipping",
-            );
+            Utils::log("GDMS: Offline ticket lock is busy for {$name}; another worker owns it.");
+            return;
+        }
+        if ($lock_token === false) {
+            Utils::warning("GDMS: Could not acquire offline ticket lock for {$name} because the database operation failed.");
             return;
         }
 

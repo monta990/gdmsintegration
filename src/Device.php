@@ -135,6 +135,7 @@ class Device extends BaseTM
         ?string $sip_accounts_json = null,
         ?string $sip_accounts_checked_at = null,
         ?bool $sip_accounts_info_ok = null,
+        int $sip_server_count = 0,
     ): bool {
         $cache_key = self::cacheKey($mac, $entities_id);
         // Use in-process cache to skip a DB round-trip when primeCache() was called
@@ -185,7 +186,11 @@ class Device extends BaseTM
         if ($firmware_latest !== null) {
             $data['firmware_latest'] = $firmware_latest;
         }
-        if ($pbx_mac !== '') {
+        if ($sip_server_count > 1) {
+            // A previous single-host association is invalid once the phone
+            // reports multiple different SIP servers.
+            $data['pbx_mac'] = '';
+        } elseif ($pbx_mac !== '') {
             $data['pbx_mac'] = $pbx_mac;
         }
         if ($sip_accounts_json !== null) {
