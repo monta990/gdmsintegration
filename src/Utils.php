@@ -344,7 +344,7 @@ class Utils
      *
      * @return string|null|false Token on success, null on contention, false on DB error.
      */
-    public static function acquireLock(string $name, int $ttl = 900): string|null|false
+    public static function acquireLock(string $name, int $ttl = 900): string|false|null
     {
         global $DB;
         $name = substr($name, 0, 190);
