@@ -182,7 +182,7 @@
             // responsive, while the entity lock prevents concurrent Cron/button/tab
             // syncs from running the same cloud workload at once. A successful sync
             // reloads the dashboard; failures are surfaced in the status text.
-            if (!document.hidden) doSync('auto-refresh');
+            if (DATA.canSync && !document.hidden) doSync('auto-refresh');
         }
     }, 1000);
 
@@ -908,7 +908,7 @@
 
         var url = CLIENTS_URL + '&network_id=' + encodeURIComponent(networkId) + '&mac=' + encodeURIComponent(apMac);
         fetch(url, { credentials: 'same-origin' })
-            .then(function(r) { var partial = r.headers.get('X-GDMS-Result-Complete') === '0'; return r.json().then(function(data){ return {data:data, partial:partial}; }); })
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); var partial = r.headers.get('X-GDMS-Result-Complete') === '0'; return r.json().then(function(data){ return {data:data, partial:partial}; }); })
             .then(function(resp) {
                 if (requestId !== clientModalRequestId || activeClientModalKey !== requestKey) return;
                 var list = resp.data;
@@ -959,13 +959,18 @@
       '<button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">' + STR.close + '</button>' +
       '</div></div></div>';
     document.body.appendChild(sipModal);
+    var sipModalViewId = 0;
+    var activeSipModalMac = '';
     sipModal.addEventListener('hide.bs.modal', function() {
+        sipModalViewId++;
+        activeSipModalMac = '';
         if (document.activeElement) document.activeElement.blur();
     });
 
     document.addEventListener('click', function(e) {
         var dot = e.target.closest('.gdms-sip-dot');
         if (!dot) return;
+        var sipViewId = ++sipModalViewId;
         var sip       = dot.getAttribute('data-sip')       || '';
         var dnd       = parseInt(dot.getAttribute('data-dnd')    || '0', 10);
         var sync      = parseInt(dot.getAttribute('data-sync')   || '0', 10);
@@ -983,12 +988,14 @@
         var pbxIp     = dot.getAttribute('data-pbx-ip')    || '';
         var pbxUrl    = dot.getAttribute('data-pbx-url')   || '';
         var mac       = dot.getAttribute('data-mac')        || '';
+        activeSipModalMac = mac;
 
         document.getElementById('gdmsSipModalTitle').textContent = devName;
 
         var registered = sip === 'registered';
-        var sipColor   = registered ? '#28a745' : '#dc3545';
-        var sipLabel   = registered ? STR.sipRegistered : STR.sipUnregistered;
+        var sipKnownNegative = sip === 'unregistered';
+        var sipColor   = registered ? '#28a745' : (sipKnownNegative ? '#dc3545' : '#6c757d');
+        var sipLabel   = registered ? STR.sipRegistered : (sipKnownNegative ? STR.sipUnregistered : STR.unknown);
 
         var rows = [];
         rows.push(['<i class="ti ti-phone-call me-1"></i>' + STR.sipStatusLbl,
@@ -1098,6 +1105,7 @@
             fetch(REBOOT_GDMS_URL, { method:'POST', credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest','X-Glpi-Csrf-Token':_csrf}, body:_fd })
                 .then(function(r) { return r.json(); })
                 .then(function(resp) {
+                    if (sipViewId !== sipModalViewId || activeSipModalMac !== mac || !document.body.contains(sipModal)) return;
                     _rb._rs = 'idle'; _rb.className = 'btn btn-danger btn-sm';
                     _rb.innerHTML = '<i class="ti ti-refresh me-1"></i>' + STR.rebootBtn; _rb.disabled = false;
                     var badge = document.createElement('div');
@@ -1106,6 +1114,7 @@
                     document.getElementById('gdmsSipModalBody').prepend(badge);
                 })
                 .catch(function() {
+                    if (sipViewId !== sipModalViewId || activeSipModalMac !== mac || !document.body.contains(sipModal)) return;
                     _rb._rs = 'idle'; _rb.className = 'btn btn-danger btn-sm';
                     _rb.innerHTML = '<i class="ti ti-refresh me-1"></i>' + STR.rebootBtn; _rb.disabled = false;
                 });
@@ -1140,6 +1149,7 @@
                 fetch(FACTORY_RESET_GDMS_URL, { method:'POST', credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest','X-Glpi-Csrf-Token':_csrf2}, body:_fd2 })
                     .then(function(r) { return r.json(); })
                     .then(function(resp) {
+                        if (sipViewId !== sipModalViewId || activeSipModalMac !== mac || !document.body.contains(sipModal)) return;
                         _fr._rs = 'idle'; _fr.className = 'btn btn-danger btn-sm';
                         _fr.innerHTML = '<i class="ti ti-trash me-1"></i>' + STR.factoryResetBtn; _fr.disabled = false;
                         var badge = document.createElement('div');
@@ -1148,6 +1158,7 @@
                         document.getElementById('gdmsSipModalBody').prepend(badge);
                     })
                     .catch(function() {
+                        if (sipViewId !== sipModalViewId || activeSipModalMac !== mac || !document.body.contains(sipModal)) return;
                         _fr._rs = 'idle'; _fr.className = 'btn btn-danger btn-sm';
                         _fr.innerHTML = '<i class="ti ti-trash me-1"></i>' + STR.factoryResetBtn; _fr.disabled = false;
                     });
