@@ -67,6 +67,11 @@ jobs:
       - name: Show runtime
         run: php -v
 
+      - name: Validate shell scripts
+        run: |
+          bash -n scripts/package.sh
+          bash -n scripts/update-vis-network.sh
+
       - name: PHP syntax
         run: |
           find setup.php hook.php src tests .github -type f -name '*.php' -print0 \
