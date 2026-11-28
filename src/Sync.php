@@ -1372,7 +1372,9 @@ class Sync extends \CommonGLPI
             // Split IPv4 vs IPv6: privateIp may contain an IPv6 address on some devices
             $_raw_priv = self::extractPrivateIp($d);
             $_is_v6    = strpos($_raw_priv, ':') !== false;
-            $_priv4    = $_is_v6 ? '' : $_raw_priv;
+            // Keep the GDMS privateIp/local-IP value (IPv4 or IPv6) as the
+            // management address. Subnet fallback independently filters IPv4.
+            $_priv4    = $_raw_priv;
             $_priv6    = !empty($d['ipv6']) ? $d['ipv6'] : ($_is_v6 ? $_raw_priv : '');
             $_sip_account_summary = is_array($d['_gdms_sip_account_summary'] ?? null)
                 ? $d['_gdms_sip_account_summary']
