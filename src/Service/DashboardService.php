@@ -85,7 +85,9 @@ final class DashboardService
             if ($pbxMac !== '') {
                 $pbxByMac[$pbxMac][] = $pbxDisplay;
             }
-            if ($ip !== '') {
+            // Only inventory-eligible PBXs with a valid MAC can be associated
+            // by IP, matching PbxAssociationResolver's candidate rules.
+            if ($pbxMac !== '' && $ip !== '') {
                 $pbxByIp[strtolower($ip)][] = $pbxDisplay;
             }
         }
@@ -290,9 +292,20 @@ final class DashboardService
             $sipSnapshot = json_decode((string) ($state['sip_accounts_json'] ?? ''), true);
             $sipSummary = is_array($sipSnapshot) ? API::gdmsSummarizeSipSnapshot($sipSnapshot) : [];
             $sip_accounts = is_array($sipSummary['accounts'] ?? null) ? $sipSummary['accounts'] : [];
-            $accountStatuses = array_filter($sip_accounts, static fn(array $account): bool => trim((string) ($account['status'] ?? '')) !== '');
-            if ($accountStatuses !== []) {
-                $sip_status = (int) ($sipSummary['registered_count'] ?? 0) === count($sip_accounts) ? 'registered' : 'unregistered';
+            if ($sip_accounts !== []) {
+                $hasUnknownStatus = false;
+                $hasNegativeStatus = false;
+                foreach ($sip_accounts as $sipAccount) {
+                    $accountStatus = strtolower(trim((string) ($sipAccount['status'] ?? '')));
+                    if ($accountStatus === '') {
+                        $hasUnknownStatus = true;
+                    } elseif (preg_match('/^(?:1|true|up|normal|registered|online|ok)$/', $accountStatus) !== 1) {
+                        $hasNegativeStatus = true;
+                    }
+                }
+                $sip_status = $hasNegativeStatus
+                    ? 'unregistered'
+                    : ($hasUnknownStatus ? 'unknown' : 'registered');
             }
             if (($sipSummary['primary_extension'] ?? '') !== '') {
                 $sip_extension = (string) $sipSummary['primary_extension'];
@@ -642,7 +655,7 @@ final class DashboardService
             }
             // Reuse the same unambiguous PBX resolver as the SIP information modal.
             foreach ($rows as $_r) {
-                if (API::getDeviceCategory((string) ($_r['raw_model'] ?? '')) !== 'phone' || empty($_r['mac'])) {
+                if (($_r['type'] !== 'Phone' && API::getDeviceCategory((string) ($_r['raw_model'] ?? '')) !== 'phone') || empty($_r['mac'])) {
                     continue;
                 }
                 $_phone_mac = PbxAssociationResolver::normalizeMac((string) $_r['mac']);
@@ -1035,6 +1048,8 @@ final class DashboardService
             'filterNetwork'   => __('Network', 'gdmsintegration'),
             'filterPhone'     => __('Phone', 'gdmsintegration'),
             'filterDevice'    => __('Device', 'gdmsintegration') . '...',
+            'syncWaiting' => __('Another synchronization is running. Waiting to retry…', 'gdmsintegration'),
+            'fwScheduleExpired' => __('The selected time has passed. Please choose a new future time.', 'gdmsintegration'),
         ];
 
         // Keep data in an HTML-escaped textarea, never in an executable inline script.
@@ -1049,6 +1064,7 @@ final class DashboardService
             'urls' => $urls,
             'refreshInterval' => $refresh_interval,
             'needsAutoSync' => $needs_auto_sync,
+            'canSync' => $can_sync,
             'fpLang' => $_fp_lang,
             'fpRegion' => $_fp_region,
             'showTopology' => $show_topology === 1,
