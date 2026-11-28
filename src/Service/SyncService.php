@@ -24,7 +24,18 @@ final class SyncService
         try {
             $partial = false;
             $skipped = false;
-            $processed = Sync::syncEntity($entities_id, $source, $partial, $skipped);
+            $lockFailed = false;
+            $processed = Sync::syncEntity($entities_id, $source, $partial, $skipped, $lockFailed);
+            if ($lockFailed) {
+                return new JsonResponse([
+                    'success' => false,
+                    'completed' => false,
+                    'busy' => false,
+                    'error' => 'Synchronization could not acquire its database lock. Check the GLPI database connection and retry.',
+                    'processed' => 0,
+                    'mode' => 'sync',
+                ], 503);
+            }
             if ($skipped) {
                 return new JsonResponse([
                     'success' => true,

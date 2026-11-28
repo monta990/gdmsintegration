@@ -263,6 +263,11 @@ class Utils
     /**
      * Persist a provider-wide rate-limit cooldown for all PHP/cron workers.
      */
+    /**
+     * Persist a provider-wide cooldown monotonically across PHP and cron workers.
+     * A dedicated writer lock serializes the read/extend/write sequence, so a
+     * shorter concurrent Retry-After can never reduce a longer cooldown.
+     */
     public static function setProviderCooldown(string $provider, int $seconds): void
     {
         global $DB;
@@ -273,15 +278,36 @@ class Utils
 
         $seconds = max(10, min(86400, $seconds));
         $name = 'gdmsinteg_cooldown_' . substr($provider, 0, 80);
-        $table = 'glpi_plugin_gdmsintegration_locks';
-        $existingUntil = time() + self::getProviderCooldownRemaining($provider);
-        $until = max(time() + $seconds, $existingUntil);
-        $token = 'cooldown:' . $until;
-        $values = [
-            'lock_token' => $token,
-            'acquired_at' => gmdate('Y-m-d H:i:s'),
-        ];
+        $writerLock = 'gdmsinteg_cooldown_writer_' . substr($provider, 0, 60);
+        $writerToken = null;
+
+        // Ordinary contention gets a short bounded wait. A database failure
+        // is surfaced separately and must not be mistaken for a busy lock.
+        for ($attempt = 0; $attempt < 30; $attempt++) {
+            $lock = self::acquireLock($writerLock, 30);
+            if (is_string($lock)) {
+                $writerToken = $lock;
+                break;
+            }
+            if ($lock === false) {
+                self::debug('Provider cooldown writer lock failed because of a database error.');
+                return;
+            }
+            usleep(10000);
+        }
+        if ($writerToken === null) {
+            self::debug('Provider cooldown writer lock remained busy; current expiry was left unchanged.');
+            return;
+        }
+
         try {
+            $now = time();
+            $until = max($now + $seconds, $now + self::getProviderCooldownRemaining($provider));
+            $values = [
+                'lock_token' => 'cooldown:' . $until,
+                'acquired_at' => gmdate('Y-m-d H:i:s'),
+            ];
+            $table = 'glpi_plugin_gdmsintegration_locks';
             $exists = false;
             foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
                 $exists = true;
@@ -290,19 +316,22 @@ class Utils
             if ($exists) {
                 $DB->update($table, $values, ['lock_name' => $name]);
             } else {
-                try {
-                    $inserted = $DB->insert($table, array_merge(['lock_name' => $name], $values));
-                    if ($inserted === false) {
-                        // A competing worker may have inserted the unique row.
-                        $DB->update($table, $values, ['lock_name' => $name]);
-                    }
-                } catch (\Throwable $insertError) {
-                    // Another worker may have inserted the unique row at the same time.
-                    $DB->update($table, $values, ['lock_name' => $name]);
+                $inserted = $DB->insert($table, array_merge(['lock_name' => $name], $values));
+                if ($inserted === false) {
+                    // A stale/pre-existing row inserted outside this lock discipline
+                    // is reread and extended rather than overwritten with a shorter TTL.
+                    $latestUntil = $now + self::getProviderCooldownRemaining($provider);
+                    $until = max($until, $latestUntil);
+                    $DB->update($table, [
+                        'lock_token' => 'cooldown:' . $until,
+                        'acquired_at' => gmdate('Y-m-d H:i:s'),
+                    ], ['lock_name' => $name]);
                 }
             }
         } catch (\Throwable $e) {
             self::debug('Provider cooldown persistence unavailable: ' . $e->getMessage());
+        } finally {
+            self::releaseLock($writerLock, $writerToken);
         }
     }
 
@@ -310,7 +339,12 @@ class Utils
      * Acquire a short-lived application lock using GLPI's DB abstraction.
      * Returns a token that must be passed to releaseLock().
      */
-    public static function acquireLock(string $name, int $ttl = 900): ?string
+    /**
+     * Acquire a short-lived application lock using GLPI's DB abstraction.
+     *
+     * @return string|null|false Token on success, null on contention, false on DB error.
+     */
+    public static function acquireLock(string $name, int $ttl = 900): string|null|false
     {
         global $DB;
         $name = substr($name, 0, 190);
@@ -324,14 +358,33 @@ class Utils
                 'lock_name' => $name,
                 'acquired_at' => ['<', $stale],
             ]);
-            $DB->insert($table, [
+            $inserted = $DB->insert($table, [
                 'lock_name' => $name,
                 'lock_token' => $token,
                 'acquired_at' => $now,
             ]);
-            return $DB->affectedRows() > 0 ? $token : null;
+            if ($inserted !== false && $DB->affectedRows() > 0) {
+                return $token;
+            }
+
+            foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                return (string) ($row['lock_token'] ?? '') === $token ? $token : null;
+            }
+            self::debug("Lock acquisition failed without an existing row: {$name}");
+            return false;
         } catch (\Throwable $e) {
-            return null;
+            // Duplicate unique lock_name is normal contention. A lookup failure
+            // or missing row means an actual database problem.
+            try {
+                foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                    return null;
+                }
+            } catch (\Throwable $lookupError) {
+                self::debug('Lock acquisition failed and lock state could not be checked: ' . $e->getMessage());
+                return false;
+            }
+            self::debug('Lock acquisition failed: ' . $e->getMessage());
+            return false;
         }
     }
 

@@ -114,11 +114,17 @@ class Sync extends \CommonGLPI
     // -----------------------------------------------------------------------
     // Per-entity sync — called from cron
     // -----------------------------------------------------------------------
-    public static function syncEntity(int $entities_id, ?string $source = null, ?bool &$partial = null, ?bool &$skipped = null): int
-    {
+    public static function syncEntity(
+        int $entities_id,
+        ?string $source = null,
+        ?bool &$partial = null,
+        ?bool &$skipped = null,
+        ?bool &$lockFailed = null,
+    ): int {
         global $DB;
         $partial = false;
         $skipped = false;
+        $lockFailed = false;
         $config = Config::getConfigByEntity($entities_id);
         $hasGwn  = !empty($config['gwn_client_id']) && !empty($config['gwn_client_secret']);
         $hasGdms = !empty($config['client_id']) && !empty($config['client_secret'])
@@ -146,6 +152,7 @@ class Sync extends \CommonGLPI
         }
         if ($syncToken === false) {
             $partial = true;
+            $lockFailed = true;
             Utils::warning("Sync could not start for entity {$entities_id}: database lock acquisition failed.");
             return 0;
         }
