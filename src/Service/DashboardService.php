@@ -297,7 +297,7 @@ final class DashboardService
                 $hasNegativeStatus = false;
                 foreach ($sip_accounts as $sipAccount) {
                     $accountStatus = strtolower(trim((string) ($sipAccount['status'] ?? '')));
-                    if ($accountStatus === '') {
+                    if ($accountStatus === '' || preg_match('/^(?:unknown|n\\/?a|not available|pending|unavailable|-)$/i', $accountStatus) === 1) {
                         $hasUnknownStatus = true;
                     } elseif (preg_match('/^(?:1|true|up|normal|registered|online|ok)$/', $accountStatus) !== 1) {
                         $hasNegativeStatus = true;
