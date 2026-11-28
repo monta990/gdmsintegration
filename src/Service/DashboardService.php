@@ -499,7 +499,7 @@ final class DashboardService
             if (!isset($net_stats[$networkStatsKey])) {
                 $net_stats[$networkStatsKey] = ['name' => $nname, 'network_id' => $networkId, 'router_on' => 0,'router_off' => 0,'switch_on' => 0,'switch_off' => 0,'ap_on' => 0,'ap_off' => 0,'phone_on' => 0,'phone_off' => 0,'clients' => 0,'upload_bytes' => 0,'download_bytes' => 0];
             }
-            $m   = strtoupper($r['raw_model'] ?? '');
+            $m   = strtoupper($r['raw_model']);
             $on  = $r['online'];
             $deviceCategory = API::getDeviceCategory((string) ($r['raw_model'] ?? ''));
             $isPhone = ($r['type'] === 'Phone') || $deviceCategory === 'phone';
@@ -814,9 +814,9 @@ final class DashboardService
                 }
             }
             $r['_sip_tip']   = $_sip_tip;
-            $r['_sip_color'] = ($r['sip_status'] ?? '') === 'registered'
+            $r['_sip_color'] = $r['sip_status'] === 'registered'
                 ? '#28a745'
-                : (($r['sip_status'] ?? '') === 'unregistered' ? '#dc3545' : '#6c757d');
+                : ($r['sip_status'] === 'unregistered' ? '#dc3545' : '#6c757d');
         }
         unset($r);
 
