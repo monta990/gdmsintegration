@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$template = file_get_contents($root . '/templates/dashboard.html.twig');
-if (!is_string($template)) {
-    throw new RuntimeException('Could not read the dashboard template.');
+$script = file_get_contents($root . '/public/js/dashboard.js');
+if (!is_string($script)) {
+    throw new RuntimeException('Could not read the external dashboard JavaScript asset.');
 }
 
 $assert = static function (bool $condition, string $message): void {
@@ -14,13 +14,13 @@ $assert = static function (bool $condition, string $message): void {
     }
 };
 
-$helperStart = strpos($template, 'function gatewayUrl(value)');
-$helperEnd = $helperStart === false ? false : strpos($template, 'function fmtDuration(secs)', $helperStart);
+$helperStart = strpos($script, 'function gatewayUrl(value)');
+$helperEnd = $helperStart === false ? false : strpos($script, 'function fmtDuration(secs)', $helperStart);
 $assert(
     $helperStart !== false && $helperEnd !== false,
     'The dedicated gateway URL validator must exist before port rendering.',
 );
-$helper = substr($template, $helperStart, $helperEnd - $helperStart);
+$helper = substr($script, $helperStart, $helperEnd - $helperStart);
 $assert(str_contains($helper, "gateway.split('.')"), 'IPv4 gateway validation must split the address into four octets.');
 $assert(str_contains($helper, 'Number(part) <= 255'), 'IPv4 gateway validation must enforce the octet range.');
 $assert(str_contains($helper, 'return /^(0|[1-9]\\d{0,2})$/.test(part)'), 'IPv4 validation must use a digit matcher with a single regex escape.');
@@ -28,16 +28,16 @@ $assert(str_contains($helper, 'new URL('), 'IPv6 gateway validation must use the
 $assert(str_contains($helper, '/^[0-9a-f:.]+$/i'), 'IPv6 gateway validation must reject non-address characters.');
 $assert(str_contains($helper, "return 'http://' + gateway + '/';"), 'IPv4 gateway links must use the device HTTP interface.');
 
-$detailsStart = strpos($template, 'var html = infoHtml + legend');
+$detailsStart = strpos($script, 'var html = infoHtml + legend');
 $cardBodyStart = $detailsStart === false ? false : strpos(
-    $template,
+    $script,
     "html += '</div><div class=\"card-body py-2 small\"><dl class=\"row mb-0\">';",
     $detailsStart,
 );
-$wanBlockStart = $cardBodyStart === false ? false : strpos($template, 'if (isWan) {', $cardBodyStart);
-$lanBlockStart = $wanBlockStart === false ? false : strpos($template, '} else {', $wanBlockStart);
-$gatewayBlockStart = $wanBlockStart === false ? false : strpos($template, 'if (p.gateway) {', $wanBlockStart);
-$dnsBlockStart = $gatewayBlockStart === false ? false : strpos($template, 'if (p.firstDns || p.secondDns)', $gatewayBlockStart);
+$wanBlockStart = $cardBodyStart === false ? false : strpos($script, 'if (isWan) {', $cardBodyStart);
+$lanBlockStart = $wanBlockStart === false ? false : strpos($script, '} else {', $wanBlockStart);
+$gatewayBlockStart = $wanBlockStart === false ? false : strpos($script, 'if (p.gateway) {', $wanBlockStart);
+$dnsBlockStart = $gatewayBlockStart === false ? false : strpos($script, 'if (p.firstDns || p.secondDns)', $gatewayBlockStart);
 $assert(
     $cardBodyStart !== false
         && $wanBlockStart !== false
@@ -49,14 +49,14 @@ $assert(
     'Gateway links must be rendered only inside the WAN port details.',
 );
 
-$gatewayBlock = substr($template, $gatewayBlockStart, $dnsBlockStart - $gatewayBlockStart);
+$gatewayBlock = substr($script, $gatewayBlockStart, $dnsBlockStart - $gatewayBlockStart);
 $assert(str_contains($gatewayBlock, 'gatewayUrl(gatewayValue)'), 'WAN gateway rendering must validate the address before linking.');
 $assert(str_contains($gatewayBlock, 'esc(gatewayValue)'), 'Gateway text must be HTML-escaped.');
 $assert(str_contains($gatewayBlock, 'target="_blank"'), 'Gateway links must open in a new tab.');
 $assert(str_contains($gatewayBlock, 'rel="noopener noreferrer"'), 'New-tab links must not retain access to the opener window.');
 $assert(str_contains($gatewayBlock, 'ti-external-link'), 'Gateway links must display an external-link indicator.');
 $assert(
-    !str_contains($template, "'<code>' + p.gateway + '</code>'"),
+    !str_contains($script, "'<code>' + p.gateway + '</code>'"),
     'The previous unsafe direct interpolation of the gateway value must be removed.',
 );
 
