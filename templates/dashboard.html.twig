@@ -408,7 +408,8 @@
                         <span class="text-muted small">—</span>
                      </span>
                      {% elseif r._is_phone and (r.sip_status is not empty or r.sip_accounts is not empty) %}
-                     <span class="gdms-sip-dot" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;"
+                     <button type="button" class="gdms-sip-dot btn btn-link p-0" style="display:inline-flex;align-items:center;gap:4px;"
+                           aria-label="{{ __('View SIP details', 'gdmsintegration') }} — {{ r.name }}"
                            title="{{ r._sip_tip }}"
                            data-bs-toggle="tooltip"
                            data-pbx-name="{{ r._pbx.name ?? '' }}"
@@ -431,7 +432,7 @@
                         {% if r.dnd %}
                         <small class="text-danger" style="font-size:.65em;line-height:1;">DND</small>
                         {% endif %}
-                     </span>
+                     </button>
                      {% endif %}
                   </td>
                   <td>
