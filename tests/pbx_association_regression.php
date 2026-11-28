@@ -208,6 +208,11 @@ namespace {
     ]);
     $expect(($sipAssignment['server'] ?? '') === '020000000102.a.gdms.cloud:5061', 'SIP parser must normalize a SIP URI and capture the RemoteConnect host.');
     $expect(($sipAssignment['extension'] ?? '') === '2204', 'SIP parser must capture a safe extension field.');
+    $contextAssignment = $extractSipAssignment->invoke(null, [
+        'username' => 'device-admin',
+        'sipAccounts' => [['username' => '2401']],
+    ]);
+    $expect(($contextAssignment['extension'] ?? '') === '2401', 'Generic username must be accepted only inside SIP/account context, not from the device root.');
     $snakeCaseAssignment = $extractSipAssignment->invoke(null, ['sip_server_address' => 'sips:pbx.example.com:5061', 'sip_extension' => '2301']);
     $expect(($snakeCaseAssignment['server'] ?? '') === 'pbx.example.com:5061', 'SIP parser must support snake_case server aliases.');
     $expect(($snakeCaseAssignment['extension'] ?? '') === '2301', 'SIP parser must support snake_case extension aliases.');
@@ -228,6 +233,7 @@ namespace {
     $expect(($summary['safe_values']['accounts.0.sipServerAddress'] ?? '') === '020000000102.a.gdms.cloud:5061', 'SIP payload summary must log server host without URI credentials.');
     $expect(($summary['safe_values']['accounts.0.password'] ?? '') === '[REDACTED]', 'SIP payload summary must redact passwords.');
     $expect(($summary['safe_values']['accounts.0.authUser'] ?? '') === '[REDACTED]', 'SIP payload summary must redact authentication usernames.');
+    $expect(($summary['safe_values']['accounts.0.serverPwd'] ?? '') === '[REDACTED]', 'Server password-like fields must never be emitted as safe SIP values.');
     $expect(!str_contains(json_encode($summary), 'DO-NOT-LOG-THIS'), 'SIP payload summary must never include raw password text.');
     $expect(!str_contains(json_encode($summary), 'private-user'), 'SIP payload summary must never include authentication username.');
 
@@ -387,6 +393,11 @@ namespace {
     $safeSipServer->setAccessible(true);
     $expect($safeSipServer->invoke(null, 'sip:user:secret@pbx.example.com:5061;transport=tls') === 'pbx.example.com:5061', 'Safe SIP server logger must keep host/port only and strip user-info/parameters.');
     $expect($safeSipServer->invoke(null, 'sip:[2001:db8::10]:5061') === '[2001:db8::10]:5061', 'Bracketed IPv6 SIP hosts must preserve their validated port.');
+    $ipv6Association = PbxAssociationResolver::resolve([
+        ['mac' => '02:00:00:00:03:01', 'raw_model' => 'UCM6300A', 'name' => 'IPv6 PBX', 'private_ip' => '2001:db8::10'],
+        ['mac' => '02:00:00:00:03:02', 'raw_model' => 'GRP2602', 'name' => 'IPv6 Phone', 'private_ip' => '2001:db8::20', 'sip_server' => '[2001:db8::10]:5061'],
+    ]);
+    $expect(($ipv6Association['02:00:00:00:03:02']['name'] ?? '') === 'IPv6 PBX', 'Explicit IPv6 SIP server must match the same canonical IPv6 PBX management address.');
     $expect(PbxAssociationResolver::sipServerPbxMac('020000000102.unrelated.example:5061') === '', 'MAC-shaped labels under unrelated domains must not be treated as RemoteConnect PBXs.');
     $expect($extractPbxMac->invoke(null, ['sipServer' => '100.100.100.100']) === '', 'Dotted IP addresses must never be normalized into false MAC identities.');
 
