@@ -7,6 +7,7 @@ namespace {
         /** @var array<string, array<string, mixed>> */
         public array $rows = [];
         private int $affected = 0;
+        public bool $failDelete = false;
 
         /** @return array<int, array<string, mixed>> */
         public function request(array $criteria): array
@@ -41,6 +42,9 @@ namespace {
 
         public function delete(string $table, array $where): bool
         {
+            if ($this->failDelete) {
+                throw new \RuntimeException('Simulated database delete failure.');
+            }
             $name = (string) ($where['lock_name'] ?? '');
             if (!isset($this->rows[$name])) {
                 $this->affected = 0;
@@ -49,6 +53,15 @@ namespace {
             if (isset($where['lock_token']) && $this->rows[$name]['lock_token'] !== $where['lock_token']) {
                 $this->affected = 0;
                 return false;
+            }
+            if (isset($where['acquired_at']) && is_array($where['acquired_at'])) {
+                $operator = (string) ($where['acquired_at'][0] ?? '');
+                $cutoff = strtotime((string) ($where['acquired_at'][1] ?? '') . ' UTC');
+                $rowTime = strtotime((string) ($this->rows[$name]['acquired_at'] ?? '') . ' UTC');
+                if ($operator === '<' && ($cutoff === false || $rowTime === false || $rowTime >= $cutoff)) {
+                    $this->affected = 0;
+                    return false;
+                }
             }
             unset($this->rows[$name]);
             $this->affected = 1;
@@ -158,6 +171,25 @@ namespace {
         strlen((string) ($DB->rows['gdmsinteg_cooldown_gdms']['lock_token'] ?? '')) <= 32,
         'Cooldown token must fit the existing lock_token CHAR(32) column.'
     );
+
+    $lockName = 'gdmsinteg_regression_lock';
+    $firstLock = \GlpiPlugin\Gdmsintegration\Utils::acquireLock($lockName, 30);
+    $expect(is_string($firstLock), 'A free application lock must return an ownership token.');
+    $busyLock = \GlpiPlugin\Gdmsintegration\Utils::acquireLock($lockName, 30);
+    $expect($busyLock === null, 'A recent lock owned by another worker must be reported as contention.');
+    \GlpiPlugin\Gdmsintegration\Utils::releaseLock($lockName, $firstLock);
+
+    $staleLockName = 'gdmsinteg_regression_stale_lock';
+    $DB->rows[$staleLockName] = [
+        'lock_name' => $staleLockName,
+        'lock_token' => 'stale-owner',
+        'acquired_at' => gmdate('Y-m-d H:i:s', time() - 3600),
+    ];
+    $DB->failDelete = true;
+    $staleLockResult = \GlpiPlugin\Gdmsintegration\Utils::acquireLock($staleLockName, 30);
+    $DB->failDelete = false;
+    $expect($staleLockResult === false, 'A stale row that cannot be reclaimed because the database delete failed must report a database error, not contention.');
+
 
     \GlpiPlugin\Gdmsintegration\Utils::setProviderCooldown('gdms', 90000);
     $bounded = \GlpiPlugin\Gdmsintegration\Utils::getProviderCooldownRemaining('gdms');
