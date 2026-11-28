@@ -232,6 +232,7 @@ class Utils
      * different hosting nodes observe the same rate-limit window.
      *
      * @return int<0, max>
+     * @phpstan-impure This lookup may delete an expired cooldown record.
      */
     public static function getProviderCooldownRemaining(string $provider): int
     {
