@@ -5,17 +5,23 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const templatePath = path.join(__dirname, '..', 'templates', 'dashboard.html.twig');
-const template = fs.readFileSync(templatePath, 'utf8');
-const helperMatch = template.match(/function gatewayUrl\(value\)\s*\{[\s\S]*?\n    \}/);
+// The production dashboard behavior is served from the external JS asset.
+const dashboardCandidates = [
+    path.join(__dirname, '..', 'public', 'js', 'dashboard.js'),
+    path.join(__dirname, '..', 'gdmsintegration', 'public', 'js', 'dashboard.js'),
+];
+const dashboardPath = dashboardCandidates.find((candidate) => fs.existsSync(candidate));
+assert.ok(dashboardPath, 'The external dashboard JavaScript asset must exist.');
+const dashboardScript = fs.readFileSync(dashboardPath, 'utf8');
+const helperMatch = dashboardScript.match(/function gatewayUrl\\(value\\)\\s*\\{[\\s\\S]*?\\n    \\}/);
 
-assert.ok(helperMatch, 'The production gatewayUrl(value) helper must exist in dashboard.html.twig.');
+assert.ok(helperMatch, 'The production gatewayUrl(value) helper must exist in dashboard.js.');
 
 const context = vm.createContext(
     { URL },
     { codeGeneration: { strings: false, wasm: false } },
 );
-new vm.Script(helperMatch[0], { filename: 'dashboard.html.twig#gatewayUrl' })
+new vm.Script(helperMatch[0], { filename: 'dashboard.js#gatewayUrl' })
     .runInContext(context, { timeout: 1000 });
 
 const cases = [
