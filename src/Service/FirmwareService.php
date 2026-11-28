@@ -842,10 +842,29 @@ final class FirmwareService
                 ], 409);
             }
 
+            // Keep a per-device pending marker after the provider accepts the task.
+            // Its TTL covers the scheduled execution window plus GDMS's seven-day
+            // task window, preventing duplicate tasks from tabs/retries/parallel POSTs.
+            $scheduleSeconds = $scheduleMs > 0 ? (int) floor($scheduleMs / 1000) : time();
+            $pendingTtl = max(3600, min(31536000, $scheduleSeconds - time() + (7 * 86400)));
+            $upgradeLockName = 'gdmsinteg_fw_pending_' . strtolower($mac);
+            $upgradeLockToken = Utils::acquireLock($upgradeLockName, $pendingTtl);
+            if ($upgradeLockToken === null) {
+                return new JsonResponse([
+                    'error' => __('A firmware upgrade task is already pending for this device. Wait for it to complete before scheduling another.', 'gdmsintegration'),
+                ], 409);
+            }
+            if ($upgradeLockToken === false) {
+                return new JsonResponse([
+                    'error' => __('The firmware task could not be reserved because the database lock is unavailable. Please retry.', 'gdmsintegration'),
+                ], 503);
+            }
+
             Utils::log("Firmware upgrade (GDMS task) requested — MAC: {$mac} version: {$version} url: " . $downloadUrl);
 
             $result = API::gdmsCreateUpgradeTask($config, $mac, $version, $scheduleMs, $downloadUrl);
             if (!empty($result['error'])) {
+                Utils::releaseLock($upgradeLockName, $upgradeLockToken);
                 Utils::log("Firmware upgrade (GDMS task) FAILED — " . $result['error']);
             }
             return new JsonResponse($result);
