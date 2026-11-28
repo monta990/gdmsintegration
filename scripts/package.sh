@@ -153,12 +153,7 @@ for entry in "${required_entries[@]}"; do
 done
 
 # Translation languages vary by plugin configuration; require at least one compiled catalog.
-if ! unzip -Z1 "$ARCHIVE" | grep -Eq '^gdmsintegration/locales/[^/]+\.mo found in the installation archive." >&2
-    exit 1
-fi
-
-echo "Created and validated $ARCHIVE"
-; then
+if ! unzip -Z1 "$ARCHIVE" | grep -Eq '^gdmsintegration/locales/[^/]+\.mo$'; then
     echo "No compiled gettext catalog found in the installation archive." >&2
     exit 1
 fi
