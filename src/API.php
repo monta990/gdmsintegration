@@ -1104,14 +1104,6 @@ class API
      * Retrieve SIP information for multiple devices via bounded cURL multi.
      * Grandstream does not publish a concurrency ceiling; default to 4 inflight
      * to limit request bursts after an IP-based rate-limit response.
-     * @param array<string, mixed> $config
-     * @param array<int, string> $macs
-     * @return array<string, array{checked_at: string, info_ok: bool, status_ok: bool, info: array<string, mixed>, status: array<string, mixed>}>
-     */
-    /**
-     * Retrieve SIP information for multiple devices via bounded cURL multi.
-     * Grandstream does not publish a concurrency ceiling; default to 4 inflight
-     * to limit request bursts after an IP-based rate-limit response.
      *
      * @param array<string, mixed> $config
      * @param array<int, string> $macs
