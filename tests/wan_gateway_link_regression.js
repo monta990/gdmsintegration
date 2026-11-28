@@ -13,7 +13,7 @@ const dashboardCandidates = [
 const dashboardPath = dashboardCandidates.find((candidate) => fs.existsSync(candidate));
 assert.ok(dashboardPath, 'The external dashboard JavaScript asset must exist.');
 const dashboardScript = fs.readFileSync(dashboardPath, 'utf8');
-const helperMatch = dashboardScript.match(/function gatewayUrl\\(value\\)\\s*\\{[\\s\\S]*?\\n    \\}/);
+const helperMatch = dashboardScript.match(/function gatewayUrl\(value\)\s*\{[\s\S]*?\n    \}/);
 
 assert.ok(helperMatch, 'The production gatewayUrl(value) helper must exist in dashboard.js.');
 
