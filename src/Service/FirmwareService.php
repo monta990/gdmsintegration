@@ -792,6 +792,11 @@ final class FirmwareService
             $version     = $form->get('version', $body['version']     ?? '');
             $downloadUrl = trim($form->get('downloadUrl', $body['downloadUrl'] ?? ''));
             $scheduleMs  = (int) ($form->get('scheduleMs', $body['scheduleMs'] ?? 0));
+            if ($scheduleMs > 0 && $scheduleMs <= (int) (microtime(true) * 1000)) {
+                return new JsonResponse([
+                    'error' => __('The selected firmware schedule time must be in the future.', 'gdmsintegration'),
+                ], 422);
+            }
 
             $mac = self::normalizeMacAddress((string) $mac);
             $version = trim((string) $version);
