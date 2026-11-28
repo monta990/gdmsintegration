@@ -372,7 +372,8 @@ class Utils
         $name = substr($name, 0, 190);
         $token = bin2hex(random_bytes(16));
         $now = gmdate('Y-m-d H:i:s');
-        $stale = gmdate('Y-m-d H:i:s', time() - max(30, $ttl));
+        $staleTimestamp = time() - max(30, $ttl);
+        $stale = gmdate('Y-m-d H:i:s', $staleTimestamp);
         $table = 'glpi_plugin_gdmsintegration_locks';
 
         try {
@@ -390,16 +391,29 @@ class Utils
             }
 
             foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
-                return (string) ($row['lock_token'] ?? '') === $token ? $token : null;
+                if ((string) ($row['lock_token'] ?? '') === $token) {
+                    return $token;
+                }
+                $existingAt = strtotime((string) ($row['acquired_at'] ?? '') . ' UTC');
+                if ($existingAt !== false && $existingAt >= $staleTimestamp) {
+                    return null;
+                }
+                self::debug("Lock row could not be reclaimed for {$name}; treating acquisition as a database failure.");
+                return false;
             }
             self::debug("Lock acquisition failed without an existing row: {$name}");
             return false;
         } catch (\Throwable $e) {
-            // Duplicate unique lock_name is normal contention. A lookup failure
-            // or missing row means an actual database problem.
+            // A recent row means genuine contention. A stale row that could not
+            // be reclaimed, or a failed lookup, indicates a database problem.
             try {
                 foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
-                    return null;
+                    $existingAt = strtotime((string) ($row['acquired_at'] ?? '') . ' UTC');
+                    if ($existingAt !== false && $existingAt >= $staleTimestamp) {
+                        return null;
+                    }
+                    self::debug("Stale lock row could not be reclaimed for {$name}: " . $e->getMessage());
+                    return false;
                 }
             } catch (\Throwable $lookupError) {
                 self::debug('Lock acquisition failed and lock state could not be checked: ' . $e->getMessage());
