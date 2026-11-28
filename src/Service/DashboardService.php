@@ -503,7 +503,7 @@ final class DashboardService
             }
             $m   = strtoupper($r['raw_model']);
             $on  = $r['online'];
-            $deviceCategory = API::getDeviceCategory((string) ($r['raw_model'] ?? ''));
+            $deviceCategory = API::getDeviceCategory($r['raw_model']);
             $isPhone = ($r['type'] === 'Phone') || $deviceCategory === 'phone';
             $isPbxDev = $deviceCategory === 'pbx';
             if (!$isPhone && !$isPbxDev) {
@@ -644,7 +644,7 @@ final class DashboardService
             }
             // Reuse the same unambiguous PBX resolver as the SIP information modal.
             foreach ($rows as $_r) {
-                if (($_r['type'] !== 'Phone' && API::getDeviceCategory((string) ($_r['raw_model'] ?? '')) !== 'phone') || empty($_r['mac'])) {
+                if (($_r['type'] !== 'Phone' && API::getDeviceCategory($_r['raw_model']) !== 'phone') || empty($_r['mac'])) {
                     continue;
                 }
                 $_phone_mac = PbxAssociationResolver::normalizeMac((string) $_r['mac']);
@@ -799,9 +799,9 @@ final class DashboardService
                 }
                 $r['_sip_accounts_display'] = self::enrichSipAccountsWithIndexes($r['sip_accounts'], $sipPbxDisplayIndexes);
             }
-            $_sip_tip = !empty($r['sip_status'])
-                ? ($r['sip_status'] === 'registered' ? __('SIP Registered', 'gdmsintegration') : __('SIP Unregistered', 'gdmsintegration'))
-                : __('Unknown', 'gdmsintegration');
+            $_sip_tip = $r['sip_status'] === 'registered'
+                ? __('SIP Registered', 'gdmsintegration')
+                : ($r['sip_status'] === 'unregistered' ? __('SIP Unregistered', 'gdmsintegration') : __('Unknown', 'gdmsintegration'));
             if (!empty($r['sip_status']) || !empty($r['sip_accounts'])) {
                 if (!empty($r['sip_accounts'])) {
                     $extensions = array_values(array_filter(array_map(static fn(array $account): string => (string) ($account['extension'] ?? ''), $r['sip_accounts'])));
