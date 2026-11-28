@@ -44,6 +44,7 @@ Automatically synchronizes Grandstream networking equipment and VoIP phones from
 |-----|----------------|---------------|
 | GDMS Unified Communications (`gdms.cloud`) | GRP, GXP, GXV, WP, HT phones | `Phone` |
 | GDMS Unified Communications (`gdms.cloud`) | UCM, GCC PBX appliances | `NetworkEquipment` |
+| GDMS Networking / GWN Cloud (`gwn.cloud`) | GWN APs, switches, routers | `NetworkEquipment` |
 
 #### SIP account discovery (GDMS API)
 
@@ -52,7 +53,6 @@ For GDMS UC phones and ATAs, the plugin additionally calls the documented signed
 The dashboard associates a phone with a managed UCM when an account server IP equals the UCM private IP, or when a GDMS RemoteConnect server hostname encodes the UCM MAC. A device with multiple different SIP server hosts is left unassigned rather than arbitrarily selecting one PBX. WAN/public-IP and site-name matches are diagnostic-only.
 
 During an upgrade, use GLPI’s normal plugin update/activation flow so the idempotent schema migration can add the SIP snapshot fields. Do not uninstall the plugin as part of an upgrade; uninstalling removes plugin-owned data.
-| GDMS Networking / GWN Cloud (`gwn.cloud`) | GWN APs, switches, routers | `NetworkEquipment` |
 
 ### Asset Management
 

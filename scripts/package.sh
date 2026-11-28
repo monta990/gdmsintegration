@@ -119,14 +119,36 @@ if unzip -Z1 "$ARCHIVE" | grep -Eq '\.(log|cache)$|(^|/)\.DS_Store$|(^|/)Thumbs\
 fi
 
 # The installable public/js directory contains only the browser runtime bundle.
-public_js_entries="$(unzip -Z1 "$ARCHIVE" | grep -E '^gdmsintegration/public/js/[^/]+$' || true)"
-expected_public_js_entries="$(printf '%s\\n' \\
-    gdmsintegration/public/js/config.js \\
-    gdmsintegration/public/js/dashboard.js \\
+public_js_entries="$(unzip -Z1 "$ARCHIVE" | grep -E '^gdmsintegration/public/js/[^/]+
+
+for entry in \
+    gdmsintegration/THIRD-PARTY-NOTICES.md \
+    gdmsintegration/setup.php \
+    gdmsintegration/hook.php \
+    gdmsintegration/plugin.xml \
+    gdmsintegration/src/Sync.php \
+    gdmsintegration/src/Utils.php \
+    gdmsintegration/templates/dashboard.html.twig \
+    gdmsintegration/locales/es_MX.mo \
+    gdmsintegration/public/js/config.js \
+    gdmsintegration/public/js/dashboard.js \
+    gdmsintegration/public/js/vis-network.min.js
+do
+    if ! unzip -Z1 "$ARCHIVE" | grep -qx "$entry"; then
+        echo "Required installation file missing from archive: $entry" >&2
+        exit 1
+    fi
+done
+
+echo "Created and validated $ARCHIVE"
+ || true)"
+expected_public_js_entries="$(printf '%s\n' \
+    gdmsintegration/public/js/config.js \
+    gdmsintegration/public/js/dashboard.js \
     gdmsintegration/public/js/vis-network.min.js | sort)"
-actual_public_js_entries="$(printf '%s\\n' "${public_js_entries}" | sed '/^$/d' | sort)"
+actual_public_js_entries="$(printf '%s\n' "${public_js_entries}" | sed '/^$/d' | sort)"
 if [[ "$actual_public_js_entries" != "$expected_public_js_entries" ]]; then
-    printf 'Unexpected files in installable public/js directory:\\n%s\\n' "${public_js_entries:-<none>}" >&2
+    printf 'Unexpected files in installable public/js directory:\n%s\n' "${public_js_entries:-<none>}" >&2
     exit 1
 fi
 
