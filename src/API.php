@@ -636,7 +636,7 @@ class API
             if (is_array($response)) {
                 $retCode = array_key_exists('retCode', $response) ? (int) $response['retCode'] : 0;
                 $retMsg = self::gdmsResponseMessage($response);
-                if ($retCode !== 0 && self::isGdmsRateLimitMessage($retMsg)) {
+                if (self::isGdmsRateLimitMessage($retMsg)) {
                     Utils::setProviderCooldown(
                         'gdms',
                         self::$lastRetryAfterSeconds > 0 ? self::$lastRetryAfterSeconds : self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS,
@@ -714,10 +714,34 @@ class API
     public static function gdmsSanitizeSipPayload(array $payload): array
     {
         $safe = [];
-        $safeKey = '/(?:server|proxy|registrar|domain|host|address|(^|_)ip$|extension|(^|_)ext$|userid|accountid|accountindex|accountno|lineindex|status|registered|enabled|active|(^|_)index$|^data$|^result$|^retcode$|^success$)/i';
+        $safeFields = [
+            'server', 'sipserver', 'sipserveraddress', 'sipserveraddr', 'sipserverip', 'sipserverhost',
+            'serveraddress', 'serveraddr', 'serverip', 'serverhost', 'servername', 'sipservername',
+            'proxy', 'proxyserver', 'proxyaddress', 'proxyhost', 'registrar', 'registrarserver',
+            'registraraddress', 'outboundproxy', 'outboundproxyaddress', 'domain', 'sipdomain',
+            'host', 'address', 'ip', 'privateip', 'publicip',
+            'extension', 'ext', 'userid', 'sipuserid', 'accountuserid', 'accountuser',
+            'phonenumber', 'accountnumber', 'sipaccountid', 'accountid', 'accountindex',
+            'accountno', 'lineindex', 'index', 'status', 'accountstatus', 'registerstatus',
+            'registrationstatus', 'regstatus', 'registered', 'enabled', 'active',
+            'data', 'result', 'retcode', 'success',
+        ];
+        $hostFields = [
+            'server', 'sipserver', 'sipserveraddress', 'sipserveraddr', 'sipserverip', 'sipserverhost',
+            'serveraddress', 'serveraddr', 'serverip', 'serverhost', 'servername', 'sipservername',
+            'proxy', 'proxyserver', 'proxyaddress', 'proxyhost', 'registrar', 'registrarserver',
+            'registraraddress', 'outboundproxy', 'outboundproxyaddress', 'domain', 'sipdomain',
+            'host', 'address', 'ip', 'privateip', 'publicip',
+        ];
+        $statusFields = ['status', 'accountstatus', 'registerstatus', 'registrationstatus', 'regstatus', 'registered', 'enabled', 'active'];
+        $identityFields = [
+            'userid', 'accountid', 'sipaccountid', 'accountindex', 'accountno', 'lineindex',
+            'extension', 'ext', 'sipuserid', 'accountuserid', 'accountuser', 'phonenumber',
+            'accountnumber', 'index',
+        ];
         $sensitiveKey = '/password|passwd|pwd|secret|token|credential|authorization|auth|private.?key|sip.?key|cipher|encrypt/i';
 
-        $walk = static function (array $node) use (&$walk, &$safeKey, &$sensitiveKey): array {
+        $walk = static function (array $node) use (&$walk, &$safeFields, &$hostFields, &$statusFields, &$identityFields, &$sensitiveKey): array {
             $out = [];
             foreach ($node as $key => $value) {
                 $name = (string) $key;
@@ -731,7 +755,8 @@ class API
                     }
                     continue;
                 }
-                if (!is_scalar($value) || preg_match($safeKey, $name) !== 1) {
+                $flatName = strtolower(preg_replace('/[^a-z0-9]/i', '', $name) ?? $name);
+                if (!is_scalar($value) || !in_array($flatName, $safeFields, true)) {
                     continue;
                 }
                 $text = trim((string) $value);
@@ -739,7 +764,7 @@ class API
                     $out[$key] = '';
                     continue;
                 }
-                if (preg_match('/server|proxy|registrar|domain|host|address|(^|_)ip$/i', $name) === 1) {
+                if (in_array($flatName, $hostFields, true)) {
                     $text = preg_replace('/^(?:sip|sips):/i', '', $text) ?? $text;
                     if (str_contains($text, '@')) {
                         $text = substr($text, strrpos($text, '@') + 1);
@@ -748,9 +773,9 @@ class API
                     if (strlen($text) > 255 || preg_match('/^[a-z0-9.:[\]-]+$/i', $text) !== 1) {
                         continue;
                     }
-                } elseif (preg_match('/status|registered|enabled|active/i', $name) === 1) {
+                } elseif (in_array($flatName, $statusFields, true)) {
                     $text = substr($text, 0, 40);
-                } elseif (preg_match('/userid|accountid|accountindex|accountno|lineindex|extension|(^|_)ext$|(^|_)index$/i', $name) === 1) {
+                } elseif (in_array($flatName, $identityFields, true)) {
                     if (strlen($text) > 50 || preg_match('/^[a-zA-Z0-9*#+._-]+$/', $text) !== 1) {
                         continue;
                     }
@@ -1138,11 +1163,20 @@ class API
         $failed = [];
         $quotaHit = false;
         $needsTokenRefresh = false;
+        $dispatchedMacs = [];
+        // Bound the initial SIP stage too: inventory must not wait through one
+        // full timeout for every group. Unsent devices remain eligible next sync.
+        $initialDeadline = microtime(true) + 8.0;
         foreach (array_chunk($requests, $maxConcurrent, true) as $requestGroup) {
-            if ($quotaHit || Utils::getProviderCooldownRemaining('gdms') > 0) {
+            $remaining = $initialDeadline - microtime(true);
+            if ($remaining <= 0 || $quotaHit || Utils::getProviderCooldownRemaining('gdms') > 0) {
                 break;
             }
-            $groupResult = self::executeGdmsSipRequestGroup($requestGroup, self::TIMEOUT);
+            foreach ($requestGroup as $request) {
+                $dispatchedMacs[$request['mac']] = true;
+            }
+            $timeout = max(1, min(self::TIMEOUT, (int) ceil($remaining)));
+            $groupResult = self::executeGdmsSipRequestGroup($requestGroup, $timeout);
             foreach ($groupResult['results'] as $key => $result) {
                 $request = $requestGroup[$key];
                 if ($result['ok'] && is_array($result['data'])) {
@@ -1224,6 +1258,9 @@ class API
 
         $snapshots = [];
         foreach ($results as $mac => $result) {
+            if (!isset($dispatchedMacs[$mac])) {
+                continue;
+            }
             $previous = $previousSnapshots[$mac] ?? [];
             $previousInfo = is_array($previous['info'] ?? null)
                 ? self::gdmsSanitizeSipPayload($previous['info'])
