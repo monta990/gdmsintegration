@@ -298,67 +298,76 @@ class Utils
         }
 
         try {
-            $now = time();
-            $requestedUntil = $now + $seconds;
-            $table = 'glpi_plugin_gdmsintegration_locks';
-            $existingToken = '';
-            $existingUntil = 0;
-
-            // Compare absolute expiries while holding the provider writer lock.
-            // Readers never delete expired rows, so this row cannot disappear
-            // between the read and update.
-            foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
-                $existingToken = (string) ($row['lock_token'] ?? '');
-                if (preg_match('/^cooldown:(\d+)$/', $existingToken, $match) === 1) {
-                    $existingUntil = (int) $match[1];
-                }
-                break;
-            }
-
-            $until = max($requestedUntil, $existingUntil);
-            $values = [
-                'lock_token' => 'cooldown:' . $until,
-                'acquired_at' => gmdate('Y-m-d H:i:s'),
-            ];
-
-            if ($existingToken !== '') {
-                $updated = $DB->update($table, $values, ['lock_name' => $name, 'lock_token' => $existingToken]);
-                if ($updated === false) {
-                    throw new \RuntimeException('Could not update the provider cooldown row.');
-                }
-            } else {
-                $inserted = $DB->insert($table, array_merge(['lock_name' => $name], $values));
-                if ($inserted === false) {
-                    // A competing first insert may have happened outside this
-                    // lock discipline. Re-read its absolute expiry and only extend.
-                    $latestToken = '';
-                    $latestUntil = 0;
-                    foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
-                        $latestToken = (string) ($row['lock_token'] ?? '');
-                        if (preg_match('/^cooldown:(\d+)$/', $latestToken, $match) === 1) {
-                            $latestUntil = (int) $match[1];
-                        }
-                        break;
-                    }
-                    $until = max($until, $latestUntil);
-                    if ($latestToken !== '') {
-                        $updated = $DB->update($table, [
-                            'lock_token' => 'cooldown:' . $until,
-                            'acquired_at' => gmdate('Y-m-d H:i:s'),
-                        ], ['lock_name' => $name, 'lock_token' => $latestToken]);
-                        if ($updated === false) {
-                            throw new \RuntimeException('Could not extend the concurrently-created provider cooldown row.');
-                        }
-                    } else {
-                        throw new \RuntimeException('Provider cooldown insert failed and no row was available to extend.');
-                    }
-                }
-            }
+            self::persistProviderCooldownUntil($name, time() + $seconds);
         } catch (\Throwable $e) {
             self::debug('Provider cooldown persistence unavailable: ' . $e->getMessage());
         } finally {
             self::releaseLock($writerLock, $writerToken);
         }
+    }
+
+    /**
+     * Persist an absolute cooldown expiry without shortening a concurrent value.
+     *
+     * @param positive-int $requestedUntil
+     */
+    private static function persistProviderCooldownUntil(string $name, int $requestedUntil): void
+    {
+        global $DB;
+        $table = 'glpi_plugin_gdmsintegration_locks';
+
+        // The provider writer lock serializes normal writers. The bounded retry
+        // also handles a row deleted/recreated by an external worker between
+        // the read and conditional update.
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $existingRow = null;
+            foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                $existingRow = $row;
+                break;
+            }
+
+            if (!is_array($existingRow)) {
+                $inserted = $DB->insert($table, [
+                    'lock_name' => $name,
+                    'lock_token' => 'cooldown:' . $requestedUntil,
+                    'acquired_at' => gmdate('Y-m-d H:i:s'),
+                ]);
+                if ($inserted !== false && $DB->affectedRows() > 0) {
+                    return;
+                }
+                continue;
+            }
+
+            $existingToken = (string) ($existingRow['lock_token'] ?? '');
+            $existingUntil = preg_match('/^cooldown:(\\d+)$/', $existingToken, $match) === 1
+                ? (int) $match[1]
+                : 0;
+            if ($existingUntil >= $requestedUntil) {
+                return;
+            }
+
+            $updated = $DB->update($table, [
+                'lock_token' => 'cooldown:' . $requestedUntil,
+                'acquired_at' => gmdate('Y-m-d H:i:s'),
+            ], [
+                'lock_name' => $name,
+                'lock_token' => $existingToken,
+            ]);
+            if ($updated !== false && $DB->affectedRows() > 0) {
+                return;
+            }
+        }
+
+        // Confirm whether a concurrent writer already persisted an equal or
+        // later expiry before reporting failure.
+        foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+            $token = (string) ($row['lock_token'] ?? '');
+            if (preg_match('/^cooldown:(\\d+)$/', $token, $match) === 1 && (int) $match[1] >= $requestedUntil) {
+                return;
+            }
+        }
+
+        throw new \\RuntimeException('Provider cooldown could not be inserted or extended.');
     }
 
     /**
