@@ -1267,10 +1267,15 @@ class API
             $status = $result['status'] ?? false;
 
             // A successful empty endpoint response is authoritative and clears
-            // that endpoint. A failed endpoint keeps its last known payload,
-            // while its *_ok flag remains false so the short retry TTL is used.
+            // that endpoint. A failed endpoint keeps its last known payload.
+            // Do not advance the shared cache timestamp for a partial refresh:
+            // the next sync must retry the endpoint that failed.
+            $complete = $info !== false && $status !== false;
+            $checkedAt = $complete
+                ? gmdate('Y-m-d H:i:s')
+                : trim((string) ($previous['checked_at'] ?? ''));
             $snapshot = [
-                'checked_at' => gmdate('Y-m-d H:i:s'),
+                'checked_at' => $checkedAt,
                 'info_ok' => $info !== false,
                 'status_ok' => $status !== false,
                 'info' => $info !== false ? self::gdmsSanitizeSipPayload($info) : $previousInfo,
