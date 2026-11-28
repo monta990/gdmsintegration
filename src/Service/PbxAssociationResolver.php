@@ -132,10 +132,16 @@ final class PbxAssociationResolver
                 continue;
             }
 
-            // A literal IP returned by device/account/info is the strongest
-            // SIP mapping when it equals a managed UCM's private address. This
-            // works across routed subnets (for example devices on a remote subnet registering
-            // to a managed PBX) without relying on WAN/NAT equality.
+            // Multiple distinct SIP server hosts cannot be represented by a
+            // single device-level PBX edge. The SIP modal resolves each line.
+            if ($sipServerCount > 1) {
+                $detail['reason'] = 'multiple_sip_account_servers_on_device';
+                $diagnostics[$mac] = $detail;
+                continue;
+            }
+
+            // A literal SIP server IP is the strongest mapping when it equals
+            // a managed UCM private address.
             $sipServerIp = self::sipServerIp($sipServer);
             $sipIpCandidates = $sipServerIp !== ''
                 ? self::uniqueCandidates($pbxByPrivateIp[$sipServerIp] ?? [])
@@ -154,9 +160,7 @@ final class PbxAssociationResolver
 
             $explicitPbxMac = self::normalizeMac((string) ($row['pbx_mac'] ?? ''));
             if ($explicitPbxMac === '' && $sipServer !== '') {
-                if (preg_match('/(?<![0-9a-f])([0-9a-f]{12})(?=\.[a-z0-9.-]+)/i', $sipServer, $m) === 1) {
-                    $explicitPbxMac = self::normalizeMac($m[1]);
-                }
+                $explicitPbxMac = self::sipServerPbxMac($sipServer);
             }
 
             $explicitReferenceMissing = $sipServerCount > 1 && $sipServerIp === '' && $explicitPbxMac === '';
@@ -257,7 +261,7 @@ final class PbxAssociationResolver
         return implode(':', str_split($hex, 2));
     }
 
-    /** Return a safe host[:port] only; strip SIP URI user-info and URI parameters. */
+    /** Return a canonical host[:port] only; strip SIP URI user-info and URI parameters. */
     public static function safeSipServer(string $server): string
     {
         $server = trim($server);
@@ -270,11 +274,49 @@ final class PbxAssociationResolver
             $server = substr($server, strrpos($server, '@') + 1);
         }
         $server = preg_split('/[;?\s]/', $server, 2)[0] ?? '';
-        $server = trim($server, "[] \t\n\r\0\x0B");
-        if (strlen($server) > 255 || preg_match('/^[a-z0-9.:-]+$/i', $server) !== 1) {
+        if ($server === '' || strlen($server) > 255) {
             return '';
         }
-        return strtolower($server);
+
+        // IPv6 with a port must be bracketed to be unambiguous.
+        if (str_starts_with($server, '[')) {
+            if (preg_match('/^\[([0-9a-f:.]+)\](?::([0-9]{1,5}))?$/i', $server, $match) !== 1
+                || filter_var($match[1], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+                return '';
+            }
+            $packed = inet_pton($match[1]);
+            $host = $packed === false ? false : inet_ntop($packed);
+            if ($host === false) {
+                return '';
+            }
+            $port = $match[2] ?? '';
+            if ($port !== '' && ((int) $port < 1 || (int) $port > 65535)) {
+                return '';
+            }
+            return '[' . strtolower($host) . ']' . ($port !== '' ? ':' . (int) $port : '');
+        }
+
+        if (filter_var($server, FILTER_VALIDATE_IP) !== false) {
+            $packed = inet_pton($server);
+            $host = $packed === false ? false : inet_ntop($packed);
+            return $host === false ? '' : strtolower($host);
+        }
+
+        $host = $server;
+        $port = '';
+        if (substr_count($server, ':') === 1) {
+            [$host, $port] = explode(':', $server, 2);
+            if ($port === '' || preg_match('/^[0-9]{1,5}$/', $port) !== 1 || (int) $port < 1 || (int) $port > 65535) {
+                return '';
+            }
+        } elseif (str_contains($server, ':')) {
+            return '';
+        }
+        if (strlen($host) > 253
+            || preg_match('/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/i', $host) !== 1) {
+            return '';
+        }
+        return strtolower($host) . ($port !== '' ? ':' . (int) $port : '');
     }
 
     private static function isPbx(string $model): bool
@@ -282,7 +324,7 @@ final class PbxAssociationResolver
         return preg_match('/^(?:UCM|GCC|CLOUDUCM|SOFTWAREUCM)/i', trim($model)) === 1;
     }
 
-    private static function normalizeIp(string $ip): string
+    public static function normalizeIp(string $ip): string
     {
         $ip = trim($ip);
         if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
@@ -340,10 +382,14 @@ final class PbxAssociationResolver
     public static function sipServerPbxMac(string $server): string
     {
         $server = self::safeSipServer($server);
-        if ($server !== '' && preg_match('/(?<![0-9a-f])([0-9a-f]{12})(?=\.[a-z0-9.-]+)/i', $server, $match) === 1) {
-            return self::normalizeMac($match[1]);
+        if ($server === '' || preg_match('/^([0-9a-f]{12})\.a\.gdms\.cloud(?::([0-9]{1,5}))?$/i', $server, $match) !== 1) {
+            return '';
         }
-        return '';
+        $port = $match[2] ?? '';
+        if ($port !== '' && ((int) $port < 1 || (int) $port > 65535)) {
+            return '';
+        }
+        return self::normalizeMac($match[1]);
     }
 
     /**
@@ -382,8 +428,16 @@ final class PbxAssociationResolver
         if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
             return '';
         }
-        $parts = explode('.', $ip);
-        return $parts[0] . '.' . $parts[1] . '.' . $parts[2];
+        $parts = array_map('intval', explode('.', $ip));
+        $first = $parts[0] ?? 0;
+        $second = $parts[1] ?? 0;
+        $isPrivate = $first === 10
+            || ($first === 172 && $second >= 16 && $second <= 31)
+            || ($first === 192 && $second === 168);
+        if (!$isPrivate) {
+            return '';
+        }
+        return $first . '.' . $second . '.' . ($parts[2] ?? 0);
     }
 
     private static function managementUrl(string $ip): string
