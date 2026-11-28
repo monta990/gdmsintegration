@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.8\n"
+"Project-Id-Version: gdmsintegration 1.7.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-25 00:00+0000\n"
-"PO-Revision-Date: 2026-10-25 00:00+0000\n"
+"POT-Creation-Date: 2026-11-28 06:48+0000\n"
+"PO-Revision-Date: 2026-11-28 06:48+0000\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language: pt_BR\n"
 "Language-Team: pt_BR\n"
@@ -2214,3 +2214,19 @@ msgstr "As credenciais do GWN estão ausentes; o agendamento de firmware está d
 #: src/Service/FirmwareService.php
 msgid "No verified firmware download path is available; scheduling is disabled"
 msgstr "Não há um caminho de download de firmware verificado; o agendamento está desativado."
+
+#: templates/config_form.html.twig:411
+msgid "Import XLSX history"
+msgstr "Importar histórico XLSX"
+
+#: templates/config_form.html.twig:403
+msgid "Maximum upload size"
+msgstr "Tamanho máximo de upload"
+
+#: src/Service/DashboardService.php:967
+msgid "SIP Accounts"
+msgstr "Contas SIP"
+
+#: templates/config_form.html.twig:404
+msgid "Size in megabytes (MB)"
+msgstr "Tamanho em megabytes (MB)"

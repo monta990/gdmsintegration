@@ -371,8 +371,12 @@ class Sync extends \CommonGLPI
                             $gdmsDevice['_gdms_sip_account_snapshot'] = $snapshot;
                             $gdmsDevice['_gdms_sip_account_summary'] = API::gdmsSummarizeSipSnapshot($snapshot);
                         }
-                        if (empty($snapshot['info_ok'])) { $sipInfoFailures++; }
-                        if (empty($snapshot['status_ok'])) { $sipStatusFailures++; }
+                        if (empty($snapshot['info_ok'])) {
+                            $sipInfoFailures++;
+                        }
+                        if (empty($snapshot['status_ok'])) {
+                            $sipStatusFailures++;
+                        }
                     }
                     unset($gdmsDevice);
                     Utils::log(sprintf(

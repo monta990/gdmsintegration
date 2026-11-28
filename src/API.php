@@ -435,7 +435,7 @@ class API
             while (true) {
                 $ts = (int) (microtime(true) * 1000);
 
-            // URL query params (only access_token goes in URL for this endpoint)
+                // URL query params (only access_token goes in URL for this endpoint)
                 $urlParams = ['access_token' => $config['access_token']];
                 $sig = self::gdmsBuildSignature($urlParams, $config, $ts, $body);
                 $url = self::gdmsBase($config) . '/' . self::VERSION . '/device/list?'
@@ -737,27 +737,52 @@ class API
             $walk = static function (array $node, string $path = '') use (&$walk, &$records): void {
                 $r = ['account_id' => '', 'index' => '', 'extension' => '', 'server' => '', 'server_rank' => 0, 'status' => ''];
                 foreach ($node as $key => $value) {
-                    if (!is_scalar($value)) { continue; }
+                    if (!is_scalar($value)) {
+                        continue;
+                    }
                     $flat = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $key) ?? (string) $key);
                     $text = trim((string) $value);
-                    if ($text === '') { continue; }
+                    if ($text === '') {
+                        continue;
+                    }
                     if ($r['account_id'] === '' && in_array($flat, ['sipaccountid', 'accountid'], true)
-                        && strlen($text) <= 64 && preg_match('/^[a-zA-Z0-9*#._-]+$/', $text) === 1) { $r['account_id'] = $text; }
+                        && strlen($text) <= 64 && preg_match('/^[a-zA-Z0-9*#._-]+$/', $text) === 1) {
+                        $r['account_id'] = $text;
+                    }
                     if ($r['index'] === '' && in_array($flat, ['accountindex', 'accountno', 'lineindex', 'index'], true)
-                        && strlen($text) <= 20 && preg_match('/^[a-zA-Z0-9._-]+$/', $text) === 1) { $r['index'] = $text; }
+                        && strlen($text) <= 20 && preg_match('/^[a-zA-Z0-9._-]+$/', $text) === 1) {
+                        $r['index'] = $text;
+                    }
                     $rank = 0;
-                    if (in_array($flat, ['serveraddress','serveraddr','serverip','serverhost','sipserveraddress','sipserveraddr','sipserverip','sipserverhost','proxyaddress','registraraddress','outboundproxyaddress'], true)) { $rank = 3; }
-                    elseif (in_array($flat, ['sipserver','server','proxy','registrar','outboundproxy'], true)) { $rank = 2; }
-                    elseif (in_array($flat, ['servername','sipservername','proxyserver','registrarserver'], true)) { $rank = 1; }
-                    if ($rank > $r['server_rank']) { $r['server'] = $text; $r['server_rank'] = $rank; }
+                    if (in_array($flat, ['serveraddress','serveraddr','serverip','serverhost','sipserveraddress','sipserveraddr','sipserverip','sipserverhost','proxyaddress','registraraddress','outboundproxyaddress'], true)) {
+                        $rank = 3;
+                    } elseif (in_array($flat, ['sipserver','server','proxy','registrar','outboundproxy'], true)) {
+                        $rank = 2;
+                    } elseif (in_array($flat, ['servername','sipservername','proxyserver','registrarserver'], true)) {
+                        $rank = 1;
+                    }
+                    if ($rank > $r['server_rank']) {
+                        $r['server'] = $text;
+                        $r['server_rank'] = $rank;
+                    }
                     if ($r['extension'] === '' && in_array($flat, ['userid','extension','ext','sipextension','sipuserid','accountuserid','accountuser','phonenumber','accountnumber'], true)
-                        && strlen($text) <= 50 && preg_match('/^[a-zA-Z0-9*#+._-]+$/', $text) === 1) { $r['extension'] = $text; }
-                    if ($r['status'] === '' && in_array($flat, ['status','accountstatus','registerstatus','registrationstatus','regstatus','registered'], true)) { $r['status'] = substr($text, 0, 40); }
+                        && strlen($text) <= 50 && preg_match('/^[a-zA-Z0-9*#+._-]+$/', $text) === 1) {
+                        $r['extension'] = $text;
+                    }
+                    if ($r['status'] === '' && in_array($flat, ['status','accountstatus','registerstatus','registrationstatus','regstatus','registered'], true)) {
+                        $r['status'] = substr($text, 0, 40);
+                    }
                 }
-                if ($r['index'] === '' && preg_match('/(?:^|\.)(\d+)$/', $path, $m) === 1) { $r['index'] = (string) ((int) $m[1] + 1); }
-                if ($r['account_id'] !== '' || $r['extension'] !== '' || $r['server'] !== '') { $records[] = $r; }
+                if ($r['index'] === '' && preg_match('/(?:^|\.)(\d+)$/', $path, $m) === 1) {
+                    $r['index'] = (string) ((int) $m[1] + 1);
+                }
+                if ($r['account_id'] !== '' || $r['extension'] !== '' || $r['server'] !== '') {
+                    $records[] = $r;
+                }
                 foreach ($node as $key => $value) {
-                    if (is_array($value)) { $walk($value, $path === '' ? (string) $key : $path . '.' . (string) $key); }
+                    if (is_array($value)) {
+                        $walk($value, $path === '' ? (string) $key : $path . '.' . (string) $key);
+                    }
                 }
             };
             $walk($root);
@@ -774,45 +799,81 @@ class API
                 $sameServer = $record['server'] === '' || $existing['server'] === '' || strcasecmp($record['server'], $existing['server']) === 0;
                 $sameIndex = $record['index'] !== '' && $existing['index'] !== '' && $record['index'] === $existing['index'];
                 $idConflict = $record['account_id'] !== '' && $existing['account_id'] !== '' && !$sameId;
-                if (!$idConflict && ($sameId || ($sameExt && $sameServer) || ($sameIndex && ($sameExt || $record['extension'] === '' || $existing['extension'] === '')))) { $found = $i; break; }
+                if (!$idConflict && ($sameId || ($sameExt && $sameServer) || ($sameIndex && ($sameExt || $record['extension'] === '' || $existing['extension'] === '')))) {
+                    $found = $i;
+                    break;
+                }
             }
             if ($found === null) {
                 $accounts[] = ['account_id' => $record['account_id'], 'index' => $record['index'] !== '' ? $record['index'] : $record['account_id'], 'extension' => $record['extension'], 'server' => $record['server'], 'status' => $record['status']];
                 return;
             }
-            foreach (['account_id','index','extension','server'] as $field) { if ($accounts[$found][$field] === '' && $record[$field] !== '') { $accounts[$found][$field] = $record[$field]; } }
-            if ($isStatus && $record['status'] !== '') { $accounts[$found]['status'] = $record['status']; }
-            elseif ($accounts[$found]['status'] === '' && $record['status'] !== '') { $accounts[$found]['status'] = $record['status']; }
+            foreach (['account_id','index','extension','server'] as $field) {
+                if ($accounts[$found][$field] === '' && $record[$field] !== '') {
+                    $accounts[$found][$field] = $record[$field];
+                }
+            }
+            if ($isStatus && $record['status'] !== '') {
+                $accounts[$found]['status'] = $record['status'];
+            } elseif ($accounts[$found]['status'] === '' && $record['status'] !== '') {
+                $accounts[$found]['status'] = $record['status'];
+            }
         };
-        foreach ($info as $record) { $merge($record, false); }
-        foreach ($status as $record) { $merge($record, true); }
+        foreach ($info as $record) {
+            $merge($record, false);
+        }
+        foreach ($status as $record) {
+            $merge($record, true);
+        }
 
         $unique = [];
         foreach ($accounts as $account) {
             $id = $account['account_id'] !== '' ? 'id:' . $account['account_id'] : 'ext:' . $account['extension'] . '|server:' . strtolower($account['server']);
-            if ($id === 'ext:|server:') { $id .= '|index:' . $account['index']; }
-            if (!isset($unique[$id])) { $unique[$id] = $account; }
-            else { foreach (['index','extension','server','status'] as $field) { if ($unique[$id][$field] === '' && $account[$field] !== '') { $unique[$id][$field] = $account[$field]; } } }
+            if ($id === 'ext:|server:') {
+                $id .= '|index:' . $account['index'];
+            }
+            if (!isset($unique[$id])) {
+                $unique[$id] = $account;
+            } else {
+                foreach (['index','extension','server','status'] as $field) {
+                    if ($unique[$id][$field] === '' && $account[$field] !== '') {
+                        $unique[$id][$field] = $account[$field];
+                    }
+                }
+            }
         }
         $accounts = array_values($unique);
-        foreach ($accounts as &$account) { unset($account['account_id']); }
+        foreach ($accounts as &$account) {
+            unset($account['account_id']);
+        }
         unset($account);
         usort($accounts, static function (array $a, array $b): int {
             $x = ctype_digit((string) $a['index']) ? (int) $a['index'] : PHP_INT_MAX;
             $y = ctype_digit((string) $b['index']) ? (int) $b['index'] : PHP_INT_MAX;
             return $x <=> $y;
         });
-        $servers = []; $serverHosts = []; $primaryExtension = ''; $registered = 0;
+        $servers = [];
+        $serverHosts = [];
+        $primaryExtension = '';
+        $registered = 0;
         foreach ($accounts as $account) {
             $safeServer = Service\PbxAssociationResolver::safeSipServer((string) $account['server']);
             if ($safeServer !== '') {
-                $servers[$safeServer] = true; $host = $safeServer;
-                if (str_starts_with($host, '[') && str_contains($host, ']')) { $host = substr($host, 1, strpos($host, ']') - 1); }
-                elseif (substr_count($host, ':') === 1) { [$host] = explode(':', $host, 2); }
+                $servers[$safeServer] = true;
+                $host = $safeServer;
+                if (str_starts_with($host, '[') && str_contains($host, ']')) {
+                    $host = substr($host, 1, strpos($host, ']') - 1);
+                } elseif (substr_count($host, ':') === 1) {
+                    [$host] = explode(':', $host, 2);
+                }
                 $serverHosts[strtolower($host)] = true;
             }
-            if ($primaryExtension === '' && $account['extension'] !== '') { $primaryExtension = $account['extension']; }
-            if (preg_match('/^(?:1|true|up|normal|registered|online|ok)$/i', (string) $account['status']) === 1) { $registered++; }
+            if ($primaryExtension === '' && $account['extension'] !== '') {
+                $primaryExtension = $account['extension'];
+            }
+            if (preg_match('/^(?:1|true|up|normal|registered|online|ok)$/i', (string) $account['status']) === 1) {
+                $registered++;
+            }
         }
         $serverList = array_keys($servers);
         return [
@@ -836,24 +897,36 @@ class API
             Utils::warning("GDMS SIP batch skipped — shared rate-limit cooldown has {$cooldown}s remaining; existing SIP snapshots will be preserved.");
             return [];
         }
-        $started = microtime(true); $maxConcurrent = max(2, min(16, $maxConcurrent)); $uniqueMacs = [];
+        $started = microtime(true);
+        $maxConcurrent = max(2, min(16, $maxConcurrent));
+        $uniqueMacs = [];
         foreach ($macs as $mac) {
             $mac = strtoupper(trim((string) $mac));
-            if ($mac !== '' && preg_match('/^[0-9A-F:-]{12,17}$/', $mac) === 1) { $uniqueMacs[$mac] = true; }
+            if ($mac !== '' && preg_match('/^[0-9A-F:-]{12,17}$/', $mac) === 1) {
+                $uniqueMacs[$mac] = true;
+            }
         }
-        if ($uniqueMacs === []) { return []; }
+        if ($uniqueMacs === []) {
+            return [];
+        }
         if (empty($config['access_token'])) {
             $tokenData = self::gdmsGetToken($config);
-            if ($tokenData === false) { return []; }
+            if ($tokenData === false) {
+                return [];
+            }
             $config['access_token'] = $tokenData['access_token'];
         }
-        $results = []; $requests = [];
+        $results = [];
+        $requests = [];
         foreach (array_keys($uniqueMacs) as $mac) {
             $results[$mac] = ['info' => false, 'status' => false];
             foreach (['info' => 'device/account/info', 'status' => 'device/account/status'] as $kind => $endpoint) {
                 $body = json_encode(['mac' => $mac], JSON_UNESCAPED_SLASHES);
-                if (!is_string($body)) { continue; }
-                $timestamp = (int) (microtime(true) * 1000); $urlParams = ['access_token' => (string) $config['access_token']];
+                if (!is_string($body)) {
+                    continue;
+                }
+                $timestamp = (int) (microtime(true) * 1000);
+                $urlParams = ['access_token' => (string) $config['access_token']];
                 $signature = self::gdmsBuildSignature($urlParams, $config, $timestamp, $body);
                 $url = self::gdmsBase($config) . '/' . self::VERSION . '/' . $endpoint . '?' . http_build_query([
                     'access_token' => $config['access_token'], 'timestamp' => $timestamp, 'signature' => $signature,
@@ -886,11 +959,14 @@ class API
                 }
                 $running = null;
                 do {
-                    do { $multiCode = curl_multi_exec($multi, $running); }
-                    while (defined('CURLM_CALL_MULTI_PERFORM') && $multiCode === CURLM_CALL_MULTI_PERFORM);
+                    do {
+                        $multiCode = curl_multi_exec($multi, $running);
+                    } while (defined('CURLM_CALL_MULTI_PERFORM') && $multiCode === CURLM_CALL_MULTI_PERFORM);
                     if ($running > 0) {
                         $selected = curl_multi_select($multi, 0.25);
-                        if ($selected === -1) { usleep(10000); }
+                        if ($selected === -1) {
+                            usleep(10000);
+                        }
                     }
                 } while ($running > 0 && $multiCode === CURLM_OK);
 
@@ -911,8 +987,11 @@ class API
                     }
                     $ok = $error === '' && $http >= 200 && $http < 300 && is_array($decoded)
                         && (!array_key_exists('retCode', $decoded) || (int) $decoded['retCode'] === 0);
-                    if ($ok) { $results[$request['mac']][$request['kind']] = $decoded; }
-                    else { $failed[$key] = $request; }
+                    if ($ok) {
+                        $results[$request['mac']][$request['kind']] = $decoded;
+                    } else {
+                        $failed[$key] = $request;
+                    }
                     curl_multi_remove_handle($multi, $handle);
                     curl_close($handle);
                 }
@@ -931,12 +1010,15 @@ class API
                 break;
             }
             $retry = self::gdmsPostDeviceAccountEndpoint($config, $request['endpoint'], $request['mac']);
-            if ($retry !== false) { $results[$request['mac']][$request['kind']] = $retry; }
+            if ($retry !== false) {
+                $results[$request['mac']][$request['kind']] = $retry;
+            }
         }
         $snapshots = [];
         $rateLimitCooldown = Utils::getProviderCooldownRemaining('gdms');
         foreach ($results as $mac => $result) {
-            $info = $result['info']; $status = $result['status'];
+            $info = $result['info'];
+            $status = $result['status'];
             if ($rateLimitCooldown > 0 && $info === false && $status === false) {
                 // Keep the prior good SIP snapshot; this was a quota response, not
                 // evidence that the phone has no SIP accounts or registration data.
@@ -948,9 +1030,15 @@ class API
                 'status' => $status !== false ? self::gdmsSanitizeSipPayload($status) : [],
             ];
             $summary = self::gdmsSummarizeSipSnapshot($snapshot);
-            Utils::debug(sprintf('GDMS SIP API result: mac=%s info_ok=%s status_ok=%s accounts=%d servers=%s registered=%d',
-                $mac, $snapshot['info_ok'] ? 'yes' : 'no', $snapshot['status_ok'] ? 'yes' : 'no', $summary['account_count'],
-                json_encode($summary['servers'], JSON_UNESCAPED_SLASHES) ?: '[]', $summary['registered_count']));
+            Utils::debug(sprintf(
+                'GDMS SIP API result: mac=%s info_ok=%s status_ok=%s accounts=%d servers=%s registered=%d',
+                $mac,
+                $snapshot['info_ok'] ? 'yes' : 'no',
+                $snapshot['status_ok'] ? 'yes' : 'no',
+                $summary['account_count'],
+                json_encode($summary['servers'], JSON_UNESCAPED_SLASHES) ?: '[]',
+                $summary['registered_count'],
+            ));
             if ($summary['accounts'] !== []) {
                 $safeAccounts = array_map(static fn(array $a): array => [
                     'index' => $a['index'], 'extension' => $a['extension'],
@@ -958,12 +1046,22 @@ class API
                 ], $summary['accounts']);
                 Utils::debug('GDMS SIP account details (credential-free): mac=' . $mac . ' accounts=' . json_encode($safeAccounts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
             }
-            if ($info !== false) { Utils::debug('GDMS device/account/info safe payload: mac=' . $mac . ' fields=' . json_encode(self::sipPayloadFieldPaths($snapshot['info']), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); }
-            if ($status !== false) { Utils::debug('GDMS device/account/status safe payload: mac=' . $mac . ' fields=' . json_encode(self::sipPayloadFieldPaths($snapshot['status']), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); }
+            if ($info !== false) {
+                Utils::debug('GDMS device/account/info safe payload: mac=' . $mac . ' fields=' . json_encode(self::sipPayloadFieldPaths($snapshot['info']), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            }
+            if ($status !== false) {
+                Utils::debug('GDMS device/account/status safe payload: mac=' . $mac . ' fields=' . json_encode(self::sipPayloadFieldPaths($snapshot['status']), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            }
             $snapshots[$mac] = $snapshot;
         }
-        Utils::debug(sprintf('GDMS SIP concurrent batch: phones=%d requests=%d concurrency=%d duration_ms=%d failed_requests=%d',
-            count($snapshots), count($requests), $maxConcurrent, (int) round((microtime(true) - $started) * 1000), count($failed)));
+        Utils::debug(sprintf(
+            'GDMS SIP concurrent batch: phones=%d requests=%d concurrency=%d duration_ms=%d failed_requests=%d',
+            count($snapshots),
+            count($requests),
+            $maxConcurrent,
+            (int) round((microtime(true) - $started) * 1000),
+            count($failed),
+        ));
         return $snapshots;
     }
 

@@ -1,6 +1,9 @@
 <?php
 
 namespace GlpiPlugin\Gdmsintegration;
+
+use Glpi\RichText\RichText;
+
 /**
  * GDMS Integration — \GlpiPlugin\Gdmsintegration\Utils
  *
@@ -14,28 +17,29 @@ namespace GlpiPlugin\Gdmsintegration;
  *                            inputs, SN diagnostics. Enabled when "Debug logging" is
  *                            checked in plugin config OR when GLPI debug mode is active.
  */
-class Utils {
-
+class Utils
+{
     /**
      * Returns true when verbose logging should be written.
      * Verbose when: plugin debug_logging = 1  OR  GLPI $_SESSION['glpi_use_mode'] = 2 (debug).
      */
-    public static function isDebug(): bool {
+    public static function isDebug(): bool
+    {
         // GLPI debug mode
-        if (isset($_SESSION['glpi_use_mode']) && (int)$_SESSION['glpi_use_mode'] === \Session::DEBUG_MODE) {
+        if (isset($_SESSION['glpi_use_mode']) && (int) $_SESSION['glpi_use_mode'] === \Session::DEBUG_MODE) {
             return true;
         }
         // Plugin-level debug toggle (cached in session for performance)
         if (!isset($_SESSION['_gdms_debug'])) {
             try {
-                $cfg = new \GlpiPlugin\Gdmsintegration\Config();
+                $cfg = new Config();
                 $row = $cfg->getConfigByEntity(0);
                 $_SESSION['_gdms_debug'] = !empty($row['debug_logging']) ? 1 : 0;
             } catch (\Throwable $e) {
                 $_SESSION['_gdms_debug'] = 0;
             }
         }
-        return (bool)$_SESSION['_gdms_debug'];
+        return (bool) $_SESSION['_gdms_debug'];
     }
 
     /**
@@ -45,7 +49,8 @@ class Utils {
      * @param bool   $verbose  If true, only written when debug mode is active.
      *                         If false (default), always written.
      */
-    public static function log(string $message, bool $verbose = false): void {
+    public static function log(string $message, bool $verbose = false): void
+    {
         if ($verbose && !self::isDebug()) {
             return;
         }
@@ -57,7 +62,8 @@ class Utils {
     /**
      * Shorthand — write only in debug/verbose mode.
      */
-    public static function debug(string $message): void {
+    public static function debug(string $message): void
+    {
         self::log($message, true);
     }
 
@@ -77,8 +83,8 @@ class Utils {
      */
     private static function sanitizeTicketHtml(string $html): string
     {
-        if (class_exists(\Glpi\RichText\RichText::class)) {
-            return \Glpi\RichText\RichText::getSafeHtml($html);
+        if (class_exists(RichText::class)) {
+            return RichText::getSafeHtml($html);
         }
 
         return htmlspecialchars($html, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -99,7 +105,7 @@ class Utils {
         string $summary,
         array $rows,
         string $footer = '',
-        string $reference = ''
+        string $reference = '',
     ): string {
         $html = '<div class="gdms-ticket-content" style="font-size:14px;line-height:1.5;">';
 
@@ -185,11 +191,13 @@ class Utils {
         return self::sanitizeTicketHtml($html);
     }
 
-    public static function encrypt(string $value): string {
+    public static function encrypt(string $value): string
+    {
         return (new \GLPIKey())->encrypt($value);
     }
 
-    public static function decrypt(string $value): string {
+    public static function decrypt(string $value): string
+    {
         try {
             return (new \GLPIKey())->decrypt($value);
         } catch (\Throwable $e) {
@@ -197,15 +205,23 @@ class Utils {
         }
     }
     /** Structured severity helpers. Debug remains opt-in; warnings are always retained. */
-    public static function warning(string $message): void { self::log('[WARNING] ' . $message); }
+    public static function warning(string $message): void
+    {
+        self::log('[WARNING] ' . $message);
+    }
 
     /** Remove operational rows older than the configured retention window. */
-    public static function cleanupOperationalHistory(int $entities_id, int $days): void {
+    public static function cleanupOperationalHistory(int $entities_id, int $days): void
+    {
         global $DB;
         $days = max(7, min(3650, $days));
         $cutoff = gmdate('Y-m-d H:i:s', time() - ($days * 86400));
         foreach (['glpi_plugin_gdmsintegration_client_history' => 'seen_at', 'glpi_plugin_gdmsintegration_action_log' => 'date'] as $table => $field) {
-            try { $DB->delete($table, ['entities_id' => $entities_id, $field => ['<', $cutoff]]); } catch (\Throwable $e) { self::debug("Retention cleanup skipped for {$table}: " . $e->getMessage()); }
+            try {
+                $DB->delete($table, ['entities_id' => $entities_id, $field => ['<', $cutoff]]);
+            } catch (\Throwable $e) {
+                self::debug("Retention cleanup skipped for {$table}: " . $e->getMessage());
+            }
         }
     }
 
@@ -294,7 +310,8 @@ class Utils {
      * Acquire a short-lived application lock using GLPI's DB abstraction.
      * Returns a token that must be passed to releaseLock().
      */
-    public static function acquireLock(string $name, int $ttl = 900): ?string {
+    public static function acquireLock(string $name, int $ttl = 900): ?string
+    {
         global $DB;
         $name = substr($name, 0, 190);
         $token = bin2hex(random_bytes(16));
@@ -318,7 +335,8 @@ class Utils {
         }
     }
 
-    public static function releaseLock(string $name, string $token): void {
+    public static function releaseLock(string $name, string $token): void
+    {
         global $DB;
         try {
             $DB->delete('glpi_plugin_gdmsintegration_locks', [

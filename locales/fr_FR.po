@@ -3,10 +3,10 @@
 # This file is distributed under GPL v3+.
 msgid ""
 msgstr ""
-"Project-Id-Version: gdmsintegration 1.6.8\n"
+"Project-Id-Version: gdmsintegration 1.7.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-25 00:00+0000\n"
-"PO-Revision-Date: 2026-10-25 00:00+0000\n"
+"POT-Creation-Date: 2026-11-28 06:48+0000\n"
+"PO-Revision-Date: 2026-11-28 06:48+0000\n"
 "Last-Translator: Edwin Elias Alvarez\n"
 "Language: fr_FR\n"
 "Language-Team: fr_FR\n"
@@ -2213,3 +2213,19 @@ msgstr "Les identifiants GWN sont manquants ; la planification du micrologiciel 
 #: src/Service/FirmwareService.php
 msgid "No verified firmware download path is available; scheduling is disabled"
 msgstr "Aucun chemin de téléchargement vérifié du micrologiciel n’est disponible ; la planification est désactivée."
+
+#: templates/config_form.html.twig:411
+msgid "Import XLSX history"
+msgstr "Importer l’historique XLSX"
+
+#: templates/config_form.html.twig:403
+msgid "Maximum upload size"
+msgstr "Taille maximale d’importation"
+
+#: src/Service/DashboardService.php:967
+msgid "SIP Accounts"
+msgstr "Comptes SIP"
+
+#: templates/config_form.html.twig:404
+msgid "Size in megabytes (MB)"
+msgstr "Taille en mégaoctets (Mo)"
