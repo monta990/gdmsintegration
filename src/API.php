@@ -736,7 +736,7 @@ class API
         $statusFields = ['status', 'accountstatus', 'registerstatus', 'registrationstatus', 'regstatus', 'registered', 'enabled', 'active'];
         $identityFields = [
             'userid', 'accountid', 'sipaccountid', 'accountindex', 'accountno', 'lineindex',
-            'extension', 'ext', 'sipuserid', 'accountuserid', 'accountuser', 'phonenumber',
+            'extension', 'ext', 'sipuserid', 'accountuserid', 'phonenumber',
             'accountnumber', 'index',
         ];
         $sensitiveKey = '/password|passwd|pwd|secret|token|credential|authorization|auth|private.?key|sip.?key|cipher|encrypt/i';
