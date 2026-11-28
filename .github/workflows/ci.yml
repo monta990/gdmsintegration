@@ -150,38 +150,7 @@ jobs:
           printf 'checksum_path=%s\n' "$checksum" >> "$GITHUB_OUTPUT"
 
       - name: Upload installable GDMS Integration ZIP
-        # This unprivileged PR/push workflow uploads the package artifact;
-        # no privileged workflow consumes artifacts built from PR code.
-        if: matrix.php == '8.3'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: gdmsintegration-installable
-          path: |
-            ${{ steps.package.outputs.archive_path }}
-            ${{ steps.package.outputs.checksum_path }}
-          if-no-files-found: error
-          retention-days: 14
- || true)"
-          expected_public_js_entries="$(printf '%s\n' \
-            gdmsintegration/public/js/config.js \
-            gdmsintegration/public/js/dashboard.js \
-            gdmsintegration/public/js/vis-network.min.js | sort)"
-          actual_public_js_entries="$(printf '%s\n' "${public_js_entries}" | sed '/^$/d' | sort)"
-          if [[ "$actual_public_js_entries" != "$expected_public_js_entries" ]]; then
-            printf 'Unexpected files in installable public/js directory:\n%s\n' "${public_js_entries:-<none>}" >&2
-            exit 1
-          fi
-
-          # Upload the exact archive created by the packager, without
-          # duplicating the plugin version in the workflow definition.
-          checksum="${archive}.sha256"
-          sha256sum "$archive" > "$checksum"
-          printf 'archive_path=%s\n' "$archive" >> "$GITHUB_OUTPUT"
-          printf 'checksum_path=%s\n' "$checksum" >> "$GITHUB_OUTPUT"
-
-      - name: Upload installable GDMS Integration ZIP
-        # This unprivileged PR/push workflow uploads the package artifact;
-        # no privileged workflow consumes artifacts built from PR code.
+        # Upload only the validated package from the designated build leg.
         if: matrix.php == '8.3'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
