@@ -367,7 +367,7 @@ class Utils
             }
         }
 
-        throw new \\RuntimeException('Provider cooldown could not be inserted or extended.');
+        throw new \RuntimeException('Provider cooldown could not be inserted or extended.');
     }
 
     /**
