@@ -332,8 +332,12 @@ class Utils
                     'lock_token' => 'cooldown:' . $requestedUntil,
                     'acquired_at' => gmdate('Y-m-d H:i:s'),
                 ]);
-                if ($inserted !== false && $DB->affectedRows() > 0) {
-                    return;
+                if ($inserted !== false) {
+                    foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                        if ((string) ($row['lock_token'] ?? '') === 'cooldown:' . $requestedUntil) {
+                            return;
+                        }
+                    }
                 }
                 continue;
             }
@@ -353,8 +357,13 @@ class Utils
                 'lock_name' => $name,
                 'lock_token' => $existingToken,
             ]);
-            if ($updated !== false && $DB->affectedRows() > 0) {
-                return;
+            if ($updated !== false) {
+                foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                    $token = (string) ($row['lock_token'] ?? '');
+                    if (preg_match('/^cooldown:(\\d+)$/', $token, $match) === 1 && (int) $match[1] >= $requestedUntil) {
+                        return;
+                    }
+                }
             }
         }
 
@@ -390,14 +399,11 @@ class Utils
                 'lock_name' => $name,
                 'acquired_at' => ['<', $stale],
             ]);
-            $inserted = $DB->insert($table, [
+            $DB->insert($table, [
                 'lock_name' => $name,
                 'lock_token' => $token,
                 'acquired_at' => $now,
             ]);
-            if ($inserted !== false && $DB->affectedRows() > 0) {
-                return $token;
-            }
 
             foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
                 if ((string) ($row['lock_token'] ?? '') === $token) {
