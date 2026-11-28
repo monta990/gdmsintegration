@@ -235,7 +235,7 @@ namespace {
                 'accountIndex' => 1,
                 'userId' => '8003',
                 'serverAddress' => 'sip:secret-user:secret-pass@192.168.10.10:5060;transport=udp',
-                'registrationStatus' => 'Registered',
+                'registrationStatus' => 'Unregistered',
                 'password' => 'DO-NOT-STORE',
                 'authName' => 'DO-NOT-STORE-AUTH',
                 'access_token' => 'DO-NOT-STORE-TOKEN',
@@ -251,6 +251,8 @@ namespace {
     $expect(($snapshotSummary['primary_extension'] ?? '') === '8003', 'SIP snapshot parser must extract User ID as the extension.');
     $expect(($snapshotSummary['account_count'] ?? 0) >= 1, 'SIP snapshot parser must retain at least one configured account.');
     $expect(($snapshotSummary['registered_count'] ?? 0) === 1, 'SIP snapshot parser must merge registration status by account index.');
+    $expect(($snapshotSummary['account_count'] ?? 0) === 1, 'The info/status merge must produce exactly one account for one explicit line index.');
+    $expect(($snapshotSummary['accounts'][0]['status'] ?? '') === 'Registered', 'Status endpoint registration must override the older info endpoint status for the same index.');
 
 
     // Representative GDMS ATA response:
@@ -338,15 +340,43 @@ namespace {
     ]);
     $expect(($preferredAddress['primary_server'] ?? '') === '192.168.10.10:5060', 'Concrete server address must take precedence over a display server name.');
 
+    $indexedAccounts = API::gdmsSummarizeSipSnapshot([
+        'info' => ['accounts' => [
+            ['accountIndex' => 1, 'extension' => '1000', 'serverAddress' => '192.168.10.10'],
+            ['accountIndex' => 2, 'extension' => '1000', 'serverAddress' => '192.168.10.10'],
+        ]],
+        'status' => ['accounts' => [
+            ['accountIndex' => 1, 'status' => 'Registered'],
+            ['accountIndex' => 2, 'status' => 'Unregistered'],
+        ]],
+    ]);
+    $expect(($indexedAccounts['account_count'] ?? 0) === 2, 'Distinct explicit account indices must remain separate even with identical extension and server values.');
+    $expect(($indexedAccounts['registered_count'] ?? 0) === 1, 'Status rows with only explicit account indices must merge without inventing an account.');
+
+    $idPriority = API::gdmsSummarizeSipSnapshot([
+        'info' => ['accounts' => [
+            ['accountIndex' => 1, 'extension' => '1000', 'serverAddress' => '192.168.10.10'],
+            ['accountId' => 'stable-account-b', 'accountIndex' => 2, 'extension' => '1000', 'serverAddress' => '192.168.10.10'],
+        ]],
+        'status' => ['accounts' => [
+            ['accountId' => 'stable-account-b', 'accountIndex' => 1, 'extension' => '1000', 'serverAddress' => '192.168.10.10', 'status' => 'Registered'],
+        ]],
+    ]);
+    $expect(($idPriority['account_count'] ?? 0) === 2, 'An exact account ID must not collapse two distinct SIP lines with a shared extension.');
+    $expect(($idPriority['accounts'][1]['status'] ?? '') === 'Registered', 'Exact account ID must take precedence over an earlier weak index match.');
+
     $multipleServerDevice = $rows;
-    $multipleServerDevice[5]['sip_server_count'] = 2;
+    $multipleServerDevice[2]['sip_server_count'] = 2;
     $multipleServerResolved = PbxAssociationResolver::resolveDetailed($multipleServerDevice);
-    $expect(($multipleServerResolved['associations']['02:00:00:00:02:44'] ?? null) === null, 'Multiple SIP server hosts must suppress a misleading single-PBX subnet fallback.');
-    $expect(($multipleServerResolved['diagnostics']['02:00:00:00:02:44']['reason'] ?? '') === 'multiple_sip_account_servers_on_device', 'Multiple SIP server hosts must have an explicit diagnostic reason.');
+    $expect(($multipleServerResolved['associations']['02:00:00:00:02:11'] ?? null) === null, 'Multiple SIP server hosts must suppress a misleading single-PBX subnet fallback.');
+    $expect(($multipleServerResolved['diagnostics']['02:00:00:00:02:11']['reason'] ?? '') === 'multiple_sip_account_servers_on_device', 'Multiple SIP server hosts must have an explicit diagnostic reason.');
 
     $safeSipServer = new ReflectionMethod(PbxAssociationResolver::class, 'safeSipServer');
     $safeSipServer->setAccessible(true);
     $expect($safeSipServer->invoke(null, 'sip:user:secret@pbx.example.com:5061;transport=tls') === 'pbx.example.com:5061', 'Safe SIP server logger must keep host/port only and strip user-info/parameters.');
+    $expect($safeSipServer->invoke(null, 'sip:[2001:db8::10]:5061') === '[2001:db8::10]:5061', 'Bracketed IPv6 SIP hosts must preserve their validated port.');
+    $expect(PbxAssociationResolver::sipServerPbxMac('020000000102.unrelated.example:5061') === '', 'MAC-shaped labels under unrelated domains must not be treated as RemoteConnect PBXs.');
+    $expect($extractPbxMac->invoke(null, ['sipServer' => '100.100.100.100']) === '', 'Dotted IP addresses must never be normalized into false MAC identities.');
 
     $extractPrivateIp = new ReflectionMethod(Sync::class, 'extractPrivateIp');
     $extractPrivateIp->setAccessible(true);
