@@ -135,6 +135,8 @@ namespace {
     $storedExpiry = (int) substr((string) ($DB->rows['gdmsinteg_cooldown_gdms']['lock_token'] ?? ''), strlen('cooldown:'));
     $expect($extended > 30 && $extended <= 120, 'A longer cooldown must extend, not shorten, the current window.');
     $expect($storedExpiry >= $extensionRequestedAt + 120, 'The stored absolute expiry must cover the full requested extension.');
+    \GlpiPlugin\Gdmsintegration\Utils::setProviderCooldown('gdms', 30);
+    $expect((int) substr((string) ($DB->rows['gdmsinteg_cooldown_gdms']['lock_token'] ?? ''), strlen('cooldown:')) === $storedExpiry, 'A shorter subsequent cooldown must never reduce the stored GDMS expiry.');
 
     $gdmsExpiryBeforeGwn = $storedExpiry;
     $expect(\GlpiPlugin\Gdmsintegration\Utils::getProviderCooldownRemaining('gwn') === 0, 'A GDMS cooldown must not activate the GWN provider.');
