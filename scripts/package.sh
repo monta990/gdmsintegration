@@ -143,7 +143,6 @@ required_entries=(
     gdmsintegration/src/Sync.php
     gdmsintegration/src/Utils.php
     gdmsintegration/templates/dashboard.html.twig
-    gdmsintegration/locales/es_MX.mo
     "${expected_public_js_entries[@]}"
 )
 for entry in "${required_entries[@]}"; do
@@ -152,5 +151,12 @@ for entry in "${required_entries[@]}"; do
         exit 1
     fi
 done
+
+# Translation languages vary by plugin configuration; require at least one compiled catalog.
+if ! unzip -Z1 "$ARCHIVE" | grep -Eq '^gdmsintegration/locales/[^/]+\\.mo
+; then
+    echo "No compiled gettext catalog found in the installation archive." >&2
+    exit 1
+fi
 
 echo "Created and validated $ARCHIVE"
