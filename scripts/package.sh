@@ -120,7 +120,12 @@ fi
 
 # The installable public/js directory contains only the browser runtime bundle.
 public_js_entries="$(unzip -Z1 "$ARCHIVE" | grep -E '^gdmsintegration/public/js/[^/]+$' || true)"
-if [[ "$public_js_entries" != "gdmsintegration/public/js/vis-network.min.js" ]]; then
+expected_public_js_entries="$(printf '%s\\n' \\
+    gdmsintegration/public/js/config.js \\
+    gdmsintegration/public/js/dashboard.js \\
+    gdmsintegration/public/js/vis-network.min.js | sort)"
+actual_public_js_entries="$(printf '%s\\n' "${public_js_entries}" | sed '/^$/d' | sort)"
+if [[ "$actual_public_js_entries" != "$expected_public_js_entries" ]]; then
     printf 'Unexpected files in installable public/js directory:\\n%s\\n' "${public_js_entries:-<none>}" >&2
     exit 1
 fi
@@ -134,6 +139,8 @@ for entry in \
     gdmsintegration/src/Utils.php \
     gdmsintegration/templates/dashboard.html.twig \
     gdmsintegration/locales/es_MX.mo \
+    gdmsintegration/public/js/config.js \
+    gdmsintegration/public/js/dashboard.js \
     gdmsintegration/public/js/vis-network.min.js
 do
     if ! unzip -Z1 "$ARCHIVE" | grep -qx "$entry"; then

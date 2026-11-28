@@ -27,6 +27,8 @@ class Sync extends \CommonGLPI
 {
     /** Do not create new incidents for old alert history when the plugin first sees it. */
     private const GWN_ALERT_TICKET_MAX_AGE_DAYS = 7;
+    /** SIP account configuration is relatively static; refresh at most every six hours. */
+    private const GDMS_SIP_ACCOUNT_CACHE_TTL = 21600;
 
     // -----------------------------------------------------------------------
     // GLPI Cron entry point — cronSyncDevices
@@ -112,10 +114,11 @@ class Sync extends \CommonGLPI
     // -----------------------------------------------------------------------
     // Per-entity sync — called from cron
     // -----------------------------------------------------------------------
-    public static function syncEntity(int $entities_id, ?string $source = null, ?bool &$partial = null): int
+    public static function syncEntity(int $entities_id, ?string $source = null, ?bool &$partial = null, ?bool &$skipped = null): int
     {
         global $DB;
         $partial = false;
+        $skipped = false;
         $config = Config::getConfigByEntity($entities_id);
         $hasGwn  = !empty($config['gwn_client_id']) && !empty($config['gwn_client_secret']);
         $hasGdms = !empty($config['client_id']) && !empty($config['client_secret'])
@@ -137,6 +140,7 @@ class Sync extends \CommonGLPI
         $syncLock = 'gdmsinteg_sync_' . $entities_id;
         $syncToken = Utils::acquireLock($syncLock, 900);
         if ($syncToken === null) {
+            $skipped = true;
             Utils::warning("Sync skipped — another synchronization is already running for entity {$entities_id}");
             return 0;
         }
@@ -153,6 +157,8 @@ class Sync extends \CommonGLPI
                 $caller = 'ajax-button';
             } elseif ($source === 'auto-refresh') {
                 $caller = 'auto-refresh';
+            } elseif ($source === 'initial-load') {
+                $caller = 'dashboard-initial-load';
             } elseif ($source !== null && $source !== '') {
                 $caller = $source;
             } else {
@@ -289,7 +295,97 @@ class Sync extends \CommonGLPI
                     $gdms_list_complete = false;
                     $gdmsDevices = API::gdmsGetDevices($config, $gdms_list_complete);
                     $gdmsCount   = count($gdmsDevices);
-                    Utils::log("[{$ts}] GDMS API returned {$gdmsCount} device(s)");
+                    if (!$gdms_list_complete && $gdmsCount === 0) {
+                        Utils::warning("[{$ts}] GDMS device inventory unavailable — API returned no usable list; existing inventory was preserved.");
+                    } else {
+                        Utils::log("[{$ts}] GDMS API returned {$gdmsCount} device(s)");
+                    }
+
+                    // Query the documented per-device SIP account configuration and
+                    // registration-status endpoints. Cache the redacted snapshot for
+                    // six hours so a normal sync does not create dozens of extra calls.
+                    $sipStageStarted = microtime(true);
+                    $sipReader = new Device();
+                    Device::primeCache($entities_id);
+                    $sipQueried = 0;
+                    $sipCacheHits = 0;
+                    $sipInfoFailures = 0;
+                    $sipStatusFailures = 0;
+                    $pendingSipMacs = [];
+                    foreach ($gdmsDevices as &$gdmsDevice) {
+                        $deviceModel = (string) ($gdmsDevice['deviceType'] ?? $gdmsDevice['model'] ?? $gdmsDevice['type'] ?? '');
+                        if (API::getDeviceCategory($deviceModel) !== 'phone') {
+                            continue;
+                        }
+                        $deviceMac = strtoupper(trim((string) ($gdmsDevice['mac'] ?? '')));
+                        if ($deviceMac === '') {
+                            continue;
+                        }
+
+                        $cachedSip = $sipReader->getSipAccountSnapshot($deviceMac, $entities_id);
+                        $checkedTimestamp = $cachedSip['checked_at'] !== '' ? strtotime($cachedSip['checked_at'] . ' UTC') : false;
+                        if ($checkedTimestamp !== false && $cachedSip['json'] !== '') {
+                            $storedSnapshot = json_decode($cachedSip['json'], true);
+                            $cacheTtl = is_array($storedSnapshot) && !empty($storedSnapshot['info_ok']) && !empty($storedSnapshot['status_ok'])
+                                ? self::GDMS_SIP_ACCOUNT_CACHE_TTL
+                                : 900;
+                            if ((time() - $checkedTimestamp) >= $cacheTtl) {
+                                $storedSnapshot = null;
+                            }
+                            if (is_array($storedSnapshot)) {
+                                $gdmsDevice['_gdms_sip_account_snapshot'] = $storedSnapshot;
+                                $gdmsDevice['_gdms_sip_account_summary'] = API::gdmsSummarizeSipSnapshot($storedSnapshot);
+                                $sipCacheHits++;
+                                Utils::debug(sprintf(
+                                    'GDMS SIP account cache: device=%s mac=%s age_seconds=%d accounts=%d',
+                                    (string) ($gdmsDevice['deviceName'] ?? $gdmsDevice['name'] ?? $deviceModel),
+                                    $deviceMac,
+                                    max(0, time() - $checkedTimestamp),
+                                    (int) ($gdmsDevice['_gdms_sip_account_summary']['account_count'] ?? 0),
+                                ));
+                                continue;
+                            }
+                        }
+                        $pendingSipMacs[] = $deviceMac;
+                    }
+                    unset($gdmsDevice);
+
+                    // Two API operations per phone are now queued into a bounded
+                    // cURL-multi pool instead of awaiting 56 serial HTTP requests.
+                    $sipSnapshots = API::gdmsGetDeviceSipSnapshots($config, $pendingSipMacs, 4);
+                    $sipQueried = count($pendingSipMacs);
+                    foreach ($gdmsDevices as &$gdmsDevice) {
+                        $deviceModel = (string) ($gdmsDevice['deviceType'] ?? $gdmsDevice['model'] ?? $gdmsDevice['type'] ?? '');
+                        if (API::getDeviceCategory($deviceModel) !== 'phone') {
+                            continue;
+                        }
+                        $deviceMac = strtoupper(trim((string) ($gdmsDevice['mac'] ?? '')));
+                        if ($deviceMac === '' || !isset($sipSnapshots[$deviceMac])) {
+                            continue;
+                        }
+                        $snapshot = $sipSnapshots[$deviceMac];
+                        $snapshotJson = json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                        if (is_string($snapshotJson)) {
+                            $gdmsDevice['_gdms_sip_account_json'] = $snapshotJson;
+                            $gdmsDevice['_gdms_sip_account_checked_at'] = gmdate('Y-m-d H:i:s');
+                            $gdmsDevice['_gdms_sip_account_snapshot'] = $snapshot;
+                            $gdmsDevice['_gdms_sip_account_summary'] = API::gdmsSummarizeSipSnapshot($snapshot);
+                        }
+                        if (empty($snapshot['info_ok'])) { $sipInfoFailures++; }
+                        if (empty($snapshot['status_ok'])) { $sipStatusFailures++; }
+                    }
+                    unset($gdmsDevice);
+                    Utils::log(sprintf(
+                        '[%s] GDMS SIP account stage — entity=%d phones=%d queried=%d cache_hits=%d info_failures=%d status_failures=%d duration_ms=%d',
+                        $ts,
+                        $entities_id,
+                        $sipQueried + $sipCacheHits,
+                        $sipQueried,
+                        $sipCacheHits,
+                        $sipInfoFailures,
+                        $sipStatusFailures,
+                        (int) round((microtime(true) - $sipStageStarted) * 1000),
+                    ));
 
                     $synced = self::syncDeviceList($gdmsDevices, $entities_id, $seen_macs);
                     Utils::log("[{$ts}] GDMS sync complete — {$synced} device(s) processed");
@@ -343,6 +439,215 @@ class Sync extends \CommonGLPI
         } finally {
             Utils::releaseLock($syncLock, $syncToken);
         }
+    }
+
+    /**
+     * Read the private/local IP from GDMS without letting an empty alias mask a populated one.
+     * The API has used both privateip and privateIp spellings in device payloads.
+     *
+     * @param array<string, mixed> $device
+     */
+    private static function extractPrivateIp(array $device): string
+    {
+        foreach ([
+            'privateip',
+            'privateIp',
+            'private_ip',
+            'privateIP',
+            'localip',
+            'localIp',
+            'local_ip',
+            'lanip',
+            'lanIp',
+            'lan_ip',
+        ] as $field) {
+            $value = trim((string) ($device[$field] ?? ''));
+            if ($value !== '' && filter_var($value, FILTER_VALIDATE_IP) !== false) {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Extract the PBX/UCM MAC from explicit references or a SIP server address.
+     *
+     * GDMS can represent the server relationship in different shapes depending
+     * on the endpoint/model: a dedicated pbxMac/ucmMac field, a SIP server string,
+     * or an account object containing a server address. UCM RemoteConnect hosts
+     * in the format c074addee276.a.gdms.cloud encode the UCM MAC directly.
+     *
+     * Only keys describing a PBX/UCM/SIP server are inspected. Arbitrary strings,
+     * extensions, serials and credentials are never treated as MAC references.
+     *
+     * @param array<string, mixed> $device
+     */
+    private static function extractPbxMacReference(array $device): string
+    {
+        $explicitFields = [
+            'pbxMac', 'pbx_mac', 'pbxMacAddress', 'pbx_mac_address',
+            'ucmMac', 'ucm_mac', 'ucmMacAddress', 'sipServerMac', 'sip_server_mac',
+        ];
+
+        foreach ($explicitFields as $field) {
+            if (!array_key_exists($field, $device)) {
+                continue;
+            }
+            $mac = self::extractMacFromSipValue($device[$field]);
+            if ($mac !== '') {
+                return $mac;
+            }
+        }
+
+        return self::findPbxMacInSipConfiguration($device);
+    }
+
+    /**
+     * Walk nested account/configuration data, but only inspect server-related keys.
+     *
+     * @param array<mixed> $values
+     */
+    private static function findPbxMacInSipConfiguration(array $values): string
+    {
+        foreach ($values as $key => $value) {
+            $keyName = strtolower((string) $key);
+            $isServerReference = preg_match(
+                '/(?:sip|pbx|ucm|server|proxy).*(?:server|address|host|mac|proxy)|(?:server|address|host|proxy).*(?:sip|pbx|ucm)/i',
+                $keyName,
+            ) === 1;
+
+            if ($isServerReference) {
+                $mac = self::extractMacFromSipValue($value);
+                if ($mac !== '') {
+                    return $mac;
+                }
+            }
+
+            if (is_array($value)) {
+                $mac = self::findPbxMacInSipConfiguration($value);
+                if ($mac !== '') {
+                    return $mac;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Extract a MAC either from a literal address or from a GDMS SIP hostname.
+     * Accepts 02:00:00:00:01:02 and 020000000102.a.gdms.cloud:5061.
+     */
+    private static function extractMacFromSipValue(mixed $value): string
+    {
+        if (!is_scalar($value)) {
+            return '';
+        }
+
+        $text = trim((string) $value);
+        if ($text === '') {
+            return '';
+        }
+
+        $hex = preg_replace('/[^0-9a-f]/i', '', $text) ?? '';
+        if (strlen($hex) === 12) {
+            return implode(':', str_split(strtolower($hex), 2));
+        }
+
+        if (preg_match('/(?<![0-9a-f])([0-9a-f]{12})(?![0-9a-f])/i', $text, $matches) === 1) {
+            return implode(':', str_split(strtolower($matches[1]), 2));
+        }
+
+        return '';
+    }
+
+    /** Extract SIP server and extension/user from nested GDMS account payloads.
+     * Only values under SIP/account structures are inspected; secrets are ignored.
+     * @return array{server:string,extension:string}
+     */
+    private static function extractSipAssignment(array $device): array
+    {
+        $result = ['server' => '', 'extension' => ''];
+        $serverKeys = '/^(?:sipserver|sipserveraddress|sipserverhost|sipserverip|sipdomain|serveraddress|serverhost|serverip|proxy|proxyhost|proxyaddress|pbxhost|pbxaddress|ucmhost|ucmaddress|registrar|outboundproxy)$/i';
+        $extensionKeys = '/^(?:extension|ext|sipextension|sipuser|sipusername|authuser|userid|accountnumber|phonenumber|username)$/i';
+
+        $walk = static function (array $values) use (&$walk, &$result, $serverKeys, $extensionKeys): void {
+            foreach ($values as $key => $value) {
+                $name = strtolower((string) $key);
+                $flatName = preg_replace('/[^a-z0-9]/', '', $name) ?? $name;
+                if (is_scalar($value)) {
+                    $text = trim((string) $value);
+                    if ($result['server'] === '' && preg_match($serverKeys, $flatName) === 1 && $text !== '') {
+                        $server = Service\PbxAssociationResolver::safeSipServer($text);
+                        if ($server !== '') {
+                            $result['server'] = $server;
+                        }
+                    }
+                    if ($result['extension'] === '' && preg_match($extensionKeys, $flatName) === 1) {
+                        // Keep identifiers bounded and reject URI-like or secret-bearing values.
+                        if ($text !== '' && strlen($text) <= 50 && preg_match('/^[a-zA-Z0-9*#+._-]+$/', $text) === 1) {
+                            $result['extension'] = $text;
+                        }
+                    }
+                } elseif (is_array($value)) {
+                    $walk($value);
+                }
+            }
+        };
+        $walk($device);
+
+        return $result;
+    }
+
+    /**
+     * Collect only SIP-related field paths plus a tiny allowlist of safe values.
+     * Passwords, tokens, authentication names and arbitrary account payloads
+     * are never copied into the log.
+     *
+     * @param array<string, mixed> $device
+     * @return array{paths:array<int, string>, safe_values:array<string, string>}
+     */
+    private static function summarizeSipPayload(array $device): array
+    {
+        $paths = [];
+        $safeValues = [];
+        $walk = static function (array $values, string $path = '', bool $inSipContext = false) use (&$walk, &$paths, &$safeValues): void {
+            foreach ($values as $key => $value) {
+                $name = (string) $key;
+                $normalized = strtolower($name);
+                $fieldPath = $path === '' ? $name : $path . '.' . $name;
+                $sensitive = preg_match('/password|passwd|secret|token|credential|authorization|authuser|username|privatekey|private_key/i', $normalized) === 1;
+                $isSipField = preg_match('/sip|account|pbx|ucm|server|proxy|registrar|extension|\bext\b/i', $normalized) === 1;
+                $context = $inSipContext || $isSipField;
+
+                if ($isSipField && count($paths) < 80) {
+                    $paths[] = $fieldPath;
+                }
+
+                if ($context && is_scalar($value) && count($safeValues) < 40) {
+                    if ($sensitive) {
+                        $safeValues[$fieldPath] = '[REDACTED]';
+                    } elseif (preg_match('/server|proxy|registrar|pbx|ucm|domain|host|address/i', $normalized) === 1) {
+                        $safeHost = Service\PbxAssociationResolver::safeSipServer((string) $value);
+                        if ($safeHost !== '') {
+                            $safeValues[$fieldPath] = $safeHost;
+                        }
+                    } elseif (preg_match('/accountstatus|sipstatus|registered|enabled|active/i', $normalized) === 1) {
+                        $safeValues[$fieldPath] = substr((string) $value, 0, 32);
+                    } elseif (preg_match('/extension|(^|_)ext($|_)|accountnumber|phonenumber/i', $normalized) === 1) {
+                        $safeValues[$fieldPath] = trim((string) $value) === '' ? '[empty]' : '[present]';
+                    }
+                }
+
+                if (is_array($value)) {
+                    $walk($value, $fieldPath, $context);
+                }
+            }
+        };
+        $walk($device);
+
+        return ['paths' => $paths, 'safe_values' => $safeValues];
     }
 
     // -----------------------------------------------------------------------
@@ -1035,10 +1340,69 @@ class Sync extends \CommonGLPI
             }
 
             // Split IPv4 vs IPv6: privateIp may contain an IPv6 address on some devices
-            $_raw_priv = $d['privateIp'] ?? $d['privateip'] ?? '';
+            $_raw_priv = self::extractPrivateIp($d);
             $_is_v6    = strpos($_raw_priv, ':') !== false;
             $_priv4    = $_is_v6 ? '' : $_raw_priv;
             $_priv6    = !empty($d['ipv6']) ? $d['ipv6'] : ($_is_v6 ? $_raw_priv : '');
+            $_sip_account_summary = is_array($d['_gdms_sip_account_summary'] ?? null)
+                ? $d['_gdms_sip_account_summary']
+                : [];
+            $_sipIdentityPayload = $d;
+            if ((int) ($_sip_account_summary['server_count'] ?? 0) > 1) {
+                // Several distinct account servers cannot be represented by one
+                // PBX edge. Do not let a recursive first-match parser select the
+                // first account and silently discard the remaining PBX identity.
+                unset($_sipIdentityPayload['_gdms_sip_account_snapshot']);
+            }
+            $_pbx_mac_reference = self::extractPbxMacReference($_sipIdentityPayload);
+            $_sip_assignment = self::extractSipAssignment($_sipIdentityPayload);
+            $_sip_server = (string) ($_sip_account_summary['server_count'] ?? 0) > 1
+                ? ''
+                : ((string) ($_sip_account_summary['primary_server'] ?? '') ?: $_sip_assignment['server']);
+            $_sip_extension = (string) ($_sip_account_summary['primary_extension'] ?? '')
+                ?: (string) ($d['sip_extension'] ?? $_sip_assignment['extension']);
+
+            $sipPayloadDiagnostic = self::summarizeSipPayload($d);
+            Utils::debug(sprintf(
+                'GDMS SIP payload diagnostic: device=%s device_mac=%s extracted_pbx_mac=%s sip_server=%s sip_server_count=%d extension_present=%s api_accounts=%d registered_accounts=%d account_servers=%s paths=%s safe_values=%s',
+                (string) ($d['deviceName'] ?? $d['name'] ?? $gdms_model),
+                (string) ($mac ?: $serial),
+                $_pbx_mac_reference !== '' ? $_pbx_mac_reference : 'none',
+                $_sip_server !== '' ? $_sip_server : 'none',
+                (int) ($_sip_account_summary['server_count'] ?? 0),
+                $_sip_extension !== '' ? 'yes' : 'no',
+                (int) ($_sip_account_summary['account_count'] ?? 0),
+                (int) ($_sip_account_summary['registered_count'] ?? 0),
+                json_encode($_sip_account_summary['servers'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '[]',
+                json_encode($sipPayloadDiagnostic['paths'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '[]',
+                json_encode($sipPayloadDiagnostic['safe_values'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}',
+            ));
+
+            if ($_pbx_mac_reference !== '') {
+                Utils::debug(sprintf(
+                    'GDMS SIP-to-PBX reference extracted: device=%s device_mac=%s pbx_mac=%s',
+                    (string) ($d['deviceName'] ?? $d['name'] ?? $gdms_model),
+                    (string) ($mac ?: $serial),
+                    $_pbx_mac_reference,
+                ));
+            }
+
+            if (API::getDeviceCategory($gdms_model) === 'pbx') {
+                $privateIpPayload = [];
+                foreach ($d as $field => $value) {
+                    if (preg_match('/(?:private|local|lan).*ip/i', (string) $field) === 1 && is_scalar($value)) {
+                        $privateIpPayload[(string) $field] = (string) $value;
+                    }
+                }
+                Utils::debug(sprintf(
+                    'GDMS PBX local-IP snapshot: name=%s mac=%s selected_private_ip=%s public_ip=%s fields=%s',
+                    (string) ($d['deviceName'] ?? $d['name'] ?? $gdms_model),
+                    (string) ($mac ?: $serial),
+                    (string) $_priv4,
+                    (string) ($d['publicIp'] ?? $d['ip'] ?? $d['ipv4'] ?? ''),
+                    json_encode($privateIpPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}',
+                ));
+            }
 
             $state->saveStateWithNetwork(
                 $mac ?: $serial,
@@ -1069,12 +1433,17 @@ class Sync extends \CommonGLPI
                 $entities_id,
                 $_priv6,
                 $_priv4,
-                $d['sip_extension']   ?? '',
+                $_sip_extension,
                 $d['location']        ?? $d['site']      ?? '',
                 (int) ($d['dnd']            ?? 0),
                 (int) ($d['isSynchronized'] ?? 0),
                 $d['syncFailureMsg']  ?? '',
                 (int) ($d['scheduledTask']  ?? 0),
+                $_pbx_mac_reference,
+                $_sip_server,
+                isset($d['_gdms_sip_account_json']) ? (string) $d['_gdms_sip_account_json'] : null,
+                isset($d['_gdms_sip_account_checked_at']) ? (string) $d['_gdms_sip_account_checked_at'] : null,
+                isset($d['_gdms_sip_account_snapshot']) ? (bool) ($d['_gdms_sip_account_snapshot']['info_ok'] ?? false) : null,
             );
 
             // \Ticket transitions: ONLY on true online→offline transition.

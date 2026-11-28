@@ -32,6 +32,31 @@ class Device extends \GlpiPlugin\Gdmsintegration\BaseTM {
         }
     }
 
+    /**
+     * Read the cached SIP account snapshot for a device without exposing the
+     * credential fields removed by API::gdmsSanitizeSipPayload().
+     *
+     * @return array{json:string, checked_at:string}
+     */
+    public function getSipAccountSnapshot(string $mac, ?int $entities_id = null): array {
+        $key = self::cacheKey($mac, $entities_id);
+        $row = self::$stateCache[$key] ?? null;
+        if (!is_array($row)) {
+            $fresh = new self();
+            $criteria = ['mac' => $mac];
+            if ($entities_id !== null) {
+                $criteria['entities_id'] = $entities_id;
+            }
+            $rows = $fresh->find($criteria);
+            $row = empty($rows) ? [] : reset($rows);
+        }
+
+        return [
+            'json' => (string) ($row['sip_accounts_json'] ?? ''),
+            'checked_at' => (string) ($row['sip_accounts_checked_at'] ?? ''),
+        ];
+    }
+
     public function getState(string $mac, ?int $entities_id = null): ?string {
         $key = self::cacheKey($mac, $entities_id);
         if (isset(self::$stateCache[$key])) {
@@ -47,6 +72,23 @@ class Device extends \GlpiPlugin\Gdmsintegration\BaseTM {
             return null;
         }
         return reset($rows)['status'] ?? null;
+    }
+
+    /**
+     * Keep the last known local address when GDMS omits it or returns malformed data.
+     * A new valid address always replaces the stored value.
+     *
+     * @param array<string, mixed> $existingRow
+     */
+    private static function effectivePrivateIp(string $incoming, array $existingRow): string
+    {
+        $incoming = trim($incoming);
+        if ($incoming !== '' && filter_var($incoming, FILTER_VALIDATE_IP) !== false) {
+            return $incoming;
+        }
+
+        $previous = trim((string) ($existingRow['private_ip'] ?? ''));
+        return $previous !== '' && filter_var($previous, FILTER_VALIDATE_IP) !== false ? $previous : '';
     }
 
     public function saveStateWithNetwork(
@@ -80,7 +122,12 @@ class Device extends \GlpiPlugin\Gdmsintegration\BaseTM {
         int    $dnd             = 0,
         int    $is_synchronized = 0,
         string $sync_failure_msg = '',
-        int    $scheduled_task  = 0
+        int    $scheduled_task  = 0,
+        string $pbx_mac          = '',
+        string $sip_server        = '',
+        ?string $sip_accounts_json = null,
+        ?string $sip_accounts_checked_at = null,
+        ?bool $sip_accounts_info_ok = null
     ): bool {
         $cache_key = self::cacheKey($mac, $entities_id);
         // Use in-process cache to skip a DB round-trip when primeCache() was called
@@ -90,6 +137,15 @@ class Device extends \GlpiPlugin\Gdmsintegration\BaseTM {
         } else {
             $rows = $this->find(['mac' => $mac, 'entities_id' => $entities_id]);
         }
+        $existingRow = !empty($rows) ? reset($rows) : [];
+        $private_ip = self::effectivePrivateIp($private_ip, is_array($existingRow) ? $existingRow : []);
+        if ($sip_accounts_info_ok !== true && $sip_server === '') {
+            $sip_server = (string) ($existingRow['sip_server'] ?? '');
+        }
+        if ($sip_accounts_info_ok !== true && $sip_extension === '') {
+            $sip_extension = (string) ($existingRow['sip_extension'] ?? '');
+        }
+
         $data = [
             'status'          => $status,
             'network_name'    => $network_name,
@@ -112,6 +168,7 @@ class Device extends \GlpiPlugin\Gdmsintegration\BaseTM {
             'ipv6'            => $ipv6,
             'private_ip'      => $private_ip,
             'sip_extension'   => $sip_extension,
+            'sip_server'      => $sip_server,
             'location'        => $location,
             'dnd'             => $dnd,
             'is_synchronized' => $is_synchronized,
@@ -119,6 +176,9 @@ class Device extends \GlpiPlugin\Gdmsintegration\BaseTM {
             'scheduled_task'  => $scheduled_task,
         ];
         if ($firmware_latest !== null) $data['firmware_latest'] = $firmware_latest;
+        if ($pbx_mac !== '') $data['pbx_mac'] = $pbx_mac;
+        if ($sip_accounts_json !== null) $data['sip_accounts_json'] = $sip_accounts_json;
+        if ($sip_accounts_checked_at !== null) $data['sip_accounts_checked_at'] = $sip_accounts_checked_at;
         if ($first_seen !== null) $data['first_seen'] = $first_seen;
         if ($last_seen  !== null) $data['last_seen']  = $last_seen;
         // Only set entities_id when caller knows it (>0) — never overwrite entity set by cron/ajax sync.

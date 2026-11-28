@@ -30,6 +30,9 @@ class API
     private const TIMEOUT   = 12;
     private const MAX_PAGES = 50;
     private const INFO_BATCH_SIZE = 40;
+    private const GDMS_RATE_LIMIT_COOLDOWN_SECONDS = 60;
+    private static int $lastHttpStatus = 0;
+    private static int $lastRetryAfterSeconds = 0;
 
     private static function gdmsBase(array $config): string
     {
@@ -94,6 +97,61 @@ class API
         return 'unknown';
     }
 
+    /** Whether a URL belongs to the GDMS UC API (not the GWN Networking API). */
+    private static function isGdmsEndpoint(string $url): bool
+    {
+        $host = strtolower((string) (parse_url($url, PHP_URL_HOST) ?: ''));
+        $path = strtolower((string) (parse_url($url, PHP_URL_PATH) ?: ''));
+        return ($host === 'gdms.cloud' || str_ends_with($host, '.gdms.cloud'))
+            && (str_starts_with($path, '/oapi/') || str_starts_with($path, '/oauth/'));
+    }
+
+    /** Detect GDMS's application-level rate-limit message, including HTTP-200 responses. */
+    private static function isGdmsRateLimitMessage(string $message): bool
+    {
+        $message = strtolower(trim($message));
+        foreach ([
+            'too many requests',
+            'rate limit',
+            'rate-limit',
+            'requests from this ip',
+            'request frequency',
+        ] as $needle) {
+            if (str_contains($message, $needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Extract a safe, human-readable error message from a GDMS API response. */
+    private static function gdmsResponseMessage(array $data): string
+    {
+        foreach (['msg', 'message', 'retMsg', 'description', 'error'] as $key) {
+            if (isset($data[$key]) && is_scalar($data[$key])) {
+                $message = trim((string) $data[$key]);
+                if ($message !== '') {
+                    return $message;
+                }
+            }
+        }
+        return 'GDMS returned a non-success response';
+    }
+
+    /** Parse both delta-seconds and HTTP-date forms of a Retry-After header. */
+    private static function parseRetryAfter(string $rawHeaders): int
+    {
+        if (!preg_match('/^Retry-After:\s*([^\r\n]+)/mi', $rawHeaders, $match)) {
+            return 0;
+        }
+        $value = trim($match[1]);
+        if (ctype_digit($value)) {
+            return min(86400, (int) $value);
+        }
+        $timestamp = strtotime($value);
+        return $timestamp === false ? 0 : min(86400, max(0, $timestamp - time()));
+    }
+
     // -----------------------------------------------------------------------
     // HTTP helper — returns decoded array or false
     // -----------------------------------------------------------------------
@@ -102,7 +160,19 @@ class API
         array $headers = [],
         ?string $body = null,
         bool $retrySafe = false,
+        ?int $timeoutOverride = null,
     ): array|false {
+        $gdmsEndpoint = self::isGdmsEndpoint($url);
+        self::$lastHttpStatus = 0;
+        self::$lastRetryAfterSeconds = 0;
+        if ($gdmsEndpoint) {
+            $cooldown = Utils::getProviderCooldownRemaining('gdms');
+            if ($cooldown > 0) {
+                Utils::debug("GDMS request deferred by shared rate-limit cooldown ({$cooldown}s remaining).");
+                return false;
+            }
+        }
+
         // Keep retries bounded so a transient cloud/API problem cannot make a
         // browser-triggered sync or external cron appear to hang for minutes.
         $attempts = $retrySafe ? 2 : 1;
@@ -111,7 +181,7 @@ class API
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_CONNECTTIMEOUT  => 4,
-                CURLOPT_TIMEOUT        => self::TIMEOUT,
+                CURLOPT_TIMEOUT        => $timeoutOverride === null ? self::TIMEOUT : max(3, min(self::TIMEOUT, $timeoutOverride)),
                 CURLOPT_HTTPHEADER     => $headers,
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2,
@@ -124,12 +194,24 @@ class API
             $response = curl_exec($ch);
             $err      = curl_error($ch);
             $code     = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            self::$lastHttpStatus = $code;
             $headerSz = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
             $raw      = is_string($response) ? substr($response, $headerSz) : '';
             $rawHdr   = is_string($response) ? substr($response, 0, $headerSz) : '';
             curl_close($ch);
 
+            $retryAfter = self::parseRetryAfter($rawHdr);
+            self::$lastRetryAfterSeconds = $retryAfter;
+            $rateLimited = $gdmsEndpoint && $code === 429;
+            if ($rateLimited) {
+                Utils::setProviderCooldown('gdms', $retryAfter > 0 ? $retryAfter : self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS);
+            }
             $retryable = $retrySafe && ($err !== '' || in_array($code, [429, 502, 503, 504], true));
+            // Do not immediately repeat a GDMS 429 or renew its token; the quota is
+            // IP-based and an extra request from the same node makes the window worse.
+            if ($rateLimited) {
+                $retryable = false;
+            }
             if ($retryable && $attempt < $attempts) {
                 $waitUs = 250000 * (2 ** ($attempt - 1));
                 if ($code === 429 && preg_match('/^Retry-After:\s*(\d+)/mi', $rawHdr, $m)) {
@@ -341,34 +423,55 @@ class API
         $page = 1;
         $all  = [];
         $lastBatch = [];
+        $cooldown = Utils::getProviderCooldownRemaining('gdms');
+        if ($cooldown > 0) {
+            Utils::warning("GDMS device/list deferred — shared API rate-limit cooldown has {$cooldown}s remaining; stored inventory will be preserved.");
+            return $all;
+        }
         do {
-            $ts   = (int) (microtime(true) * 1000);
             $body = json_encode(['pageNum' => $page, 'pageSize' => 100]);
+            $rateLimitAttempts = 0;
+            $data = false;
+            while (true) {
+                $ts = (int) (microtime(true) * 1000);
 
             // URL query params (only access_token goes in URL for this endpoint)
-            $urlParams = ['access_token' => $config['access_token']];
-            $sig = self::gdmsBuildSignature($urlParams, $config, $ts, $body);
+                $urlParams = ['access_token' => $config['access_token']];
+                $sig = self::gdmsBuildSignature($urlParams, $config, $ts, $body);
+                $url = self::gdmsBase($config) . '/' . self::VERSION . '/device/list?'
+                     . http_build_query([
+                         'access_token' => $config['access_token'],
+                         'timestamp'    => $ts,
+                         'signature'    => $sig,
+                     ]);
 
-            $url = self::gdmsBase($config) . '/' . self::VERSION . '/device/list?'
-                 . http_build_query([
-                     'access_token' => $config['access_token'],
-                     'timestamp'    => $ts,
-                     'signature'    => $sig,
-                 ]);
+                $data = self::curl(
+                    $url,
+                    ['Content-Type: application/json'],
+                    $body,
+                    true,
+                );
 
-            $data = self::curl(
-                $url,
-                ['Content-Type: application/json'],
-                $body,
-                true,
-            );
+                if ($data === false) {
+                    $cooldown = Utils::getProviderCooldownRemaining('gdms');
+                    if ($cooldown > 0) {
+                        Utils::warning("GDMS device/list rate-limited at HTTP " . self::$lastHttpStatus . " — shared cooldown {$cooldown}s; removal detection disabled and stored inventory preserved.");
+                        return $all;
+                    }
 
-            if ($data === false) {
-                // A rejected/expired token is indistinguishable from another HTTP error at
-                // this layer. Transient 429/5xx have already been retried by curl(), so do
-                // one controlled token renewal and repeat this safe list request once.
-                $renewed = self::gdmsGetToken($config, true);
-                if ($renewed !== false) {
+                    // Only an explicit HTTP 401 is evidence that the access token
+                    // needs refreshing. A network error or 5xx must not generate
+                    // another OAuth request, and a 429 must never renew the token.
+                    if (self::$lastHttpStatus !== 401) {
+                        Utils::log("GDMS device/list incomplete — transport/API error on page {$page} (HTTP " . self::$lastHttpStatus . '); removal detection disabled for this cycle.');
+                        return $all;
+                    }
+
+                    $renewed = self::gdmsGetToken($config, true);
+                    if ($renewed === false) {
+                        Utils::log("GDMS device/list incomplete — token renewal failed on page {$page}; removal detection disabled for this cycle.");
+                        return $all;
+                    }
                     $config['access_token'] = $renewed['access_token'];
                     $ts = (int) (microtime(true) * 1000);
                     $urlParams = ['access_token' => $config['access_token']];
@@ -376,15 +479,47 @@ class API
                     $url = self::gdmsBase($config) . '/' . self::VERSION . '/device/list?' . http_build_query([
                         'access_token' => $config['access_token'], 'timestamp' => $ts, 'signature' => $sig,
                     ]);
-                    $data = self::curl($url, ['Content-Type: application/json'], $body, true);
+                    $data = self::curl($url, ['Content-Type: application/json'], $body, true, 8);
+                    if ($data === false) {
+                        $cooldown = Utils::getProviderCooldownRemaining('gdms');
+                        if ($cooldown > 0) {
+                            Utils::warning("GDMS device/list rate-limited after token renewal — shared cooldown {$cooldown}s; inventory preserved.");
+                        } else {
+                            Utils::log("GDMS device/list incomplete — request failed after token renewal on page {$page}; removal detection disabled for this cycle.");
+                        }
+                        return $all;
+                    }
                 }
-                if ($data === false) {
-                    Utils::log("GDMS device/list incomplete — API error on page {$page}; removal detection disabled for this cycle.");
+
+                if ((int) ($data['retCode'] ?? -1) === 0) {
+                    break;
+                }
+
+                $apiMessage = self::gdmsResponseMessage($data);
+                if (self::isGdmsRateLimitMessage($apiMessage)) {
+                    // If GDMS supplied Retry-After even on an HTTP-200 JSON error,
+                    // honour it instead of sending a second request into the quota window.
+                    if (self::$lastRetryAfterSeconds > 0) {
+                        $cooldownSeconds = self::$lastRetryAfterSeconds;
+                        Utils::setProviderCooldown('gdms', $cooldownSeconds);
+                        Utils::warning("GDMS device/list rate-limited by API on page {$page} (HTTP " . self::$lastHttpStatus . "); Retry-After={$cooldownSeconds}s. Shared cooldown activated; inventory preserved.");
+                        return $all;
+                    }
+
+                    if ($rateLimitAttempts < 1) {
+                        $rateLimitAttempts++;
+                        $waitSeconds = 2 + random_int(0, 1);
+                        Utils::warning("GDMS device/list rate-limited by API on page {$page} (HTTP " . self::$lastHttpStatus . "); retrying once after {$waitSeconds}s without refreshing the token.");
+                        sleep($waitSeconds);
+                        continue;
+                    }
+
+                    Utils::setProviderCooldown('gdms', self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS);
+                    Utils::warning("GDMS device/list remained rate-limited on page {$page} (HTTP " . self::$lastHttpStatus . "); shared cooldown " . self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS . "s activated. Removal detection disabled; stored inventory preserved.");
                     return $all;
                 }
-            }
-            if ((int) ($data['retCode'] ?? -1) !== 0) {
-                Utils::log("GDMS device/list error on page {$page}: " . ($data['msg'] ?? json_encode($data)) . "; removal detection disabled for this cycle.");
+
+                Utils::log("GDMS device/list error on page {$page}: {$apiMessage}; removal detection disabled for this cycle.");
                 return $all;
             }
             $batch = $data['data']['result'] ?? [];
@@ -418,6 +553,449 @@ class API
 
         $complete = true;
         return $all;
+    }
+
+    /**
+     * Signed GDMS POST for a device-specific endpoint.
+     *
+     * The device account endpoints use the same v1.0.0 signing scheme as
+     * device/list: JSON body hash is included in the SHA-256 signature.
+     * A single controlled token refresh is attempted on transport/auth errors.
+     *
+     * @return array<string, mixed>|false
+     */
+    private static function gdmsPostDeviceAccountEndpoint(array &$config, string $endpoint, string $mac): array|false
+    {
+        $mac = trim($mac);
+        if ($mac === '' || preg_match('/^[0-9a-fA-F:\-]{12,17}$/', $mac) !== 1) {
+            Utils::debug('GDMS SIP account request skipped — invalid/empty device MAC.');
+            return false;
+        }
+        $cooldown = Utils::getProviderCooldownRemaining('gdms');
+        if ($cooldown > 0) {
+            Utils::debug("GDMS {$endpoint} skipped — shared rate-limit cooldown ({$cooldown}s remaining).");
+            return false;
+        }
+
+        if (empty($config['access_token'])) {
+            $tokenData = self::gdmsGetToken($config);
+            if ($tokenData === false) {
+                Utils::log("GDMS {$endpoint} failed — could not obtain access token.");
+                return false;
+            }
+            $config['access_token'] = $tokenData['access_token'];
+        }
+
+        $body = json_encode(['mac' => $mac], JSON_UNESCAPED_SLASHES);
+        if (!is_string($body)) {
+            Utils::log("GDMS {$endpoint} failed — could not encode request body.");
+            return false;
+        }
+
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            $timestamp = (int) (microtime(true) * 1000);
+            $urlParams = ['access_token' => (string) $config['access_token']];
+            $signature = self::gdmsBuildSignature($urlParams, $config, $timestamp, $body);
+            $url = self::gdmsBase($config) . '/' . self::VERSION . '/' . $endpoint . '?' . http_build_query([
+                'access_token' => $config['access_token'],
+                'timestamp' => $timestamp,
+                'signature' => $signature,
+            ]);
+
+            $data = self::curl($url, ['Content-Type: application/json'], $body, true);
+            $retCode = is_array($data) && array_key_exists('retCode', $data) ? (int) $data['retCode'] : 0;
+            $retMsg = is_array($data) ? self::gdmsResponseMessage($data) : '';
+            $rateLimited = ($data === false && Utils::getProviderCooldownRemaining('gdms') > 0)
+                || ($data !== false && $retCode !== 0 && self::isGdmsRateLimitMessage($retMsg));
+            if ($rateLimited) {
+                if (Utils::getProviderCooldownRemaining('gdms') <= 0) {
+                    $cooldownSeconds = self::$lastRetryAfterSeconds > 0
+                        ? self::$lastRetryAfterSeconds
+                        : self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS;
+                    Utils::setProviderCooldown('gdms', $cooldownSeconds);
+                }
+                Utils::warning("GDMS {$endpoint} rate-limited — device_mac={$mac}; shared cooldown activated, no token refresh attempted.");
+                return false;
+            }
+
+            $authRejected = ($data === false && self::$lastHttpStatus === 401)
+                || ($data !== false && $retCode !== 0 && preg_match('/token|signature|auth|expir/i', $retMsg) === 1);
+
+            if ($authRejected && $attempt === 1) {
+                Utils::debug("GDMS {$endpoint} — request failed/auth rejected; refreshing token once.");
+                $renewed = self::gdmsGetToken($config, true);
+                if ($renewed !== false) {
+                    $config['access_token'] = $renewed['access_token'];
+                    continue;
+                }
+            }
+
+            if ($data === false) {
+                Utils::log("GDMS {$endpoint} transport failure — device_mac={$mac}.");
+                return false;
+            }
+            if ($retCode !== 0) {
+                Utils::log(sprintf(
+                    'GDMS %s API error — device_mac=%s retCode=%d (response message omitted)',
+                    $endpoint,
+                    $mac,
+                    $retCode,
+                ));
+                return false;
+            }
+
+            return $data;
+        }
+
+        Utils::log("GDMS {$endpoint} failed after token refresh — device_mac={$mac}.");
+        return false;
+    }
+
+    /** Retrieve the configured SIP accounts for one GDMS phone/ATA. */
+    public static function gdmsGetDeviceAccountInfo(array &$config, string $mac): array|false
+    {
+        return self::gdmsPostDeviceAccountEndpoint($config, 'device/account/info', $mac);
+    }
+
+    /** Retrieve the registration state of SIP accounts for one GDMS phone/ATA. */
+    public static function gdmsGetDeviceAccountStatus(array &$config, string $mac): array|false
+    {
+        return self::gdmsPostDeviceAccountEndpoint($config, 'device/account/status', $mac);
+    }
+
+    /**
+     * Remove credential-bearing fields while retaining account identity,
+     * SIP server, extension, port, and registration-state information.
+     * Unknown scalar properties are intentionally omitted until their meaning
+     * is confirmed from a real GDMS response.
+     *
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public static function gdmsSanitizeSipPayload(array $payload): array
+    {
+        $safe = [];
+        $safeKey = '/(?:server|proxy|registrar|domain|host|address|(^|_)ip$|extension|(^|_)ext$|userid|accountid|accountindex|accountno|lineindex|status|registered|enabled|active|(^|_)index$|^data$|^result$|^retcode$|^success$)/i';
+        $sensitiveKey = '/password|passwd|pwd|secret|token|credential|authorization|auth|private.?key|sip.?key|cipher|encrypt/i';
+
+        $walk = static function (array $node) use (&$walk, &$safeKey, &$sensitiveKey): array {
+            $out = [];
+            foreach ($node as $key => $value) {
+                $name = (string) $key;
+                if (preg_match($sensitiveKey, $name) === 1) {
+                    continue;
+                }
+                if (is_array($value)) {
+                    $child = $walk($value);
+                    if ($child !== []) {
+                        $out[$key] = $child;
+                    }
+                    continue;
+                }
+                if (!is_scalar($value) || preg_match($safeKey, $name) !== 1) {
+                    continue;
+                }
+                $text = trim((string) $value);
+                if ($text === '') {
+                    $out[$key] = '';
+                    continue;
+                }
+                if (preg_match('/server|proxy|registrar|domain|host|address|(^|_)ip$/i', $name) === 1) {
+                    $text = preg_replace('/^(?:sip|sips):/i', '', $text) ?? $text;
+                    if (str_contains($text, '@')) {
+                        $text = substr($text, strrpos($text, '@') + 1);
+                    }
+                    $text = preg_split('/[;?\s]/', $text, 2)[0] ?? '';
+                    if (strlen($text) > 255 || preg_match('/^[a-z0-9.:[\]-]+$/i', $text) !== 1) {
+                        continue;
+                    }
+                } elseif (preg_match('/status|registered|enabled|active/i', $name) === 1) {
+                    $text = substr($text, 0, 40);
+                } elseif (preg_match('/userid|accountid|accountindex|accountno|lineindex|extension|(^|_)ext$|(^|_)index$/i', $name) === 1) {
+                    if (strlen($text) > 50 || preg_match('/^[a-zA-Z0-9*#+._-]+$/', $text) !== 1) {
+                        continue;
+                    }
+                }
+                $out[$key] = is_bool($value) || is_int($value) || is_float($value) ? $value : $text;
+            }
+            return $out;
+        };
+
+        return $walk($payload);
+    }
+
+    /**
+     * Merge GDMS info/status into one row per SIP account. Global data.accountStatus
+     * is ignored; only nodes carrying an account ID, extension, or SIP server count.
+     * @param array<string, mixed> $snapshot
+     * @return array{accounts:array<int, array<string, string>>, servers:array<int, string>, server_count:int, primary_server:string, primary_extension:string, registered_count:int, account_count:int}
+     */
+    public static function gdmsSummarizeSipSnapshot(array $snapshot): array
+    {
+        $extract = static function (array $root): array {
+            $records = [];
+            $walk = static function (array $node, string $path = '') use (&$walk, &$records): void {
+                $r = ['account_id' => '', 'index' => '', 'extension' => '', 'server' => '', 'server_rank' => 0, 'status' => ''];
+                foreach ($node as $key => $value) {
+                    if (!is_scalar($value)) { continue; }
+                    $flat = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $key) ?? (string) $key);
+                    $text = trim((string) $value);
+                    if ($text === '') { continue; }
+                    if ($r['account_id'] === '' && in_array($flat, ['sipaccountid', 'accountid'], true)
+                        && strlen($text) <= 64 && preg_match('/^[a-zA-Z0-9*#._-]+$/', $text) === 1) { $r['account_id'] = $text; }
+                    if ($r['index'] === '' && in_array($flat, ['accountindex', 'accountno', 'lineindex', 'index'], true)
+                        && strlen($text) <= 20 && preg_match('/^[a-zA-Z0-9._-]+$/', $text) === 1) { $r['index'] = $text; }
+                    $rank = 0;
+                    if (in_array($flat, ['serveraddress','serveraddr','serverip','serverhost','sipserveraddress','sipserveraddr','sipserverip','sipserverhost','proxyaddress','registraraddress','outboundproxyaddress'], true)) { $rank = 3; }
+                    elseif (in_array($flat, ['sipserver','server','proxy','registrar','outboundproxy'], true)) { $rank = 2; }
+                    elseif (in_array($flat, ['servername','sipservername','proxyserver','registrarserver'], true)) { $rank = 1; }
+                    if ($rank > $r['server_rank']) { $r['server'] = $text; $r['server_rank'] = $rank; }
+                    if ($r['extension'] === '' && in_array($flat, ['userid','extension','ext','sipextension','sipuserid','accountuserid','accountuser','phonenumber','accountnumber'], true)
+                        && strlen($text) <= 50 && preg_match('/^[a-zA-Z0-9*#+._-]+$/', $text) === 1) { $r['extension'] = $text; }
+                    if ($r['status'] === '' && in_array($flat, ['status','accountstatus','registerstatus','registrationstatus','regstatus','registered'], true)) { $r['status'] = substr($text, 0, 40); }
+                }
+                if ($r['index'] === '' && preg_match('/(?:^|\.)(\d+)$/', $path, $m) === 1) { $r['index'] = (string) ((int) $m[1] + 1); }
+                if ($r['account_id'] !== '' || $r['extension'] !== '' || $r['server'] !== '') { $records[] = $r; }
+                foreach ($node as $key => $value) {
+                    if (is_array($value)) { $walk($value, $path === '' ? (string) $key : $path . '.' . (string) $key); }
+                }
+            };
+            $walk($root);
+            return $records;
+        };
+        $info = is_array($snapshot['info'] ?? null) ? $extract($snapshot['info']) : [];
+        $status = is_array($snapshot['status'] ?? null) ? $extract($snapshot['status']) : [];
+        $accounts = [];
+        $merge = static function (array $record, bool $isStatus) use (&$accounts): void {
+            $found = null;
+            foreach ($accounts as $i => $existing) {
+                $sameId = $record['account_id'] !== '' && $existing['account_id'] !== '' && $record['account_id'] === $existing['account_id'];
+                $sameExt = $record['extension'] !== '' && $existing['extension'] !== '' && $record['extension'] === $existing['extension'];
+                $sameServer = $record['server'] === '' || $existing['server'] === '' || strcasecmp($record['server'], $existing['server']) === 0;
+                $sameIndex = $record['index'] !== '' && $existing['index'] !== '' && $record['index'] === $existing['index'];
+                $idConflict = $record['account_id'] !== '' && $existing['account_id'] !== '' && !$sameId;
+                if (!$idConflict && ($sameId || ($sameExt && $sameServer) || ($sameIndex && ($sameExt || $record['extension'] === '' || $existing['extension'] === '')))) { $found = $i; break; }
+            }
+            if ($found === null) {
+                $accounts[] = ['account_id' => $record['account_id'], 'index' => $record['index'] !== '' ? $record['index'] : $record['account_id'], 'extension' => $record['extension'], 'server' => $record['server'], 'status' => $record['status']];
+                return;
+            }
+            foreach (['account_id','index','extension','server'] as $field) { if ($accounts[$found][$field] === '' && $record[$field] !== '') { $accounts[$found][$field] = $record[$field]; } }
+            if ($isStatus && $record['status'] !== '') { $accounts[$found]['status'] = $record['status']; }
+            elseif ($accounts[$found]['status'] === '' && $record['status'] !== '') { $accounts[$found]['status'] = $record['status']; }
+        };
+        foreach ($info as $record) { $merge($record, false); }
+        foreach ($status as $record) { $merge($record, true); }
+
+        $unique = [];
+        foreach ($accounts as $account) {
+            $id = $account['account_id'] !== '' ? 'id:' . $account['account_id'] : 'ext:' . $account['extension'] . '|server:' . strtolower($account['server']);
+            if ($id === 'ext:|server:') { $id .= '|index:' . $account['index']; }
+            if (!isset($unique[$id])) { $unique[$id] = $account; }
+            else { foreach (['index','extension','server','status'] as $field) { if ($unique[$id][$field] === '' && $account[$field] !== '') { $unique[$id][$field] = $account[$field]; } } }
+        }
+        $accounts = array_values($unique);
+        foreach ($accounts as &$account) { unset($account['account_id']); }
+        unset($account);
+        usort($accounts, static function (array $a, array $b): int {
+            $x = ctype_digit((string) $a['index']) ? (int) $a['index'] : PHP_INT_MAX;
+            $y = ctype_digit((string) $b['index']) ? (int) $b['index'] : PHP_INT_MAX;
+            return $x <=> $y;
+        });
+        $servers = []; $serverHosts = []; $primaryExtension = ''; $registered = 0;
+        foreach ($accounts as $account) {
+            $safeServer = Service\PbxAssociationResolver::safeSipServer((string) $account['server']);
+            if ($safeServer !== '') {
+                $servers[$safeServer] = true; $host = $safeServer;
+                if (str_starts_with($host, '[') && str_contains($host, ']')) { $host = substr($host, 1, strpos($host, ']') - 1); }
+                elseif (substr_count($host, ':') === 1) { [$host] = explode(':', $host, 2); }
+                $serverHosts[strtolower($host)] = true;
+            }
+            if ($primaryExtension === '' && $account['extension'] !== '') { $primaryExtension = $account['extension']; }
+            if (preg_match('/^(?:1|true|up|normal|registered|online|ok)$/i', (string) $account['status']) === 1) { $registered++; }
+        }
+        $serverList = array_keys($servers);
+        return [
+            'accounts' => $accounts, 'servers' => $serverList, 'server_count' => count($serverHosts),
+            'primary_server' => count($serverHosts) === 1 && $serverList !== [] ? $serverList[0] : '',
+            'primary_extension' => $primaryExtension, 'registered_count' => $registered, 'account_count' => count($accounts),
+        ];
+    }
+
+    /**
+     * Retrieve SIP information for multiple devices via bounded cURL multi.
+     * Grandstream does not publish a concurrency ceiling; default to 4 inflight
+     * to limit request bursts after an IP-based rate-limit response.
+     * @param array<int, string> $macs
+     * @return array<string, array<string, mixed>> uppercase-MAC keyed snapshots
+     */
+    public static function gdmsGetDeviceSipSnapshots(array &$config, array $macs, int $maxConcurrent = 4): array
+    {
+        $cooldown = Utils::getProviderCooldownRemaining('gdms');
+        if ($cooldown > 0) {
+            Utils::warning("GDMS SIP batch skipped — shared rate-limit cooldown has {$cooldown}s remaining; existing SIP snapshots will be preserved.");
+            return [];
+        }
+        $started = microtime(true); $maxConcurrent = max(2, min(16, $maxConcurrent)); $uniqueMacs = [];
+        foreach ($macs as $mac) {
+            $mac = strtoupper(trim((string) $mac));
+            if ($mac !== '' && preg_match('/^[0-9A-F:-]{12,17}$/', $mac) === 1) { $uniqueMacs[$mac] = true; }
+        }
+        if ($uniqueMacs === []) { return []; }
+        if (empty($config['access_token'])) {
+            $tokenData = self::gdmsGetToken($config);
+            if ($tokenData === false) { return []; }
+            $config['access_token'] = $tokenData['access_token'];
+        }
+        $results = []; $requests = [];
+        foreach (array_keys($uniqueMacs) as $mac) {
+            $results[$mac] = ['info' => false, 'status' => false];
+            foreach (['info' => 'device/account/info', 'status' => 'device/account/status'] as $kind => $endpoint) {
+                $body = json_encode(['mac' => $mac], JSON_UNESCAPED_SLASHES);
+                if (!is_string($body)) { continue; }
+                $timestamp = (int) (microtime(true) * 1000); $urlParams = ['access_token' => (string) $config['access_token']];
+                $signature = self::gdmsBuildSignature($urlParams, $config, $timestamp, $body);
+                $url = self::gdmsBase($config) . '/' . self::VERSION . '/' . $endpoint . '?' . http_build_query([
+                    'access_token' => $config['access_token'], 'timestamp' => $timestamp, 'signature' => $signature,
+                ]);
+                $requests[$mac . '|' . $kind] = ['mac' => $mac, 'kind' => $kind, 'endpoint' => $endpoint, 'url' => $url, 'body' => $body];
+            }
+        }
+        $failed = [];
+        if (function_exists('curl_multi_init')) {
+            // Explicit chunks provide a hard upper bound even on older libcurl
+            // builds that do not support CURLMOPT_MAX_HOST_CONNECTIONS.
+            foreach (array_chunk($requests, $maxConcurrent, true) as $requestBatch) {
+                $multi = curl_multi_init();
+                $handles = [];
+                foreach ($requestBatch as $key => $request) {
+                    $handle = curl_init($request['url']);
+                    curl_setopt_array($handle, [
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_CONNECTTIMEOUT => 4,
+                        CURLOPT_TIMEOUT => self::TIMEOUT,
+                        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                        CURLOPT_SSL_VERIFYPEER => true,
+                        CURLOPT_SSL_VERIFYHOST => 2,
+                        CURLOPT_HEADER => true,
+                        CURLOPT_POST => true,
+                        CURLOPT_POSTFIELDS => $request['body'],
+                    ]);
+                    curl_multi_add_handle($multi, $handle);
+                    $handles[$key] = $handle;
+                }
+                $running = null;
+                do {
+                    do { $multiCode = curl_multi_exec($multi, $running); }
+                    while (defined('CURLM_CALL_MULTI_PERFORM') && $multiCode === CURLM_CALL_MULTI_PERFORM);
+                    if ($running > 0) {
+                        $selected = curl_multi_select($multi, 0.25);
+                        if ($selected === -1) { usleep(10000); }
+                    }
+                } while ($running > 0 && $multiCode === CURLM_OK);
+
+                foreach ($handles as $key => $handle) {
+                    $request = $requestBatch[$key];
+                    $response = curl_multi_getcontent($handle);
+                    $error = curl_error($handle);
+                    $http = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+                    $headerSize = (int) curl_getinfo($handle, CURLINFO_HEADER_SIZE);
+                    $rawHeaders = is_string($response) ? substr($response, 0, $headerSize) : '';
+                    $raw = is_string($response) ? substr($response, $headerSize) : '';
+                    $decoded = $raw !== '' ? json_decode($raw, true) : null;
+                    $apiRateLimited = is_array($decoded) && self::isGdmsRateLimitMessage(self::gdmsResponseMessage($decoded));
+                    if ($http === 429 || $apiRateLimited) {
+                        $retryAfter = self::parseRetryAfter($rawHeaders);
+                        Utils::setProviderCooldown('gdms', $retryAfter > 0 ? $retryAfter : self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS);
+                        Utils::warning("GDMS SIP batch rate-limited by {$request['endpoint']} — shared cooldown activated; further GDMS requests paused.");
+                    }
+                    $ok = $error === '' && $http >= 200 && $http < 300 && is_array($decoded)
+                        && (!array_key_exists('retCode', $decoded) || (int) $decoded['retCode'] === 0);
+                    if ($ok) { $results[$request['mac']][$request['kind']] = $decoded; }
+                    else { $failed[$key] = $request; }
+                    curl_multi_remove_handle($multi, $handle);
+                    curl_close($handle);
+                }
+                curl_multi_close($multi);
+                if (Utils::getProviderCooldownRemaining('gdms') > 0) {
+                    break;
+                }
+            }
+        } else {
+            $failed = $requests;
+        }
+        // Only failed requests use existing retry + token-refresh handling. A rate
+        // limit is shared across nodes; never serialize the failed batch as retries.
+        foreach ($failed as $request) {
+            if (Utils::getProviderCooldownRemaining('gdms') > 0) {
+                break;
+            }
+            $retry = self::gdmsPostDeviceAccountEndpoint($config, $request['endpoint'], $request['mac']);
+            if ($retry !== false) { $results[$request['mac']][$request['kind']] = $retry; }
+        }
+        $snapshots = [];
+        $rateLimitCooldown = Utils::getProviderCooldownRemaining('gdms');
+        foreach ($results as $mac => $result) {
+            $info = $result['info']; $status = $result['status'];
+            if ($rateLimitCooldown > 0 && $info === false && $status === false) {
+                // Keep the prior good SIP snapshot; this was a quota response, not
+                // evidence that the phone has no SIP accounts or registration data.
+                continue;
+            }
+            $snapshot = [
+                'checked_at' => gmdate('Y-m-d H:i:s'), 'info_ok' => $info !== false, 'status_ok' => $status !== false,
+                'info' => $info !== false ? self::gdmsSanitizeSipPayload($info) : [],
+                'status' => $status !== false ? self::gdmsSanitizeSipPayload($status) : [],
+            ];
+            $summary = self::gdmsSummarizeSipSnapshot($snapshot);
+            Utils::debug(sprintf('GDMS SIP API result: mac=%s info_ok=%s status_ok=%s accounts=%d servers=%s registered=%d',
+                $mac, $snapshot['info_ok'] ? 'yes' : 'no', $snapshot['status_ok'] ? 'yes' : 'no', $summary['account_count'],
+                json_encode($summary['servers'], JSON_UNESCAPED_SLASHES) ?: '[]', $summary['registered_count']));
+            if ($summary['accounts'] !== []) {
+                $safeAccounts = array_map(static fn(array $a): array => [
+                    'index' => $a['index'], 'extension' => $a['extension'],
+                    'server' => Service\PbxAssociationResolver::safeSipServer($a['server']), 'status' => $a['status'],
+                ], $summary['accounts']);
+                Utils::debug('GDMS SIP account details (credential-free): mac=' . $mac . ' accounts=' . json_encode($safeAccounts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            }
+            if ($info !== false) { Utils::debug('GDMS device/account/info safe payload: mac=' . $mac . ' fields=' . json_encode(self::sipPayloadFieldPaths($snapshot['info']), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); }
+            if ($status !== false) { Utils::debug('GDMS device/account/status safe payload: mac=' . $mac . ' fields=' . json_encode(self::sipPayloadFieldPaths($snapshot['status']), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); }
+            $snapshots[$mac] = $snapshot;
+        }
+        Utils::debug(sprintf('GDMS SIP concurrent batch: phones=%d requests=%d concurrency=%d duration_ms=%d failed_requests=%d',
+            count($snapshots), count($requests), $maxConcurrent, (int) round((microtime(true) - $started) * 1000), count($failed)));
+        return $snapshots;
+    }
+
+    /** Query both SIP endpoints for one phone/ATA. */
+    public static function gdmsGetDeviceSipSnapshot(array &$config, string $mac): array
+    {
+        $snapshots = self::gdmsGetDeviceSipSnapshots($config, [$mac], 2);
+        return $snapshots[strtoupper(trim($mac))] ?? [
+            'checked_at' => gmdate('Y-m-d H:i:s'), 'info_ok' => false, 'status_ok' => false, 'info' => [], 'status' => [],
+        ];
+    }
+
+    /** @param array<string, mixed> $payload
+     *  @return array<int, string>
+     */
+    private static function sipPayloadFieldPaths(array $payload): array
+    {
+        $paths = [];
+        $walk = static function (array $node, string $path = '') use (&$walk, &$paths): void {
+            foreach ($node as $key => $value) {
+                $name = (string) $key;
+                $field = $path === '' ? $name : $path . '.' . $name;
+                if (preg_match('/sip|account|server|proxy|registrar|extension|user.?id|status|register|index/i', $name) === 1 && count($paths) < 100) {
+                    $paths[] = $field;
+                }
+                if (is_array($value)) {
+                    $walk($value, $field);
+                }
+            }
+        };
+        $walk($payload);
+        return $paths;
     }
 
     // -----------------------------------------------------------------------
@@ -2057,7 +2635,7 @@ class API
     // -----------------------------------------------------------------------
     // GDMS — Create upgrade task for UC devices (UCM/GCC/GRP/GXP/WP/HT etc.)
     // POST /oapi/v1.0.0/task/add
-    // $mac        — colon-format MAC e.g. "C0:74:AD:DE:E2:8E"
+    // $mac        — colon-format MAC e.g. "02:00:00:00:00:01"
     // $version    — target firmware e.g. "1.0.31.7"
     // $scheduleMs — 0 = ASAP, >0 = epoch ms scheduled time
     // -----------------------------------------------------------------------

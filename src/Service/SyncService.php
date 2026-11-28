@@ -14,6 +14,26 @@ final class SyncService
         $entities_id=AccessService::entityId($request); AccessService::requireEntityAccess($entities_id);
         $source=(string)$request->query->get('source','button');
         \GlpiPlugin\Gdmsintegration\Utils::log("Controller sync called — entity={$entities_id}, source={$source}");
-        try{$processed=\GlpiPlugin\Gdmsintegration\Sync::syncEntity($entities_id,$source);return new JsonResponse(['success'=>true,'processed'=>$processed,'mode'=>'sync']);}catch(\Throwable $e){\GlpiPlugin\Gdmsintegration\Utils::log('Controller sync error: '.$e->getMessage());return new JsonResponse(['success'=>false,'error'=>$e->getMessage()],500);}
+        try {
+            $partial = false;
+            $skipped = false;
+            $processed = \GlpiPlugin\Gdmsintegration\Sync::syncEntity($entities_id, $source, $partial, $skipped);
+            if ($skipped) {
+                return new JsonResponse([
+                    'success' => true,
+                    'completed' => false,
+                    'busy' => true,
+                    'processed' => 0,
+                    'mode' => 'sync',
+                ]);
+            }
+            return new JsonResponse([
+                'success' => true,
+                'completed' => true,
+                'partial' => $partial,
+                'processed' => $processed,
+                'mode' => 'sync',
+            ]);
+        } catch(\Throwable $e){\GlpiPlugin\Gdmsintegration\Utils::log('Controller sync error: '.$e->getMessage());return new JsonResponse(['success'=>false,'error'=>$e->getMessage()],500);}
     }
 }

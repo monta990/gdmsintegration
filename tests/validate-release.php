@@ -106,7 +106,12 @@ $requiredFiles = [
     'src/Service/FirmwareService.php',
     'templates/config_form.html.twig',
     'templates/dashboard.html.twig',
+    'src/Service/PbxAssociationResolver.php',
+    'public/js/config.js',
+    'public/js/dashboard.js',
     'public/js/vis-network.manifest.json',
+    'tests/pbx_association_regression.php',
+    'tests/gdms_rate_limit_regression.php',
 ];
 
 foreach ($requiredFiles as $relative) {

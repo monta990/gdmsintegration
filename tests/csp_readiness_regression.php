@@ -259,8 +259,8 @@ if ($autoloadProvided) {
 
 $dashboardScripts = preg_match_all('/<script\b/i', (string) $dashboardTemplate);
 $configScripts = preg_match_all('/<script\b/i', (string) $configTemplate);
-$assert($dashboardScripts === 5, 'Dashboard script tags should remain under core TemplateRenderer control.');
-$assert($configScripts === 1, 'Configuration script tag should remain under core TemplateRenderer control.');
+$assert($dashboardScripts === 0, 'Dashboard Twig must not contain script tags; assets are registered through GLPI.');
+$assert($configScripts === 0, 'Configuration Twig must not contain script tags; config.js is registered through GLPI.');
 
 foreach ([$dashboardTemplate, $configTemplate] as $template) {
     $markupOnly = preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', (string) $template) ?? (string) $template;
@@ -269,6 +269,10 @@ foreach ([$dashboardTemplate, $configTemplate] as $template) {
 }
 
 $setup = file_get_contents($root . '/setup.php');
+$assert(str_contains((string) $setup, 'Hooks::ADD_JAVASCRIPT'), 'Page JavaScript must be registered through GLPI ADD_JAVASCRIPT so its CSP nonce is applied.');
+foreach (['public/js/config.js', 'public/js/dashboard.js', 'public/js/vis-network.min.js'] as $asset) {
+    $assert(is_file($root . '/' . $asset), sprintf('CSP-aware external JavaScript asset is missing: %s', $asset));
+}
 $initStart = strpos((string) $setup, 'function plugin_init_gdmsintegration');
 $initEnd = strpos((string) $setup, "\n}", $initStart === false ? 0 : $initStart);
 $initBody = $initStart !== false && $initEnd !== false ? substr((string) $setup, $initStart, $initEnd - $initStart) : '';

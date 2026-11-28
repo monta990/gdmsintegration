@@ -76,6 +76,17 @@ jobs:
       - name: Run CLI business-logic tests
         run: php tests/run.php
 
+      - name: Run PBX/SIP account regression tests
+        run: php tests/pbx_association_regression.php
+
+      - name: Run GDMS rate-limit regression tests
+        run: php tests/gdms_rate_limit_regression.php
+
+      - name: Check external JavaScript syntax
+        run: |
+          node --check public/js/config.js
+          node --check public/js/dashboard.js
+
       - name: Run firmware-channel regression tests
         run: php tests/firmware_channel_regression.php
 
@@ -140,12 +151,19 @@ jobs:
           unzip -Z1 "$archive" | grep -qx 'gdmsintegration/hook.php'
           unzip -Z1 "$archive" | grep -qx 'gdmsintegration/src/Sync.php'
           unzip -Z1 "$archive" | grep -qx 'gdmsintegration/templates/dashboard.html.twig'
+          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/public/js/config.js'
+          unzip -Z1 "$archive" | grep -qx 'gdmsintegration/public/js/dashboard.js'
           unzip -Z1 "$archive" | grep -qx 'gdmsintegration/public/js/vis-network.min.js'
           public_js_entries="$(unzip -Z1 "$archive" | grep -E '^gdmsintegration/public/js/[^/]+$' || true)"
-          if [[ "$public_js_entries" != "gdmsintegration/public/js/vis-network.min.js" ]]; then
-            printf 'Unexpected files in installable public/js directory:\\n%s\\n' "${public_js_entries:-<none>}" >&2
-            exit 1
-          fi
+          expected_public_js_entries="$(printf '%s\\n' \\
+    gdmsintegration/public/js/config.js \\
+    gdmsintegration/public/js/dashboard.js \\
+    gdmsintegration/public/js/vis-network.min.js | sort)"
+actual_public_js_entries="$(printf '%s\\n' "${public_js_entries}" | sed '/^$/d' | sort)"
+if [[ "$actual_public_js_entries" != "$expected_public_js_entries" ]]; then
+    printf 'Unexpected files in installable public/js directory:\\n%s\\n' "${public_js_entries:-<none>}" >&2
+    exit 1
+fi
 
           # Upload the exact archive created by the packager, without
           # duplicating the plugin version in the workflow definition.

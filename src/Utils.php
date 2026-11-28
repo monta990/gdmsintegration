@@ -211,6 +211,86 @@ class Utils {
 
 
     /**
+     * Return the remaining seconds for a provider-wide cooldown.
+     * The state is stored in the plugin lock table so web and cron workers on
+     * different hosting nodes observe the same rate-limit window.
+     */
+    public static function getProviderCooldownRemaining(string $provider): int
+    {
+        global $DB;
+        $provider = strtolower((string) preg_replace('/[^a-z0-9_-]/i', '', $provider));
+        if ($provider === '') {
+            return 0;
+        }
+
+        $name = 'gdmsinteg_cooldown_' . substr($provider, 0, 80);
+        $table = 'glpi_plugin_gdmsintegration_locks';
+        try {
+            foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                $token = (string) ($row['lock_token'] ?? '');
+                if (!preg_match('/^cooldown:(\d+)$/', $token, $match)) {
+                    return 0;
+                }
+                $remaining = (int) $match[1] - time();
+                if ($remaining <= 0) {
+                    $DB->delete($table, ['lock_name' => $name, 'lock_token' => $token]);
+                    return 0;
+                }
+                return $remaining;
+            }
+        } catch (\Throwable $e) {
+            self::debug('Provider cooldown lookup unavailable: ' . $e->getMessage());
+        }
+        return 0;
+    }
+
+    /**
+     * Persist a provider-wide rate-limit cooldown for all PHP/cron workers.
+     */
+    public static function setProviderCooldown(string $provider, int $seconds): void
+    {
+        global $DB;
+        $provider = strtolower((string) preg_replace('/[^a-z0-9_-]/i', '', $provider));
+        if ($provider === '') {
+            return;
+        }
+
+        $seconds = max(10, min(86400, $seconds));
+        $name = 'gdmsinteg_cooldown_' . substr($provider, 0, 80);
+        $table = 'glpi_plugin_gdmsintegration_locks';
+        $existingUntil = time() + self::getProviderCooldownRemaining($provider);
+        $until = max(time() + $seconds, $existingUntil);
+        $token = 'cooldown:' . $until;
+        $values = [
+            'lock_token' => $token,
+            'acquired_at' => gmdate('Y-m-d H:i:s'),
+        ];
+        try {
+            $exists = false;
+            foreach ($DB->request(['FROM' => $table, 'WHERE' => ['lock_name' => $name]]) as $row) {
+                $exists = true;
+                break;
+            }
+            if ($exists) {
+                $DB->update($table, $values, ['lock_name' => $name]);
+            } else {
+                try {
+                    $inserted = $DB->insert($table, array_merge(['lock_name' => $name], $values));
+                    if ($inserted === false) {
+                        // A competing worker may have inserted the unique row.
+                        $DB->update($table, $values, ['lock_name' => $name]);
+                    }
+                } catch (\Throwable $insertError) {
+                    // Another worker may have inserted the unique row at the same time.
+                    $DB->update($table, $values, ['lock_name' => $name]);
+                }
+            }
+        } catch (\Throwable $e) {
+            self::debug('Provider cooldown persistence unavailable: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Acquire a short-lived application lock using GLPI's DB abstraction.
      * Returns a token that must be passed to releaseLock().
      */

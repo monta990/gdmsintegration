@@ -305,26 +305,19 @@
                </div>
                <small class="text-muted d-block mt-1">{{ __('When enabled, the plugin automatically opens incident tickets when a WAN port reports link-down or internet loss. Disable to suppress all WAN port alert tickets.', 'gdmsintegration') }}</small>
             </div>
+            <div class="col-md-4">
+               <label class="form-label fw-semibold d-block" for="gdms_gwn_alert_tickets_enabled">{{ __('Cloud alert ticket creation', 'gdmsintegration') }}</label>
+               <div class="form-check form-switch mt-2">
+                  <input class="form-check-input" type="checkbox" name="gwn_alert_tickets_enabled"
+                         id="gdms_gwn_alert_tickets_enabled" value="1"
+                         {% if gwn_alert_tickets_enabled == 1 %}checked{% endif %}>
+                  <label class="form-check-label" for="gdms_gwn_alert_tickets_enabled">
+                     {{ __('Create tickets for GWN cloud alerts', 'gdmsintegration') }}
+                  </label>
+               </div>
+               <small class="text-muted d-block mt-1">{{ __('When enabled, actionable GWN Networking cloud alerts can create tickets. Disable this to keep alerts visible in the dashboard without creating tickets. Offline-device and WAN incident tickets are controlled separately.', 'gdmsintegration') }}</small>
+            </div>
          </div>
-      </div>
-   </div>
-
-   {# ── GWN cloud alert tickets ───────────────────────────────────── #}
-   <div class="card mb-4">
-      <div class="card-header d-flex align-items-center gap-2">
-         <i class="ti ti-bell-ringing"></i>
-         <h5 class="mb-0">{{ __('Cloud alert ticket creation', 'gdmsintegration') }}</h5>
-      </div>
-      <div class="card-body">
-         <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" name="gwn_alert_tickets_enabled"
-                   id="gdms_gwn_alert_tickets_enabled" value="1"
-                   {% if gwn_alert_tickets_enabled == 1 %}checked{% endif %}>
-            <label class="form-check-label fw-semibold" for="gdms_gwn_alert_tickets_enabled">
-               {{ __('Create tickets for GWN cloud alerts', 'gdmsintegration') }}
-            </label>
-         </div>
-         <small class="text-muted d-block mt-1">{{ __('When enabled, actionable GWN Networking cloud alerts can create tickets. Disable this to keep alerts visible in the dashboard without creating tickets. Offline-device and WAN incident tickets are controlled separately.', 'gdmsintegration') }}</small>
       </div>
    </div>
 
@@ -394,72 +387,86 @@
    <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_main }}">
    </form>
 
-   {# ── History Import ────────────────────────────────────────────── #}
-   <div class="card mb-4">
-      <div class="card-header d-flex align-items-center gap-2">
-         <i class="ti ti-file-import"></i>
-         <h5 class="mb-0">{{ __('Import History', 'gdmsintegration') }}</h5>
-      </div>
-      <div class="card-body">
-         <p class="text-muted mb-3">{{ __('Restore availability history from a previously exported XLSX file (gdms_history_*.xlsx). Days that already have data are skipped — no existing records are overwritten.', 'gdmsintegration') }}</p>
-         <div class="mb-3" style="max-width:220px">
-            <label class="form-label fw-semibold" for="gdms_max_xlsx_size_mb">{{ __('Max upload size (MB)', 'gdmsintegration') }}</label>
-            <input type="number" class="form-control" name="max_xlsx_size_mb" id="gdms_max_xlsx_size_mb"
-               min="1" max="50" value="{{ max_xlsx_size_mb }}" form="main-config-form">
+   {# ── Data import / backup ──────────────────────────────────────── #}
+   <div class="row g-3 mb-4 align-items-stretch">
+      <div class="col-xl-6">
+         <div class="card h-100 mb-0">
+            <div class="card-header d-flex align-items-center gap-2">
+               <i class="ti ti-file-import"></i>
+               <h5 class="mb-0">{{ __('Import History', 'gdmsintegration') }}</h5>
+            </div>
+            <div class="card-body">
+               <p class="text-muted small mb-3">{{ __('Restore availability history from a previously exported XLSX file (gdms_history_*.xlsx). Days that already have data are skipped — no existing records are overwritten.', 'gdmsintegration') }}</p>
+               <div class="row g-3 align-items-stretch">
+                  <div class="col-md-6">
+                     <div class="border rounded p-3 h-100">
+                        <p class="fw-semibold mb-2">{{ __('Maximum upload size', 'gdmsintegration') }}</p>
+                        <label class="form-label small text-muted" for="gdms_max_xlsx_size_mb">{{ __('Size in megabytes (MB)', 'gdmsintegration') }}</label>
+                        <input type="number" class="form-control" name="max_xlsx_size_mb" id="gdms_max_xlsx_size_mb"
+                           min="1" max="50" value="{{ max_xlsx_size_mb }}" form="main-config-form">
+                     </div>
+                  </div>
+                  <div class="col-md-6">
+                     <div class="border rounded p-3 h-100">
+                        <p class="fw-semibold mb-2">{{ __('Import XLSX history', 'gdmsintegration') }}</p>
+                        <form method="post" action="" enctype="multipart/form-data" class="gdms-import-form">
+                           <input type="file" class="form-control mb-2" name="history_xlsx" accept=".xlsx" required>
+                           <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_history }}">
+                           <button type="submit" name="import_history" value="1" class="btn btn-outline-primary gdms-import-btn">
+                              <span class="spinner-border spinner-border-sm d-none me-1 gdms-spin" role="status" aria-hidden="true"></span>
+                              <i class="ti ti-upload me-1 gdms-icon"></i>{{ __('Import', 'gdmsintegration') }}
+                           </button>
+                        </form>
+                     </div>
+                  </div>
+               </div>
+            </div>
          </div>
-         <form method="post" action="" enctype="multipart/form-data" class="gdms-import-form">
-            <div class="d-flex align-items-center gap-3 flex-wrap">
-               <input type="file" class="form-control" name="history_xlsx" accept=".xlsx" required style="max-width:340px">
-               <button type="submit" name="import_history" value="1" class="btn btn-outline-primary gdms-import-btn">
-                  <span class="spinner-border spinner-border-sm d-none me-1 gdms-spin" role="status" aria-hidden="true"></span>
-                  <i class="ti ti-upload me-1 gdms-icon"></i>{{ __('Import', 'gdmsintegration') }}
-               </button>
-            </div>
-            <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_history }}">
-         </form>
       </div>
-   </div>
-
-   {# ── Configuration Backup ─────────────────────────────────────── #}
-   <div class="card mb-4">
-      <div class="card-header d-flex align-items-center gap-2">
-         <i class="ti ti-settings-bolt"></i>
-         <h5 class="mb-0">{{ __('Configuration Backup', 'gdmsintegration') }}</h5>
-      </div>
-      <div class="card-body">
-         <p class="text-muted mb-3">{{ __('Export all plugin settings to a JSON file, or restore them from a backup. API credentials and secrets are excluded from exports for security.', 'gdmsintegration') }}</p>
-         <div class="d-flex align-items-start gap-4 flex-wrap">
-            <div>
-               <p class="fw-semibold mb-2">{{ __('Export settings', 'gdmsintegration') }}</p>
-               <form method="post" action="" class="gdms-import-form" data-download="1">
-                  <input type="hidden" name="entities_id" value="{{ entities_id }}">
-                  <div class="form-check mb-2">
-                     <input class="form-check-input" type="checkbox" name="include_credentials"
-                            id="gdms_export_creds" value="1">
-                     <label class="form-check-label" for="gdms_export_creds">
-                        {{ __('Include API credentials (username, keys, secrets)', 'gdmsintegration') }}
-                     </label>
-                  </div>
-                  <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_export }}">
-                  <button type="submit" name="export_config" value="1" class="btn btn-outline-secondary gdms-import-btn">
-                     <span class="spinner-border spinner-border-sm d-none me-1 gdms-spin" role="status" aria-hidden="true"></span>
-                     <i class="ti ti-download me-1 gdms-icon"></i>{{ __('Download JSON', 'gdmsintegration') }}
-                  </button>
-               </form>
+      <div class="col-xl-6">
+         <div class="card h-100 mb-0">
+            <div class="card-header d-flex align-items-center gap-2">
+               <i class="ti ti-settings-bolt"></i>
+               <h5 class="mb-0">{{ __('Configuration Backup', 'gdmsintegration') }}</h5>
             </div>
-            <div>
-               <p class="fw-semibold mb-2">{{ __('Import settings', 'gdmsintegration') }}</p>
-               <form method="post" action="" enctype="multipart/form-data" class="gdms-import-form">
-                  <input type="hidden" name="entities_id" value="{{ entities_id }}">
-                  <div class="d-flex align-items-center gap-3 flex-wrap">
-                     <input type="file" class="form-control" name="config_json" accept=".json" required style="max-width:280px">
-                     <button type="submit" name="import_config" value="1" class="btn btn-outline-primary gdms-import-btn">
-                        <span class="spinner-border spinner-border-sm d-none me-1 gdms-spin" role="status" aria-hidden="true"></span>
-                        <i class="ti ti-upload me-1 gdms-icon"></i>{{ __('Import', 'gdmsintegration') }}
-                     </button>
+            <div class="card-body">
+               <p class="text-muted small mb-3">{{ __('Export all plugin settings to a JSON file, or restore them from a backup. API credentials and secrets are excluded from exports for security.', 'gdmsintegration') }}</p>
+               <div class="row g-3">
+                  <div class="col-md-6">
+                     <div class="border rounded p-3 h-100">
+                     <p class="fw-semibold mb-2">{{ __('Export settings', 'gdmsintegration') }}</p>
+                     <form method="post" action="" class="gdms-import-form" data-download="1">
+                        <input type="hidden" name="entities_id" value="{{ entities_id }}">
+                        <div class="form-check mb-2">
+                           <input class="form-check-input" type="checkbox" name="include_credentials"
+                                  id="gdms_export_creds" value="1">
+                           <label class="form-check-label" for="gdms_export_creds">
+                              {{ __('Include API credentials (username, keys, secrets)', 'gdmsintegration') }}
+                           </label>
+                        </div>
+                        <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_export }}">
+                        <button type="submit" name="export_config" value="1" class="btn btn-outline-secondary gdms-import-btn">
+                           <span class="spinner-border spinner-border-sm d-none me-1 gdms-spin" role="status" aria-hidden="true"></span>
+                           <i class="ti ti-download me-1 gdms-icon"></i>{{ __('Download JSON', 'gdmsintegration') }}
+                        </button>
+                     </form>
+                     </div>
                   </div>
-                  <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_export }}">
-               </form>
+                  <div class="col-md-6">
+                     <div class="border rounded p-3 h-100">
+                     <p class="fw-semibold mb-2">{{ __('Import settings', 'gdmsintegration') }}</p>
+                     <form method="post" action="" enctype="multipart/form-data" class="gdms-import-form">
+                        <input type="hidden" name="entities_id" value="{{ entities_id }}">
+                        <input type="file" class="form-control mb-2" name="config_json" accept=".json" required>
+                        <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_export }}">
+                        <button type="submit" name="import_config" value="1" class="btn btn-outline-primary gdms-import-btn">
+                           <span class="spinner-border spinner-border-sm d-none me-1 gdms-spin" role="status" aria-hidden="true"></span>
+                           <i class="ti ti-upload me-1 gdms-icon"></i>{{ __('Import', 'gdmsintegration') }}
+                        </button>
+                     </form>
+                     </div>
+                  </div>
+               </div>
             </div>
          </div>
       </div>
@@ -477,68 +484,4 @@
    </div>
 
 </div>
-<script>
-document.querySelectorAll('.gdms-pw-toggle').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-        var input = document.getElementById(this.dataset.target);
-        if (!input) return;
-        input.type = input.type === 'password' ? 'text' : 'password';
-        this.querySelector('i').className = input.type === 'password' ? 'ti ti-eye' : 'ti ti-eye-slash';
-    });
-});
-document.querySelectorAll('.gdms-import-form').forEach(function(form) {
-    form.addEventListener('submit', function(e) {
-        var btn = form.querySelector('.gdms-import-btn');
-        if (!btn) return;
-        var spin = btn.querySelector('.gdms-spin');
-        var icon = btn.querySelector('.gdms-icon');
 
-        if (form.dataset.download) {
-            e.preventDefault();
-            if (spin) spin.classList.remove('d-none');
-            if (icon) icon.classList.add('d-none');
-            btn.disabled = true;
-
-            var fd = new FormData(form);
-            var submitter = e.submitter || form.querySelector('[type="submit"]');
-            if (submitter && submitter.name) fd.append(submitter.name, submitter.value || '1');
-            var token = fd.get('_glpi_csrf_token') || '';
-            fd.delete('_glpi_csrf_token');
-
-            fetch(location.href, {
-                method: 'POST',
-                headers: {
-                    'X-Glpi-Csrf-Token': token,
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: fd
-            }).then(function(r) {
-                var cd = r.headers.get('Content-Disposition') || '';
-                var m  = cd.match(/filename="([^"]+)"/);
-                var fn = m ? m[1] : 'gdms_config.json';
-                var newToken = r.headers.get('X-Gdms-New-Csrf-Token');
-                if (newToken) {
-                    var ti = form.querySelector('[name="_glpi_csrf_token"]');
-                    if (ti) ti.value = newToken;
-                }
-                return r.blob().then(function(blob) {
-                    var a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = fn;
-                    document.body.appendChild(a);
-                    a.click();
-                    setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-                });
-            }).finally(function() {
-                btn.disabled = false;
-                if (spin) spin.classList.add('d-none');
-                if (icon) icon.classList.remove('d-none');
-            });
-        } else {
-            if (spin) spin.classList.remove('d-none');
-            if (icon) icon.classList.add('d-none');
-            setTimeout(function() { btn.disabled = true; }, 0);
-        }
-    });
-});
-</script>
