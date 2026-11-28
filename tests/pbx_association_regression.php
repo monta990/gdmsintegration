@@ -48,30 +48,30 @@ namespace {
     // Modal SIP account rows resolve the PBX separately for every extension.
     // This supports ATA devices with two accounts, and mixed-PBX SIP devices.
     $sipDisplayPbxs = [
-        ['raw_model' => 'UCM6300A', 'name' => 'Primary PBX', 'mac' => '02:00:00:00:01:01', 'private_ip' => '192.0.2.10', 'asset_url' => '/front/networkequipment.form.php?id=801'],
-        ['raw_model' => 'UCM6300A', 'name' => 'Secondary PBX', 'mac' => '02:00:00:00:01:02', 'private_ip' => '198.51.100.10', 'asset_url' => '/front/networkequipment.form.php?id=802'],
+        ['raw_model' => 'UCM6300A', 'name' => 'Primary PBX', 'mac' => '02:00:00:00:01:01', 'private_ip' => '192.168.10.10', 'asset_url' => '/front/networkequipment.form.php?id=801'],
+        ['raw_model' => 'UCM6300A', 'name' => 'Secondary PBX', 'mac' => '02:00:00:00:01:02', 'private_ip' => '192.168.20.10', 'asset_url' => '/front/networkequipment.form.php?id=802'],
     ];
     $sipDisplayAccounts = DashboardService::enrichSipAccountsForDisplay([
-        ['extension' => '7001', 'server' => '198.51.100.10:5060', 'status' => 'Up'],
-        ['extension' => '7002', 'server' => '198.51.100.10', 'status' => 'Up'],
-        ['extension' => '8001', 'server' => '192.0.2.10:5060', 'status' => 'Up'],
+        ['extension' => '7001', 'server' => '192.168.20.10:5060', 'status' => 'Up'],
+        ['extension' => '7002', 'server' => '192.168.20.10', 'status' => 'Up'],
+        ['extension' => '8001', 'server' => '192.168.10.10:5060', 'status' => 'Up'],
         ['extension' => '8002', 'server' => '020000000102.a.gdms.cloud:5061', 'status' => 'Up'],
         ['extension' => '9001', 'server' => 'sip.provider.example:5060', 'status' => 'Up'],
     ], $sipDisplayPbxs);
     $expect(($sipDisplayAccounts[0]['pbx_name'] ?? '') === 'Secondary PBX', 'ATA extension 7001 must resolve and display Secondary PBX by its own SIP server IP.');
     $expect(($sipDisplayAccounts[1]['pbx_name'] ?? '') === 'Secondary PBX', 'ATA extension 7002 must resolve and display Secondary PBX by its own SIP server IP.');
     $expect(($sipDisplayAccounts[0]['pbx_url'] ?? '') === '/front/networkequipment.form.php?id=802', 'Secondary PBX label must link to its GLPI PBX asset.');
-    $expect(($sipDisplayAccounts[0]['pbx_ip_url'] ?? '') === 'http://198.51.100.10', 'Secondary PBX address must link to its validated management URL.');
+    $expect(($sipDisplayAccounts[0]['pbx_ip_url'] ?? '') === 'http://192.168.20.10', 'Secondary PBX address must link to its validated management URL.');
     $expect(($sipDisplayAccounts[2]['pbx_name'] ?? '') === 'Primary PBX', 'An account registered to a second UCM must display that UCM instead of the device primary PBX.');
     $expect(($sipDisplayAccounts[3]['pbx_name'] ?? '') === 'Secondary PBX', 'A GDMS RemoteConnect hostname with the managed UCM MAC must link to that PBX.');
     $expect(($sipDisplayAccounts[4]['pbx_name'] ?? '') === '', 'An unrelated external SIP hostname must not be falsely labeled as a managed PBX.');
     $ambiguousSipDisplayPbxs = $sipDisplayPbxs;
-    $ambiguousSipDisplayPbxs[] = ['raw_model' => 'UCM6300A', 'name' => 'Secondary PBX-Replica', 'mac' => '02:00:00:00:01:03', 'private_ip' => '198.51.100.10', 'asset_url' => '/front/networkequipment.form.php?id=803'];
+    $ambiguousSipDisplayPbxs[] = ['raw_model' => 'UCM6300A', 'name' => 'Secondary PBX-Replica', 'mac' => '02:00:00:00:01:03', 'private_ip' => '192.168.20.10', 'asset_url' => '/front/networkequipment.form.php?id=803'];
     $ambiguousSipDisplay = DashboardService::enrichSipAccountsForDisplay([
-        ['extension' => '7001', 'server' => '198.51.100.10:5060'],
+        ['extension' => '7001', 'server' => '192.168.20.10:5060'],
     ], $ambiguousSipDisplayPbxs);
     $expect(($ambiguousSipDisplay[0]['pbx_name'] ?? '') === '', 'Duplicate managed PBX private IPs must not produce an arbitrary link.');
-    $expect(PbxAssociationResolver::sipServerIp('sip:198.51.100.10:5060;transport=udp') === '198.51.100.10', 'SIP display resolver must normalize IP/port/transport before matching the PBX.');
+    $expect(PbxAssociationResolver::sipServerIp('sip:192.168.20.10:5060;transport=udp') === '192.168.20.10', 'SIP display resolver must normalize IP/port/transport before matching the PBX.');
     $expect(PbxAssociationResolver::sipServerIp('sip:pbx.example.com:5060') === '', 'SIP display resolver must not treat hostnames as managed PBX IPs.');
     $expect(PbxAssociationResolver::sipServerPbxMac('sip:020000000102.a.gdms.cloud:5061') === '02:00:00:00:01:02', 'SIP display resolver must extract the managed UCM MAC from a RemoteConnect hostname.');
 
@@ -79,19 +79,19 @@ namespace {
     $rows = [
         [
             'mac' => '02:00:00:00:01:01', 'raw_model' => 'UCM6300A', 'name' => 'Primary PBX',
-            'private_ip' => '192.0.2.10', 'ip' => '203.0.113.100', 'network_name' => 'Example Organization',
+            'private_ip' => '192.168.10.10', 'ip' => '203.0.113.100', 'network_name' => 'Example Organization',
         ],
         [
             'mac' => '02:00:00:00:01:02', 'raw_model' => 'UCM6300A', 'name' => 'Secondary PBX',
-            'private_ip' => '198.51.100.10', 'ip' => '203.0.113.101', 'network_name' => 'Example Organization',
+            'private_ip' => '192.168.20.10', 'ip' => '203.0.113.101', 'network_name' => 'Example Organization',
         ],
         [
             'mac' => '02:00:00:00:02:11', 'raw_model' => 'GRP2602', 'name' => 'Office Phone A',
-            'private_ip' => '192.0.2.87', 'ip' => '203.0.113.100', 'network_name' => 'Example Organization',
+            'private_ip' => '192.168.10.87', 'ip' => '203.0.113.100', 'network_name' => 'Example Organization',
         ],
         [
             'mac' => '02:00:00:00:02:22', 'raw_model' => 'GRP2602', 'name' => 'Office Phone B',
-            'private_ip' => '198.51.100.210', 'ip' => '203.0.113.101', 'network_name' => 'Example Organization',
+            'private_ip' => '192.168.20.210', 'ip' => '203.0.113.101', 'network_name' => 'Example Organization',
         ],
         [
             'mac' => '02:00:00:00:02:33', 'raw_model' => 'HT812', 'name' => 'Sample ATA',
@@ -104,9 +104,9 @@ namespace {
     ];
 
     $resolved = PbxAssociationResolver::resolve($rows);
-    $expect(($resolved['02:00:00:00:02:11']['name'] ?? '') === 'Primary PBX', '192.0.2.x phone must link to Primary PBX by private subnet.');
+    $expect(($resolved['02:00:00:00:02:11']['name'] ?? '') === 'Primary PBX', '192.168.10.x phone must link to Primary PBX by private subnet.');
     $expect(($resolved['02:00:00:00:02:11']['match_method'] ?? '') === 'private-subnet', 'Primary PBX phone should report private-subnet method.');
-    $expect(($resolved['02:00:00:00:02:22']['name'] ?? '') === 'Secondary PBX', '198.51.100.x phone must link to Secondary PBX by private subnet.');
+    $expect(($resolved['02:00:00:00:02:22']['name'] ?? '') === 'Secondary PBX', '192.168.20.x phone must link to Secondary PBX by private subnet.');
     $expect(($resolved['02:00:00:00:02:22']['match_method'] ?? '') === 'private-subnet', 'Secondary PBX phone should report private-subnet method.');
 
     // Public-IP equality is retained as a candidate signal, not as proof of SIP registration.
@@ -126,7 +126,7 @@ namespace {
 
     // Direct server IP from device/account/info is authoritative across routed subnets.
     $sipIpLinked = $rows;
-    $sipIpLinked[5]['sip_server'] = 'sip:192.0.2.10:5060;transport=udp';
+    $sipIpLinked[5]['sip_server'] = 'sip:192.168.10.10:5060;transport=udp';
     $sipIpResolved = PbxAssociationResolver::resolve($sipIpLinked);
     $expect(($sipIpResolved['02:00:00:00:02:44']['name'] ?? '') === 'Primary PBX', 'Remote Site device must link to Primary PBX from its explicit SIP server IP even though it is on another private subnet.');
     $expect(($sipIpResolved['02:00:00:00:02:44']['match_method'] ?? '') === 'sip-server-ip', 'Direct SIP server IP association must be observable.');
@@ -234,7 +234,7 @@ namespace {
             'accountList' => [[
                 'accountIndex' => 1,
                 'userId' => '8003',
-                'serverAddress' => 'sip:secret-user:secret-pass@192.0.2.10:5060;transport=udp',
+                'serverAddress' => 'sip:secret-user:secret-pass@192.168.10.10:5060;transport=udp',
                 'registrationStatus' => 'Registered',
                 'password' => 'DO-NOT-STORE',
                 'authName' => 'DO-NOT-STORE-AUTH',
@@ -247,7 +247,7 @@ namespace {
         'info' => $safePayload,
         'status' => ['data' => ['accountList' => [['accountIndex' => 1, 'registrationStatus' => 'Registered']]]],
     ]);
-    $expect(($snapshotSummary['primary_server'] ?? '') === '192.0.2.10:5060', 'SIP snapshot parser must extract server IP and port from sanitized account configuration.');
+    $expect(($snapshotSummary['primary_server'] ?? '') === '192.168.10.10:5060', 'SIP snapshot parser must extract server IP and port from sanitized account configuration.');
     $expect(($snapshotSummary['primary_extension'] ?? '') === '8003', 'SIP snapshot parser must extract User ID as the extension.');
     $expect(($snapshotSummary['account_count'] ?? 0) >= 1, 'SIP snapshot parser must retain at least one configured account.');
     $expect(($snapshotSummary['registered_count'] ?? 0) === 1, 'SIP snapshot parser must merge registration status by account index.');
@@ -259,16 +259,16 @@ namespace {
     $ataSnapshot = [
         'info' => [
             'data' => ['fxsPortList' => [
-                ['sipAccountId' => 'account-1', 'sipUserId' => '7001', 'sipServer' => '198.51.100.10'],
-                ['sipAccountId' => 'account-2', 'sipUserId' => '7002', 'sipServer' => '198.51.100.10'],
+                ['sipAccountId' => 'account-1', 'sipUserId' => '7001', 'sipServer' => '192.168.20.10'],
+                ['sipAccountId' => 'account-2', 'sipUserId' => '7002', 'sipServer' => '192.168.20.10'],
             ]],
         ],
         'status' => [
             'data' => [
                 'accountStatus' => 1,
                 'sipAccountInfoList' => [
-                    ['sipUserId' => '7001', 'sipServer' => '198.51.100.10', 'accountStatus' => 'Up'],
-                    ['sipUserId' => '7002', 'sipServer' => '198.51.100.10', 'accountStatus' => 'Up'],
+                    ['sipUserId' => '7001', 'sipServer' => '192.168.20.10', 'accountStatus' => 'Up'],
+                    ['sipUserId' => '7002', 'sipServer' => '192.168.20.10', 'accountStatus' => 'Up'],
                 ],
             ],
         ],
@@ -283,16 +283,16 @@ namespace {
     $expect(($ataSummary['registered_count'] ?? 0) === 2, 'Both ATA extensions must be counted as registered.');
     $expect($ataExtensions === ['7001', '7002'], 'ATA must retain both FXS extension numbers.');
     $expect(($ataSummary['accounts'][0]['status'] ?? '') === 'Up' && ($ataSummary['accounts'][1]['status'] ?? '') === 'Up', 'ATA info records must inherit per-account registration status from status API.');
-    $expect(($ataSummary['server_count'] ?? 0) === 1 && ($ataSummary['primary_server'] ?? '') === '198.51.100.10', 'Two ATA extensions using one UCM must retain one PBX association.');
+    $expect(($ataSummary['server_count'] ?? 0) === 1 && ($ataSummary['primary_server'] ?? '') === '192.168.20.10', 'Two ATA extensions using one UCM must retain one PBX association.');
 
     $singlePhoneSummary = API::gdmsSummarizeSipSnapshot([
         'info' => ['data' => ['sipAccountInfoList' => [
-            ['sipAccountId' => 'sip-7003', 'sipUserId' => '7003', 'sipServer' => '198.51.100.10'],
+            ['sipAccountId' => 'sip-7003', 'sipUserId' => '7003', 'sipServer' => '192.168.20.10'],
         ]]],
         'status' => ['data' => [
             'accountStatus' => 1,
             'sipAccountInfoList' => [
-                ['sipUserId' => '7003', 'sipServer' => '198.51.100.10', 'accountStatus' => 'Up'],
+                ['sipUserId' => '7003', 'sipServer' => '192.168.20.10', 'accountStatus' => 'Up'],
             ],
         ]],
     ]);
@@ -310,8 +310,8 @@ namespace {
 
     $multipleSipServers = API::gdmsSummarizeSipSnapshot([
         'info' => ['accounts' => [
-            ['accountIndex' => 1, 'userId' => '8003', 'serverAddress' => '192.0.2.10:5060'],
-            ['accountIndex' => 2, 'userId' => '8004', 'serverAddress' => '198.51.100.10:5060'],
+            ['accountIndex' => 1, 'userId' => '8003', 'serverAddress' => '192.168.10.10:5060'],
+            ['accountIndex' => 2, 'userId' => '8004', 'serverAddress' => '192.168.20.10:5060'],
         ]],
         'status' => [],
     ]);
@@ -320,8 +320,8 @@ namespace {
 
     $sameSipServerDifferentPorts = API::gdmsSummarizeSipSnapshot([
         'info' => ['accounts' => [
-            ['accountIndex' => 1, 'serverAddress' => '192.0.2.10:5060'],
-            ['accountIndex' => 2, 'serverAddress' => '192.0.2.10:5061'],
+            ['accountIndex' => 1, 'serverAddress' => '192.168.10.10:5060'],
+            ['accountIndex' => 2, 'serverAddress' => '192.168.10.10:5061'],
         ]],
         'status' => [],
     ]);
@@ -331,12 +331,12 @@ namespace {
         'info' => ['accounts' => [[
             'accountIndex' => 1,
             'serverName' => 'Primary PBX display label',
-            'serverAddress' => '192.0.2.10:5060',
+            'serverAddress' => '192.168.10.10:5060',
             'userId' => '8003',
         ]]],
         'status' => [],
     ]);
-    $expect(($preferredAddress['primary_server'] ?? '') === '192.0.2.10:5060', 'Concrete server address must take precedence over a display server name.');
+    $expect(($preferredAddress['primary_server'] ?? '') === '192.168.10.10:5060', 'Concrete server address must take precedence over a display server name.');
 
     $multipleServerDevice = $rows;
     $multipleServerDevice[5]['sip_server_count'] = 2;
