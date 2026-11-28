@@ -232,7 +232,7 @@ class Utils
      * different hosting nodes observe the same rate-limit window.
      *
      * @return int<0, max>
-     * @phpstan-impure This lookup may delete an expired cooldown record.
+     * @phpstan-impure Other workers may extend the value between separate reads.
      */
     public static function getProviderCooldownRemaining(string $provider): int
     {
@@ -260,9 +260,6 @@ class Utils
         return 0;
     }
 
-    /**
-     * Persist a provider-wide rate-limit cooldown for all PHP/cron workers.
-     */
     /**
      * Persist a provider-wide cooldown monotonically across PHP and cron workers.
      * A dedicated writer lock serializes the read/extend/write sequence, so a
@@ -364,10 +361,6 @@ class Utils
         }
     }
 
-    /**
-     * Acquire a short-lived application lock using GLPI's DB abstraction.
-     * Returns a token that must be passed to releaseLock().
-     */
     /**
      * Acquire a short-lived application lock using GLPI's DB abstraction.
      *
