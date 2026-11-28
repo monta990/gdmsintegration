@@ -44,17 +44,6 @@ final class DashboardService
     }
 
     /**
-     * Attach a managed PBX display target to each SIP account whose server
-     * address matches one managed UCM by private IP or RemoteConnect MAC.
-     * This is intentionally per account: a device can have extensions
-     * registered to different PBXs.
-     * Ambiguous duplicate PBX IPs remain unresolved instead of picking one.
-     *
-     * @param array<int, array<string, mixed>> $accounts
-     * @param array<int, array<string, mixed>> $pbxRows
-     * @return array<int, array<string, mixed>>
-     */
-    /**
      * Build reusable indexes once per render; RemoteConnect PBX lookup must not
      * depend on the PBX having a valid management IP.
      *
