@@ -47,7 +47,8 @@
 
     function fmtTime(s) { return s >= 60 ? Math.floor(s/60)+'m '+(s%60)+'s' : s+'s'; }
 
-    function doSync(source) {
+    function doSync(source, retryCount) {
+        retryCount = retryCount || 0;
         if (gdmsSyncing) return;
         gdmsSyncing = true;
         var icon = document.getElementById('gdms-refresh-icon');
@@ -85,7 +86,15 @@
                     gdmsSyncing = false;
                     if (button) button.disabled = false;
                     if (icon) icon.style.animation = '';
-                    if (status) {
+                    if (data.busy && source === 'initial-load' && retryCount < 3) {
+                        if (status) {
+                            status.textContent = STR.syncWaiting;
+                            status.classList.remove('text-danger');
+                        }
+                        window.setTimeout(function() {
+                            doSync('initial-load', retryCount + 1);
+                        }, 1500 * (retryCount + 1));
+                    } else if (status) {
                         status.textContent = data.busy ? STR.syncing : STR.reqFailed;
                         status.classList.remove('text-danger');
                     }
@@ -232,7 +241,13 @@
 </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     initTooltips(document.querySelector('#gdmsFwFlatpickrWrap'));
-    document.getElementById('gdmsFwModal').addEventListener('hide.bs.modal', function() { if (document.activeElement) document.activeElement.blur(); });
+    var firmwareModalRequestId = 0;
+    var activeFirmwareModalMac = '';
+    document.getElementById('gdmsFwModal').addEventListener('hide.bs.modal', function() {
+        firmwareModalRequestId++;
+        activeFirmwareModalMac = '';
+        if (document.activeElement) document.activeElement.blur();
+    });
 
     var fwData = {};
 
@@ -286,7 +301,9 @@
     document.addEventListener('click', function(e) {
         var badge = e.target.closest('.gdms-fw-badge');
         if (!badge) return;
-        var mac     = badge.getAttribute('data-mac');
+        var modalRequestId = ++firmwareModalRequestId;
+        var mac = badge.getAttribute('data-mac');
+        activeFirmwareModalMac = mac;
         var current = badge.getAttribute('data-current');
         var model   = badge.getAttribute('data-model') || '';
         var devName = badge.getAttribute('data-name') || '';
@@ -464,7 +481,11 @@
                     });
                 })
                 .then(function(resp) {
+                    var isCurrentModal = modalRequestId === firmwareModalRequestId
+                        && activeFirmwareModalMac === mac
+                        && document.body.contains(body);
                     if (resp.error) {
+                        if (!isCurrentModal) return;
                         var errDiv = document.createElement('div');
                         errDiv.className = 'alert alert-danger mt-2 mb-0 py-2 small';
                         errDiv.textContent = resp.error;
@@ -474,19 +495,22 @@
                         asapBtn.innerHTML  = '<i class="ti ti-bolt me-1"></i>' + STR.applyAsap;
                         schedBtn.innerHTML = '<i class="ti ti-calendar-check me-1"></i>' + STR.schedUpdate;
                     } else {
+                        // Badge state belongs to this MAC even if another firmware modal is now open.
+                        document.querySelectorAll('small.gdms-fw-badge[data-mac="' + mac + '"]')
+                            .forEach(function(el) { el.textContent = STR.upgrading; el.style.cursor = 'default'; el.classList.remove('gdms-fw-badge'); });
+                        document.querySelectorAll('span.gdms-fw-badge[data-mac="' + mac + '"]')
+                            .forEach(function(el) { el.style.display = 'none'; });
+                        if (!isCurrentModal) return;
                         var ok = document.createElement('div');
                         ok.className = 'alert alert-success mt-2 mb-0 py-2 small';
                         ok.innerHTML = '<i class="ti ti-check-circle me-1"></i>' + STR.schedOk;
                         body.appendChild(ok);
                         asapBtn.style.display = 'none'; schedBtn.style.display = 'none';
                         schedRow.style.display = 'none';
-                        document.querySelectorAll('small.gdms-fw-badge[data-mac="' + mac + '"]')
-                            .forEach(function(el) { el.textContent = STR.upgrading; el.style.cursor = 'default'; el.classList.remove('gdms-fw-badge'); });
-                        document.querySelectorAll('span.gdms-fw-badge[data-mac="' + mac + '"]')
-                            .forEach(function(el) { el.style.display = 'none'; });
                     }
                 })
                 .catch(function(err) {
+                    if (modalRequestId !== firmwareModalRequestId || activeFirmwareModalMac !== mac || !document.body.contains(body)) return;
                     var connErr = document.createElement('div');
                     connErr.className = 'alert alert-danger mt-2 mb-0 py-2 small';
                     connErr.textContent = err && err.message ? err.message : STR.reqFailed;
@@ -500,7 +524,18 @@
         asapBtn.onclick  = function() { doUpgrade(0); };
         schedBtn.onclick = function() {
             var sel = fpWrap._fp && fpWrap._fp.selectedDates[0];
-            if (!sel || sel.getTime() <= Date.now()) { doUpgrade(0); return; }
+            if (!sel) {
+                // An empty picker remains the documented ASAP path.
+                doUpgrade(0);
+                return;
+            }
+            if (sel.getTime() <= Date.now()) {
+                var expiredNotice = document.createElement('div');
+                expiredNotice.className = 'alert alert-warning mt-2 mb-0 py-2 small';
+                expiredNotice.textContent = STR.fwScheduleExpired;
+                body.appendChild(expiredNotice);
+                return;
+            }
             doUpgrade(sel.getTime());
         };
 
@@ -847,13 +882,22 @@
       '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' +
       STR.close + '</button></div></div></div>';
     document.body.appendChild(clientModal);
-    clientModal.addEventListener('hide.bs.modal', function() { if (document.activeElement) document.activeElement.blur(); });
+    var clientModalRequestId = 0;
+    var activeClientModalKey = '';
+    clientModal.addEventListener('hide.bs.modal', function() {
+        clientModalRequestId++;
+        activeClientModalKey = '';
+        if (document.activeElement) document.activeElement.blur();
+    });
 
     document.addEventListener('click', function(e) {
         var badge = e.target.closest('.gdms-clients-badge');
         if (!badge) return;
+        var requestId = ++clientModalRequestId;
         var networkId = badge.getAttribute('data-network-id');
         var apMac     = badge.getAttribute('data-mac') || '';
+        var requestKey = String(networkId || '') + '|' + apMac;
+        activeClientModalKey = requestKey;
         var devName   = badge.getAttribute('data-name') || apMac;
         document.getElementById('gdmsClientModalDevice').textContent = devName;
         var body = document.getElementById('gdmsClientModalBody');
@@ -866,6 +910,7 @@
         fetch(url, { credentials: 'same-origin' })
             .then(function(r) { var partial = r.headers.get('X-GDMS-Result-Complete') === '0'; return r.json().then(function(data){ return {data:data, partial:partial}; }); })
             .then(function(resp) {
+                if (requestId !== clientModalRequestId || activeClientModalKey !== requestKey) return;
                 var list = resp.data;
                 if (!Array.isArray(list) || !list.length) {
                     if (resp.partial) { body.innerHTML = '<p class="text-warning text-center py-3">' + STR.clientsPartialRetry + '</p>'; return; }
@@ -894,7 +939,10 @@
                 html += '</tbody></table></div>';
                 body.innerHTML = html;
             })
-            .catch(function() { body.innerHTML = '<p class="text-danger text-center py-3">' + STR.reqFailed + '</p>'; });
+            .catch(function() {
+                if (requestId !== clientModalRequestId || activeClientModalKey !== requestKey) return;
+                body.innerHTML = '<p class="text-danger text-center py-3">' + STR.reqFailed + '</p>';
+            });
     });
 
     // ── SIP Phone detail modal ───────────────────────────────────────────────
@@ -1152,7 +1200,11 @@
                 cache: 'no-store',
                 headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
             })
-                .then(function(r) { var partial = r.headers.get('X-GDMS-Result-Complete') === '0'; return r.json().then(function(data){ return {data:data, partial:partial}; }); })
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    var partial = r.headers.get('X-GDMS-Result-Complete') === '0';
+                    return r.json().then(function(data) { return {data:data, partial:partial}; });
+                })
                 .then(function(resp) {
                     var list = resp.data;
                     if (!Array.isArray(list) || !list.length) {
@@ -1269,11 +1321,11 @@ var sevColor = {'critical':'danger','warning':'warning','medium':'warning','info
                     trigger: 'axis',
                     formatter: function(params) {
                         if (!params || !params.length) return '';
-                        var s = '<b>' + params[0].axisValue + '</b><br/>';
+                        var s = '<b>' + esc(params[0].axisValue) + '</b><br/>';
                         params.forEach(function(p) {
                             if (p.value === null || p.value === undefined) return;
                             s += '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + p.color + ';margin-right:5px;"></span>'
-                               + p.seriesName + ': ' + p.value + '%<br/>';
+                               + esc(p.seriesName) + ': ' + esc(p.value) + '%<br/>';
                         });
                         return s;
                     }
@@ -1358,7 +1410,9 @@ var sevColor = {'critical':'danger','warning':'warning','medium':'warning','info
     (function () {
         var p = new URLSearchParams(location.search);
         var c = p.get('sort'), d = p.get('dir');
-        if (c && tbl.querySelector('th[data-col="' + c + '"]')) applySort(c, d !== 'desc');
+        var validSortColumn = c && Array.from(tbl.querySelectorAll('th.gdms-sortable'))
+            .some(function(th) { return th.dataset.col === c; });
+        if (validSortColumn) applySort(c, d !== 'desc');
         else refreshGroupSeparators(Array.from(tbody.querySelectorAll('tr[data-original-index]')));
     })();
 
