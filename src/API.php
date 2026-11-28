@@ -143,7 +143,7 @@ class API
     }
 
     /** Parse both delta-seconds and HTTP-date forms of a Retry-After header. */
-    private static function parseRetryAfter(string $rawHeaders): int
+    private static function parseRetryAfter(string $rawHeaders, ?int $now = null): int
     {
         if (!preg_match('/^Retry-After:\s*([^\r\n]+)/mi', $rawHeaders, $match)) {
             return 0;
@@ -153,7 +153,7 @@ class API
             return min(86400, (int) $value);
         }
         $timestamp = strtotime($value);
-        return $timestamp === false ? 0 : min(86400, max(0, $timestamp - time()));
+        return $timestamp === false ? 0 : min(86400, max(0, $timestamp - ($now ?? time())));
     }
 
     // -----------------------------------------------------------------------
@@ -181,6 +181,10 @@ class API
         // browser-triggered sync or external cron appear to hang for minutes.
         $attempts = $retrySafe ? 2 : 1;
         for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            if ($gdmsEndpoint && Utils::getProviderCooldownRemaining('gdms') > 0) {
+                Utils::debug('GDMS retry deferred by the shared rate-limit cooldown.');
+                return false;
+            }
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
@@ -245,7 +249,10 @@ class API
     {
         $decoded = json_decode($raw, true);
         $retCode = is_array($decoded) ? ($decoded['retCode'] ?? 'N/A') : 'N/A';
-        $retMsg = is_array($decoded) ? ($decoded['retMsg'] ?? ($decoded['msg'] ?? 'N/A')) : 'N/A';
+        $endpointPath = (string) (parse_url($endpoint, PHP_URL_PATH) ?? '');
+        $retMsg = str_contains($endpointPath, '/device/account/')
+            ? '[omitted for SIP account privacy]'
+            : (is_array($decoded) ? ($decoded['retMsg'] ?? ($decoded['msg'] ?? 'N/A')) : 'N/A');
         $cat = 'UNKNOWN';
         if ($httpCode === 401) {
             $cat = 'AUTHENTICATION';
@@ -569,6 +576,16 @@ class API
      * @param array<string, mixed> $config
      * @return array<string, mixed>|false
      */
+    /**
+     * Signed GDMS POST for a device-specific endpoint.
+     *
+     * The device account endpoints use the same v1.0.0 signing scheme as
+     * device/list: JSON body hash is included in the SHA-256 signature.
+     * A single controlled token refresh is attempted on transport/auth errors.
+     *
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>|false
+     */
     private static function gdmsPostDeviceAccountEndpoint(array &$config, string $endpoint, string $mac): array|false
     {
         $mac = trim($mac);
@@ -576,9 +593,8 @@ class API
             Utils::debug('GDMS SIP account request skipped — invalid/empty device MAC.');
             return false;
         }
-        $cooldown = Utils::getProviderCooldownRemaining('gdms');
-        if ($cooldown > 0) {
-            Utils::debug("GDMS {$endpoint} skipped — shared rate-limit cooldown ({$cooldown}s remaining).");
+        if (Utils::getProviderCooldownRemaining('gdms') > 0) {
+            Utils::debug("GDMS {$endpoint} skipped — shared rate-limit cooldown is active.");
             return false;
         }
 
@@ -597,7 +613,10 @@ class API
             return false;
         }
 
-        for ($attempt = 1; $attempt !== 3; $attempt++) {
+        $performRequest = static function () use (&$config, $endpoint, $mac, $body): array|false {
+            if (Utils::getProviderCooldownRemaining('gdms') > 0) {
+                return false;
+            }
             $timestamp = (int) (microtime(true) * 1000);
             $urlParams = ['access_token' => (string) $config['access_token']];
             $signature = self::gdmsBuildSignature($urlParams, $config, $timestamp, $body);
@@ -606,54 +625,60 @@ class API
                 'timestamp' => $timestamp,
                 'signature' => $signature,
             ]);
+            $response = self::curl($url, ['Content-Type: application/json'], $body, true);
 
-            $data = self::curl($url, ['Content-Type: application/json'], $body, true);
-            $retCode = is_array($data) && array_key_exists('retCode', $data) ? (int) $data['retCode'] : 0;
-            $retMsg = is_array($data) ? self::gdmsResponseMessage($data) : '';
-            $rateLimited = ($data === false && Utils::getProviderCooldownRemaining('gdms') > 0)
-                || ($data !== false && $retCode !== 0 && self::isGdmsRateLimitMessage($retMsg));
-            if ($rateLimited) {
-                if (Utils::getProviderCooldownRemaining('gdms') <= 0) {
-                    $cooldownSeconds = self::$lastRetryAfterSeconds > 0
-                        ? self::$lastRetryAfterSeconds
-                        : self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS;
-                    Utils::setProviderCooldown('gdms', $cooldownSeconds);
-                }
-                Utils::warning("GDMS {$endpoint} rate-limited — device_mac={$mac}; shared cooldown activated, no token refresh attempted.");
-                return false;
+            if ($response === false && self::$lastHttpStatus === 429
+                && Utils::getProviderCooldownRemaining('gdms') <= 0) {
+                $cooldownSeconds = self::$lastRetryAfterSeconds > 0
+                    ? self::$lastRetryAfterSeconds
+                    : self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS;
+                Utils::setProviderCooldown('gdms', $cooldownSeconds);
             }
-
-            $authRejected = ($data === false && self::$lastHttpStatus === 401)
-                || ($data !== false && $retCode !== 0 && preg_match('/token|signature|auth|expir/i', $retMsg) === 1);
-
-            if ($authRejected && $attempt === 1) {
-                Utils::debug("GDMS {$endpoint} — request failed/auth rejected; refreshing token once.");
-                $renewed = self::gdmsGetToken($config, true);
-                if ($renewed !== false) {
-                    $config['access_token'] = $renewed['access_token'];
-                    continue;
+            if (is_array($response)) {
+                $retCode = array_key_exists('retCode', $response) ? (int) $response['retCode'] : 0;
+                $retMsg = self::gdmsResponseMessage($response);
+                if ($retCode !== 0 && self::isGdmsRateLimitMessage($retMsg)) {
+                    Utils::setProviderCooldown(
+                        'gdms',
+                        self::$lastRetryAfterSeconds > 0 ? self::$lastRetryAfterSeconds : self::GDMS_RATE_LIMIT_COOLDOWN_SECONDS,
+                    );
+                    Utils::warning("GDMS {$endpoint} rate-limited — device_mac={$mac}; no token refresh attempted.");
+                    return false;
                 }
             }
+            return $response;
+        };
 
-            if ($data === false) {
-                Utils::log("GDMS {$endpoint} transport failure — device_mac={$mac}.");
-                return false;
-            }
-            if ($retCode !== 0) {
-                Utils::log(sprintf(
-                    'GDMS %s API error — device_mac=%s retCode=%d (response message omitted)',
-                    $endpoint,
-                    $mac,
-                    $retCode,
-                ));
-                return false;
-            }
+        $data = $performRequest();
+        $retCode = is_array($data) && array_key_exists('retCode', $data) ? (int) $data['retCode'] : 0;
+        $retMsg = is_array($data) ? self::gdmsResponseMessage($data) : '';
+        $authRejected = ($data === false && self::$lastHttpStatus === 401)
+            || ($data !== false && $retCode !== 0 && preg_match('/token|signature|auth|expir/i', $retMsg) === 1);
 
-            return $data;
+        if ($authRejected && Utils::getProviderCooldownRemaining('gdms') <= 0) {
+            Utils::debug("GDMS {$endpoint} — request rejected; refreshing token once.");
+            $renewed = self::gdmsGetToken($config, true);
+            if ($renewed !== false) {
+                $config['access_token'] = $renewed['access_token'];
+                $data = $performRequest();
+                $retCode = is_array($data) && array_key_exists('retCode', $data) ? (int) $data['retCode'] : 0;
+            }
         }
 
-        Utils::log("GDMS {$endpoint} failed after token refresh — device_mac={$mac}.");
-        return false;
+        if ($data === false) {
+            Utils::log("GDMS {$endpoint} transport/auth failure — device_mac={$mac}.");
+            return false;
+        }
+        if ($retCode !== 0) {
+            Utils::log(sprintf(
+                'GDMS %s API error — device_mac=%s retCode=%d (response message omitted)',
+                $endpoint,
+                $mac,
+                $retCode,
+            ));
+            return false;
+        }
+        return $data;
     }
 
     /**
@@ -747,10 +772,10 @@ class API
      */
     public static function gdmsSummarizeSipSnapshot(array $snapshot): array
     {
-        $extract = static function (array $root): array {
+        $extract = static function (array $root, bool $isStatus = false): array {
             $records = [];
             $walk = static function (array $node, string $path = '') use (&$walk, &$records): void {
-                $r = ['account_id' => '', 'index' => '', 'extension' => '', 'server' => '', 'server_rank' => 0, 'status' => ''];
+                $r = ['account_id' => '', 'index' => '', 'explicit_index' => '', 'extension' => '', 'server' => '', 'server_rank' => 0, 'status' => ''];
                 foreach ($node as $key => $value) {
                     if (!is_scalar($value)) {
                         continue;
@@ -767,6 +792,7 @@ class API
                     if ($r['index'] === '' && in_array($flat, ['accountindex', 'accountno', 'lineindex', 'index'], true)
                         && strlen($text) <= 20 && preg_match('/^[a-zA-Z0-9._-]+$/', $text) === 1) {
                         $r['index'] = $text;
+                        $r['explicit_index'] = '1';
                     }
                     $rank = 0;
                     if (in_array($flat, ['serveraddress','serveraddr','serverip','serverhost','sipserveraddress','sipserveraddr','sipserverip','sipserverhost','proxyaddress','registraraddress','outboundproxyaddress'], true)) {
@@ -791,7 +817,8 @@ class API
                 if ($r['index'] === '' && preg_match('/(?:^|\.)(\d+)$/', $path, $m) === 1) {
                     $r['index'] = (string) ((int) $m[1] + 1);
                 }
-                if ($r['account_id'] !== '' || $r['extension'] !== '' || $r['server'] !== '') {
+                if ($r['account_id'] !== '' || $r['extension'] !== '' || $r['server'] !== ''
+                    || ($isStatus && $r['explicit_index'] === '1')) {
                     $records[] = $r;
                 }
                 foreach ($node as $key => $value) {
@@ -804,26 +831,53 @@ class API
             return $records;
         };
         $info = is_array($snapshot['info'] ?? null) ? $extract($snapshot['info']) : [];
-        $status = is_array($snapshot['status'] ?? null) ? $extract($snapshot['status']) : [];
+        $status = is_array($snapshot['status'] ?? null) ? $extract($snapshot['status'], true) : [];
         $accounts = [];
         $merge = static function (array $record, bool $isStatus) use (&$accounts): void {
-            $found = null;
+            $exactMatch = null;
+            $weakMatch = null;
             foreach ($accounts as $i => $existing) {
                 $sameId = $record['account_id'] !== '' && $existing['account_id'] !== '' && $record['account_id'] === $existing['account_id'];
-                $sameExt = $record['extension'] !== '' && $existing['extension'] !== '' && $record['extension'] === $existing['extension'];
-                $sameServer = $record['server'] === '' || $existing['server'] === '' || strcasecmp($record['server'], $existing['server']) === 0;
-                $sameIndex = $record['index'] !== '' && $existing['index'] !== '' && $record['index'] === $existing['index'];
                 $idConflict = $record['account_id'] !== '' && $existing['account_id'] !== '' && !$sameId;
-                if (!$idConflict && ($sameId || ($sameExt && $sameServer) || ($sameIndex && ($sameExt || $record['extension'] === '' || $existing['extension'] === '')))) {
-                    $found = $i;
+                if ($idConflict) {
+                    continue;
+                }
+                if ($sameId) {
+                    $exactMatch = $i;
                     break;
                 }
+
+                $bothIndexed = $record['explicit_index'] !== '' && $existing['explicit_index'] !== '';
+                if ($bothIndexed && $record['index'] !== $existing['index']) {
+                    continue;
+                }
+
+                $sameIndex = $record['index'] !== '' && $existing['index'] !== '' && $record['index'] === $existing['index'];
+                $sameExt = $record['extension'] !== '' && $existing['extension'] !== '' && $record['extension'] === $existing['extension'];
+                $sameServer = $record['server'] === '' || $existing['server'] === '' || strcasecmp($record['server'], $existing['server']) === 0;
+                if ($sameIndex && ($sameExt || $record['extension'] === '' || $existing['extension'] === '') && $sameServer) {
+                    $exactMatch = $i;
+                    break;
+                }
+                if ($weakMatch === null && !$bothIndexed && $sameExt && $sameServer) {
+                    $weakMatch = $i;
+                }
             }
+
+            $found = $exactMatch ?? $weakMatch;
             if ($found === null) {
-                $accounts[] = ['account_id' => $record['account_id'], 'index' => $record['index'] !== '' ? $record['index'] : $record['account_id'], 'extension' => $record['extension'], 'server' => $record['server'], 'status' => $record['status']];
+                $accounts[] = [
+                    'account_id' => $record['account_id'],
+                    'index' => $record['index'] !== '' ? $record['index'] : $record['account_id'],
+                    'explicit_index' => $record['explicit_index'],
+                    'extension' => $record['extension'],
+                    'server' => $record['server'],
+                    'status' => $record['status'],
+                ];
                 return;
             }
-            foreach (['account_id','index','extension','server'] as $field) {
+
+            foreach (['account_id', 'index', 'explicit_index', 'extension', 'server'] as $field) {
                 if ($accounts[$found][$field] === '' && $record[$field] !== '') {
                     $accounts[$found][$field] = $record[$field];
                 }
@@ -843,14 +897,21 @@ class API
 
         $unique = [];
         foreach ($accounts as $account) {
-            $id = $account['account_id'] !== '' ? 'id:' . $account['account_id'] : 'ext:' . $account['extension'] . '|server:' . strtolower($account['server']);
-            if ($id === 'ext:|server:') {
-                $id .= '|index:' . $account['index'];
+            if ($account['account_id'] !== '') {
+                $id = 'id:' . $account['account_id'];
+            } elseif ($account['explicit_index'] !== '' && $account['index'] !== '') {
+                $id = 'index:' . $account['index'];
+            } else {
+                $id = 'ext:' . $account['extension'] . '|server:' . strtolower($account['server']);
+                if ($id === 'ext:|server:') {
+                    $id .= '|index:' . $account['index'];
+                }
             }
+
             if (!isset($unique[$id])) {
                 $unique[$id] = $account;
             } else {
-                foreach (['index','extension','server','status'] as $field) {
+                foreach (['index', 'explicit_index', 'extension', 'server', 'status'] as $field) {
                     if ($unique[$id][$field] === '' && $account[$field] !== '') {
                         $unique[$id][$field] = $account[$field];
                     }
@@ -859,7 +920,7 @@ class API
         }
         $accounts = array_values($unique);
         foreach ($accounts as &$account) {
-            unset($account['account_id']);
+            unset($account['account_id'], $account['explicit_index']);
         }
         unset($account);
         usort($accounts, static function (array $a, array $b): int {
