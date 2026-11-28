@@ -163,7 +163,7 @@ namespace {
     $ambiguousPublic = $rows;
     $ambiguousPublic[] = [
         'mac' => '02:00:00:00:01:03', 'raw_model' => 'UCM6300A', 'name' => 'Third PBX',
-        'private_ip' => '198.51.100.88', 'ip' => '203.0.113.101', 'network_name' => 'Example Organization',
+        'private_ip' => '192.168.20.88', 'ip' => '203.0.113.101', 'network_name' => 'Example Organization',
     ];
     $ambiguousResolved = PbxAssociationResolver::resolve($ambiguousPublic);
     $expect(($ambiguousResolved['02:00:00:00:02:22'] ?? null) === null, 'Private-IP subnet with multiple PBXs must remain unassigned when not unique.');
